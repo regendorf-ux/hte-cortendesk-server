@@ -1,5 +1,6 @@
 use clap::App;
 mod common;
+mod hte_relay_gate; // HTE
 mod relay_server;
 use flexi_logger::*;
 use hbb_common::{config::RELAY_PORT, ResultType};

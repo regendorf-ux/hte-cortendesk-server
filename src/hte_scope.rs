@@ -133,6 +133,24 @@ pub fn check(
     Err(DENY_SCOPE)
 }
 
+/// HTE relay gate: is this `RelayResponse` really the target answering? It
+/// must name a registered device that may receive sessions, and come from the
+/// address that device registered from.
+pub async fn target_answers(pm: &crate::peer::PeerMap, id: &str, from: IpAddr) -> bool {
+    fn norm(ip: IpAddr) -> IpAddr {
+        match ip {
+            IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
+            v4 => v4,
+        }
+    }
+    if id.is_empty() || crate::policy::check_target(id).is_err() {
+        return false;
+    }
+    let Some(peer) = pm.get_in_memory(id).await else { return false };
+    let registered = peer.read().await.socket_addr.ip();
+    norm(registered) == norm(from)
+}
+
 #[derive(Debug, Serialize, Clone)]
 struct Refusal {
     user_id: String,

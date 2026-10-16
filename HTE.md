@@ -5,6 +5,23 @@ This fork is HTE's copy of [cortendesk-server](https://github.com/marcpope/corte
 file is the statement of modifications the AGPL asks for (section 5(a)), kept apart from upstream's
 `CHANGES.md` so merges stay clean.
 
+## 1.1.1-hte.2 (2026-10-16) on upstream 1.1.1
+
+**The relay pairs only sessions the ID server let through** (`src/hte_relay_gate.rs`, new). Upstream
+hbbr pairs any two connections presenting the same uuid and the server key, and the key is public.
+With `HTE_RELAY_GATE_PORT` set on both servers (same host), hbbs sends each uuid it hands out for an
+admitted session to hbbr as a loopback datagram (`hte1 <uuid>`), and hbbr pairs a uuid only when
+hbbs named it in the last two minutes (the second side waits up to 3 s for that word). hbbs names a
+uuid on a `RequestRelay` it admitted, and on a `RelayResponse` from a registered, approved target
+coming from the address that target registered from (`hte_scope::target_answers`). Off without the
+variable. Hooks marked `// HTE`: `src/relay_server.rs` (listener start, the check at pairing),
+`src/rendezvous_server.rs` (two `admit` calls), `src/hbbr.rs` and `src/lib.rs` (`mod`). Test:
+`tests/hte_relay_gate.rs` (unknown, refused and admitted uuids against real hbbs and hbbr). The
+address check assumes clients reach the server over one address family (remote.example.com has no
+AAAA record).
+
+`examples/hte_probe.rs`: asks a live hbbs whether a session may start, as a client would.
+
 ## 1.1.1-hte.1 (2026-10-16) on upstream 1.1.1
 
 **Per-person reach, enforced where sessions start** (`src/hte_scope.rs`, new):

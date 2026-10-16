@@ -569,6 +569,7 @@ impl RendezvousServer {
                         return true;
                     }
                     if let Some(peer) = self.pm.get_in_memory(&rf.id).await {
+                        crate::hte_relay_gate::admit(&rf.uuid); // HTE
                         let mut msg_out = RendezvousMessage::new();
                         rf.socket_addr = AddrMangle::encode(addr).into();
                         msg_out.set_request_relay(rf);
@@ -585,6 +586,7 @@ impl RendezvousServer {
                         let pk = self.get_pk(&rr.version, id.to_owned()).await;
                         rr.set_pk(pk);
                     }
+                    if crate::hte_scope::target_answers(&self.pm, &rr.id().to_owned(), peer_ip).await { crate::hte_relay_gate::admit(&rr.uuid); } // HTE
                     let mut msg_out = RendezvousMessage::new();
                     if !rr.relay_server.is_empty() {
                         if self.is_lan(addr_b) {

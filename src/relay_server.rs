@@ -52,6 +52,7 @@ pub async fn start_with_bind(
     key: &str,
 ) -> ResultType<()> {
     let key = get_server_sk(key);
+    crate::hte_relay_gate::start_listener(); // HTE
     if let Ok(mut file) = std::fs::File::open(BLACKLIST_FILE) {
         let mut contents = String::new();
         if file.read_to_string(&mut contents).is_ok() {
@@ -470,6 +471,7 @@ async fn make_pair_(stream: impl StreamTrait, addr: SocketAddr, key: &str, limit
                 if !rf.uuid.is_empty() {
                     let mut peer = PEERS.lock().await.remove(&rf.uuid);
                     if let Some(peer) = peer.as_mut() {
+                        if !crate::hte_relay_gate::admitted(&rf.uuid).await { log::warn!("Relay gate: refused {} from {}: not admitted by hbbs", rf.uuid, addr); return; } // HTE
                         log::info!("Relayrequest {} from {} got paired", rf.uuid, addr);
                         let id = format!("{}:{}", addr.ip(), addr.port());
                         USAGE.write().await.insert(id.clone(), Default::default());
