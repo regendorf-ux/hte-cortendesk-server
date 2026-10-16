@@ -181,7 +181,11 @@ fn note_refusal(uid: &str, name: &str, from: &str, to: &str, ip: IpAddr, reason:
         user_name: name.to_owned(),
         from: from.to_owned(),
         to: to.to_owned(),
-        ip: ip.to_string(),
+        ip: match ip {
+            IpAddr::V6(v6) => v6.to_ipv4_mapped().map_or(ip, IpAddr::V4),
+            v4 => v4,
+        }
+        .to_string(),
         reason: reason.to_owned(),
         at: now_secs(),
     });
