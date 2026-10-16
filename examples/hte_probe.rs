@@ -2,7 +2,7 @@
 //! client does, and print the answer. For proving per-person reach against
 //! the real server without touching anyone's installed client.
 //!
-//!   cargo run --example hte_probe -- <host:port> <key> <target id> [token]
+//!   cargo run --example hte_probe -- <host:port> <key> <target id> [token] [relay uuid]
 //!
 //! `token` is a console access token (what a signed-in client sends) or a
 //! console web-client ticket. Prints REFUSED <reason>, ADMITTED (hbbs
@@ -31,13 +31,24 @@ async fn main() {
     let stream = TcpStream::connect(&args[1]).await.expect("connect");
     let mut conn = Framed::new(stream, BytesCodec::new());
     let mut msg = RendezvousMessage::new();
-    msg.set_punch_hole_request(PunchHoleRequest {
-        id: args[3].clone(),
-        token,
-        licence_key: args[2].clone(),
-        version: "1.5.0".to_owned(),
-        ..Default::default()
-    });
+    // A fifth argument asks for a relay with that uuid instead of a punch hole.
+    if let Some(uuid) = args.get(5) {
+        msg.set_request_relay(RequestRelay {
+            id: args[3].clone(),
+            uuid: uuid.clone(),
+            token,
+            licence_key: args[2].clone(),
+            ..Default::default()
+        });
+    } else {
+        msg.set_punch_hole_request(PunchHoleRequest {
+            id: args[3].clone(),
+            token,
+            licence_key: args[2].clone(),
+            version: "1.5.0".to_owned(),
+            ..Default::default()
+        });
+    }
     conn.send(Bytes::from(msg.write_to_bytes().unwrap())).await.expect("send");
     let deadline = Duration::from_secs(6);
     loop {
