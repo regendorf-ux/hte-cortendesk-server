@@ -3,5 +3,6 @@ pub use rendezvous_server::*;
 pub mod common;
 mod database;
 mod peer;
+mod hte_scope; // HTE
 mod policy;
 mod version;
