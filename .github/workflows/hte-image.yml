@@ -1,0 +1,89 @@
+# HTE (2026-10-16): build the HTE image of CortenDesk Server for the server.
+# Upstream's release.yml stays as it is (it only runs on a GitHub release,
+# which this fork never publishes). amd64 only: the server is amd64.
+name: hte-image
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*-hte.*"]
+
+env:
+  CARGO_TERM_COLOR: always
+  IMAGE: ghcr.io/regendorf-ux/hte-cortendesk-server
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+
+  build:
+    name: Build amd64
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
+      - name: Build
+        run: cross build --release --all-features --target x86_64-unknown-linux-musl
+      - name: Collect binaries
+        run: |
+          mkdir -p bin/amd64
+          cp target/x86_64-unknown-linux-musl/release/{hbbs,hbbr,cortendesk-utils} bin/amd64/
+          chmod +x bin/amd64/*
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-amd64
+          path: bin/amd64
+          if-no-files-found: error
+
+  image:
+    name: Image
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bin-amd64
+          path: bin/amd64
+      - run: chmod +x bin/amd64/* && ls -l bin/amd64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Work out the tag
+        id: tag
+        run: |
+          ref="${GITHUB_REF_NAME}"
+          case "$ref" in v*-hte.*) version="${ref#v}" ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          echo "tags=${IMAGE}:${version}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tag.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=HTE CortenDesk Server
+            org.opencontainers.image.description=CortenDesk Server with HTE's per-person reach enforcement. AGPL-3.0.
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server

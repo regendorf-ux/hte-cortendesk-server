@@ -16,6 +16,7 @@
 //! clients), or by its public IP matched against peers registered from that IP
 //! in the last 30 seconds.
 
+use crate::hte_scope as hte; // HTE
 use hbb_common::{log, tokio};
 use serde_derive::{Deserialize, Serialize};
 use sodiumoxide::crypto::{auth::hmacsha256, hash::sha256};
@@ -64,6 +65,9 @@ pub struct Snapshot {
     /// look like every other one behind it.
     #[serde(default)]
     pub ip_match: bool,
+    /// HTE: per-person reach (`hte_scope`). Absent from an unpatched console.
+    #[serde(default)]
+    pub scope: crate::hte_scope::Scope,
 }
 
 impl Snapshot {
@@ -227,11 +231,12 @@ pub fn check_initiator(token: &str, ip: IpAddr, target: &str) -> Result<(), &'st
     };
     if !token.is_empty() {
         if ticket_valid(token, &secret) {
-            return Ok(());
+            return hte::check(&snap.scope, &hte::Person::Web(token), target, ip, "web"); // HTE
         }
-        if let Some(id) = snap.tokens.get(&hex(&sha256::hash(token.as_bytes()).0)) {
+        let hash = hex(&sha256::hash(token.as_bytes()).0);
+        if let Some(id) = snap.tokens.get(&hash) {
             return if snap.may_initiate(id) {
-                Ok(())
+                hte::check(&snap.scope, &hte::Person::Token(&hash), target, ip, id) // HTE
             } else {
                 Err(snap.denial_for(id))
             };
@@ -243,12 +248,12 @@ pub fn check_initiator(token: &str, ip: IpAddr, target: &str) -> Result<(), &'st
         candidates(ip, target)
     };
     if ids.iter().any(|id| snap.may_initiate(id)) {
-        return Ok(());
+        return hte::check(&snap.scope, &hte::Person::Nobody, target, ip, ids.first().map_or("", String::as_str)); // HTE
     }
     match ids.first() {
         Some(id) => Err(snap.denial_for(id)),
         None if snap.strict() => Err(DENY_UNAPPROVED),
-        None => Ok(()),
+        None => hte::check(&snap.scope, &hte::Person::Nobody, target, ip, ""), // HTE
     }
 }
 
@@ -289,12 +294,13 @@ pub fn describe() -> String {
         None if state.secret.is_empty() => "console link off\n".to_owned(),
         None => "no policy yet: every device allowed\n".to_owned(),
         Some(s) => format!(
-            "mode={} allow={} incoming_only={} tokens={} ip_match={} last_pull={}\n",
+            "mode={} allow={} incoming_only={} tokens={} ip_match={}{} last_pull={}\n",
             if s.strict() { "approved" } else { "open" },
             s.allow.len(),
             s.incoming_only.len(),
             s.tokens.len(),
             s.ip_match,
+            s.scope.describe(), // HTE
             state
                 .pulled_at
                 .map(|t| format!("{}s ago", t.elapsed().as_secs()))
@@ -305,16 +311,17 @@ pub fn describe() -> String {
 
 fn install(snap: Snapshot, etag: String, pulled: bool) {
     let summary = format!(
-        "mode={} allow={} incoming_only={}",
+        "mode={} allow={} incoming_only={}{}",
         if snap.strict() { "approved" } else { "open" },
         snap.allow.len(),
-        snap.incoming_only.len()
+        snap.incoming_only.len(),
+        snap.scope.describe() // HTE
     );
     if let Ok(mut state) = STATE.write() {
         let changed = state
             .snapshot
             .as_ref()
-            .map_or(true, |old| old.mode != snap.mode);
+            .map_or(true, |old| old.mode != snap.mode || old.scope.enforce != snap.scope.enforce); // HTE
         state.snapshot = Some(Arc::new(snap));
         state.etag = etag;
         if pulled {
@@ -408,6 +415,7 @@ async fn run(url: String, secret: String, every: Duration) {
             }
         }
         report(&client, &url, &secret).await;
+        hte::report(&client, &url, &secret).await; // HTE
         prune_seen();
         tokio::time::sleep(every).await;
     }
