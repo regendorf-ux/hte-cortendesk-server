@@ -373,11 +373,14 @@ async fn a_person_reaches_only_their_scope() {
     let mut conn = punch(PORT_SCOPE, &key, &front.id, "").await;
     assert_refused(&mut conn, DENY_UNAPPROVED).await;
 
-    // María's two attempts on the server were one burst: one report, naming her.
+    // María's two attempts on the server from her device were one burst: one
+    // report, naming her; her web-client attempt is a second origin.
     sleep(Duration::from_millis(2500)).await;
     let reports = console.lock().unwrap().refusals.clone();
-    let mine: Vec<_> = reports.iter().filter(|r| r["to"] == "sc-server" && r["user_id"] == "7").collect();
-    assert_eq!(mine.len(), 1, "one refusal per person and target per minute, got {reports:?}");
+    let mine: Vec<_> = reports.iter().filter(|r| r["to"] == "sc-server" && r["from"] == "sc-maria").collect();
+    assert_eq!(mine.len(), 1, "one refusal per person, origin and target per minute, got {reports:?}");
+    assert_eq!(reports.iter().filter(|r| r["to"] == "sc-server" && r["from"] == "web").count(), 1);
+    assert_eq!(mine[0]["user_id"], "7");
     assert_eq!(mine[0]["user_name"], "mperez");
     assert_eq!(mine[0]["from"], "sc-maria");
     assert_eq!(mine[0]["reason"], "outside scope");
