@@ -8,6 +8,20 @@ file is the statement of modifications the AGPL asks for (section 5(a)), kept ap
 
 **What this repository may hold (Osvaldo, 2026-10-16):** HTE's code and placeholders, nothing else. HTE's server addresses, keys, e-mail domain, device IDs and host names live in `/opt/cortendesk/.env` on the VPS, the Mac's gitignored files, the private hte-apps repository and GitHub secrets. The history was rewritten on 2026-10-16 to take out what had been committed.
 
+## hte-console 0.0.1 (2026-10-24), a new crate beside hbbs
+
+**`hte-console/`** is new HTE code, not a change to upstream: the first step of replacing the PHP console with Rust
+(phase 0, a shadow proxy). A reverse proxy (axum) that forwards every request to the PHP console, returns its answer
+unchanged and records sanitised request/response fixtures (`SANITISER.md`: ids, uuids, tokens, hosts, IPs, e-mail
+addresses and user names become stable placeholders before anything is written), plus a replay runner
+(`replay/replay.sh`, a throwaway PHP container with a database of placeholders). It reads nothing from `/data` and
+answers nothing itself. Its own image (`ghcr.io/regendorf-ux/hte-console`) is built by
+`.github/workflows/hte-console.yml` on a tag `hte-console-v<version>`.
+
+Touches upstream files in one place: `Cargo.toml` lists `hte-console` as a workspace member (hbbs and hbbr do not
+depend on it and build as before; `Cargo.lock` gains the new crate's dependencies). `hte-image.yml` is unchanged
+and its `cargo test --workspace` now also runs this crate's tests.
+
 ## 1.1.1-hte.2 (2026-10-16) on upstream 1.1.1
 
 **The relay pairs only sessions the ID server let through** (`src/hte_relay_gate.rs`, new). Upstream
