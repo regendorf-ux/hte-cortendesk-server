@@ -22,7 +22,7 @@ fn find_device(c: &Connection, id: &[u8]) -> Result<Option<Row>, Fault> {
 
 /// `SyncController::uuidMatches($stored, $sent)`: equal as sent, or after base64 in either direction.
 pub fn uuid_matches(stored: &[u8], sent: &[u8]) -> bool {
-    if stored.is_empty() || sent.is_empty() || stored == sent {
+    if stored.is_empty() || sent.is_empty() || php::hash_equals(stored, sent) {
         return true;
     }
     let rtrim0 = |v: Vec<u8>| {
@@ -30,11 +30,11 @@ pub fn uuid_matches(stored: &[u8], sent: &[u8]) -> bool {
         v[..end].to_vec()
     };
     if let Some(d) = php::base64_decode_strict(sent) {
-        if stored == rtrim0(d).as_slice() {
+        if php::hash_equals(stored, &rtrim0(d)) {
             return true;
         }
     }
-    php::base64_decode_strict(stored).map_or(false, |d| rtrim0(d).as_slice() == sent)
+    php::base64_decode_strict(stored).map_or(false, |d| php::hash_equals(&rtrim0(d), sent))
 }
 
 /// `$device->uuid` handed to `uuidMatches(string ...)`: a null would be a TypeError.

@@ -785,7 +785,8 @@ pub fn enc_str(s: &[u8], out: &mut String) -> Option<()> {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            c if (c as u32) < 0x20 || (c as u32) > 0x7e => {
+            // below 0x20 and beyond ASCII; DEL (0x7f) stays as it is in PHP
+            c if (c as u32) < 0x20 || (c as u32) > 0x7f => {
                 let mut buf = [0u16; 2];
                 for u in c.encode_utf16(&mut buf) {
                     out.push_str(&format!("\\u{:04x}", u));
@@ -805,6 +806,18 @@ pub fn assoc<I: IntoIterator<Item = (String, Val)>>(pairs: I) -> Val {
         a.set(Key::from_bytes(k.as_bytes()), v);
     }
     Val::Arr(a)
+}
+
+// ------------------------------------------------------------------------------------------- hash_equals ---
+
+/// `hash_equals($known, $user)`: false at once on a length difference, else a compare whose time does not depend
+/// on where the bytes differ.
+pub fn hash_equals(known: &[u8], user: &[u8]) -> bool {
+    if known.len() != user.len() {
+        return false;
+    }
+    let diff = known.iter().zip(user).fold(0u8, |acc, (a, b)| acc | (a ^ b));
+    std::hint::black_box(diff) == 0
 }
 
 // ------------------------------------------------------------------------------------------------ base64 ---
@@ -1085,6 +1098,15 @@ mod tests {
     }
 
     #[test]
+    fn hash_equals_as_php() {
+        assert!(hash_equals(b"", b""));
+        assert!(hash_equals(b"abc", b"abc"));
+        assert!(!hash_equals(b"abc", b"abd"));
+        assert!(!hash_equals(b"abc", b"abcd"));
+        assert!(!hash_equals(b"abc", b""));
+    }
+
+    #[test]
     fn base64_strict() {
         assert_eq!(base64_decode_strict(b"YWJj"), Some(b"abc".to_vec()));
         assert_eq!(base64_decode_strict(b"YQ"), Some(b"a".to_vec()));
@@ -1103,6 +1125,7 @@ mod tests {
         assert_eq!(json_encode(&Val::Arr(Arr::new())).unwrap(), "[]");
         assert_eq!(json_encode(&Val::str("😀")).unwrap(), r#""\ud83d\ude00""#);
         assert_eq!(json_encode(&Val::Str(vec![0xff])), None);
+        assert_eq!(json_encode(&Val::str("a\u{7f}b\u{80}")).unwrap(), "\"a\u{7f}b\\u0080\"");
     }
 
     #[test]
