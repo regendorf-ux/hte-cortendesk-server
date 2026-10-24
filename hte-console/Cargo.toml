@@ -23,6 +23,15 @@ bytes = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rand = "0.8"
+# Phase 1 (device endpoints). Versions chosen to reuse what the workspace lockfile already holds:
+# rusqlite 0.27 links the same libsqlite3-sys 0.24 as hbbs's sqlx (two copies of `links = "sqlite3"` cannot coexist);
+# sodiumoxide is hbbs's libsodium binding (crypto_box_seal and ed25519 -> curve25519 exactly as PHP's sodium_*).
+rusqlite = { version = "0.27", features = ["bundled"] }
+sodiumoxide = "0.2.7"
+aes = "0.8"
+cbc = { version = "0.1", features = ["alloc"] }
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
