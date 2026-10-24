@@ -11,7 +11,11 @@
 //!   the URL is fetched from the fake identity provider like a browser would, and the page its redirect points to is
 //!   requested from the console under test (the fixture's answer is that page); `{"again": "<var>"}` requests a
 //!   saved callback once more;
-//! - an expected body `{"kind": "html", "contains": [...]}`: the page must contain each text.
+//! - an expected body `{"kind": "html", "contains": [...]}`: the page must contain each text;
+//! - phase 3: `"capture_header": {"name": "<response header>"}` (an ETag), sent back as `If-None-Match: {{name}}`;
+//! - phase 3: an expected body `{"kind": "sha256", "prefix": "<16 hex>"}`: the exact body's digest starts so (for an
+//!   answer the leftover scan cannot hold verbatim, such as Laravel's `addrs.0.id` messages, which read as host names;
+//!   the generator script keeps the text).
 
 use crate::fixture::{body_value, list, query_string};
 use crate::sanitise::Sanitiser;
@@ -258,7 +262,7 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
         let url = format!("{}{}{}{}", base.trim_end_matches('/'), path, if q.is_empty() { "" } else { "?" }, q);
         let mut rq = client.request(method.parse().map_err(|_| format!("{name}: bad method"))?, url);
         let h = &fx["request"]["headers"];
-        for k in ["accept", "user-agent", "authorization", "x-requested-with", "x-forwarded-for"] {
+        for k in ["accept", "user-agent", "authorization", "x-requested-with", "x-forwarded-for", "if-none-match"] {
             if let Some(v) = h[k].as_str() {
                 rq = rq.header(k, fill(v, &mut vars, now));
             }
@@ -280,6 +284,16 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
         };
         let status = resp.status().as_u16();
         let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+        if let Some(caps) = fx["capture_header"].as_object() {
+            for (var, h) in caps {
+                match resp.headers().get(h.as_str().unwrap_or("")).and_then(|v| v.to_str().ok()) {
+                    Some(v) => {
+                        vars.insert(var.clone(), v.to_string());
+                    }
+                    None => report.differences.push(format!("{name}: no {h} header to capture for {{{{{var}}}}}")),
+                }
+            }
+        }
         let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
         let marked = match serde_json::from_slice::<Value>(&bytes) {
             Ok(mut v) if ct.contains("json") => {
@@ -297,7 +311,14 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
         if !want_ct.is_empty() && want_ct.split(';').next() != ct.split(';').next() {
             report.differences.push(format!("{name}: content-type {ct:?} expected {want_ct:?}"));
         }
-        if want["body"]["kind"] == "html" {
+        if want["body"]["kind"] == "sha256" {
+            use sha2::Digest;
+            let got = hex::encode(sha2::Sha256::digest(&bytes));
+            let prefix = want["body"]["prefix"].as_str().unwrap_or("-");
+            if !got.starts_with(prefix) {
+                report.differences.push(format!("{name}: body differs (sha256 {} expected {prefix}): {}", &got[..16], String::from_utf8_lossy(&bytes)));
+            }
+        } else if want["body"]["kind"] == "html" {
             let text = String::from_utf8_lossy(&bytes);
             for c in want["body"]["contains"].as_array().into_iter().flatten().filter_map(Value::as_str) {
                 if !text.contains(c) {

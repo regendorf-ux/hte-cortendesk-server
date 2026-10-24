@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "seq": 6,
+  "synthetic": true,
+  "source": "Symfony compares ETags weakly: W/ on the request's tag still matches",
+  "method": "GET",
+  "path": "/api/server/policy",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de",
+      "if-none-match": "W/{{e1}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 304,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

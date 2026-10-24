@@ -1,0 +1,12 @@
+-- Phase 3: the tables the server link and the sweeps touch beyond tests/schema.sql, as PHP's migrations create them
+-- on SQLite (cortendesk v1.15.0-hte.1). `if not exists`: another phase may add the same tables to schema.sql.
+create table if not exists "device_group_user" ("user_id" integer not null, "device_group_id" integer not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("device_group_id") references "device_groups"("id") on delete cascade, primary key ("user_id", "device_group_id"));
+create table if not exists "device_group_user_group" ("device_group_id" integer not null, "user_group_id" integer not null, foreign key("device_group_id") references "device_groups"("id") on delete cascade, foreign key("user_group_id") references "user_groups"("id") on delete cascade, primary key ("device_group_id", "user_group_id"));
+create table if not exists "group_accesses" ("id" integer primary key autoincrement not null, "accessor_type" varchar not null, "accessor_id" integer not null, "target_type" varchar not null, "target_id" integer not null, "created_at" datetime, "updated_at" datetime);
+create unique index if not exists "group_accesses_unique" on "group_accesses" ("accessor_type", "accessor_id", "target_type", "target_id");
+create table if not exists "address_books" ("id" integer primary key autoincrement not null, "guid" varchar not null, "name" varchar not null, "owner_user_id" integer not null, "is_personal" tinyint(1) not null default '0', "note" varchar, "created_at" datetime, "updated_at" datetime);
+create unique index if not exists "address_books_guid_unique" on "address_books" ("guid");
+create table if not exists "address_book_rules" ("id" integer primary key autoincrement not null, "address_book_id" integer not null, "subject_type" varchar not null, "subject_id" integer, "permission" integer not null, "created_at" datetime, "updated_at" datetime);
+create table if not exists "console_audits" ("id" integer primary key autoincrement not null, "user_id" integer, "username" varchar, "action" varchar not null, "target_type" varchar, "target_id" varchar, "summary" varchar not null, "ip" varchar, "created_at" datetime, foreign key("user_id") references "users"("id") on delete set null);
+create table if not exists "cache" ("key" varchar not null, "value" text not null, "expiration" integer not null, primary key ("key"));
+create table if not exists "cache_locks" ("key" varchar not null, "owner" varchar not null, "expiration" integer not null, primary key ("key"));

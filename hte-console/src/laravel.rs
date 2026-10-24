@@ -112,6 +112,11 @@ impl Input {
     pub fn has(&self, key: &str) -> bool {
         self.bag.contains(key)
     }
+
+    /// `$request->all()` (what `$request->validate()` reads; phase 3)
+    pub fn all(&self) -> &Arr {
+        &self.bag
+    }
 }
 
 fn is_form(ct: &str) -> bool {

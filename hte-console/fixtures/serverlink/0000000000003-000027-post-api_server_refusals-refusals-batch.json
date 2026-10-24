@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "seq": 27,
+  "synthetic": true,
+  "source": "two at once; only `to` is required; at as a numeric string",
+  "method": "POST",
+  "path": "/api/server/refusals",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "refusals": [
+          {
+            "to": "990003002"
+          },
+          {
+            "user_name": "user-5eed3003",
+            "from": "990003004",
+            "to": "990003003",
+            "at": "1700000001"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "recorded": 2
+      }
+    }
+  }
+}

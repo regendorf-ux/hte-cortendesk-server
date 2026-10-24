@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "seq": 26,
+  "synthetic": true,
+  "source": "an empty user_name (null after ConvertEmptyStringsToNull) is 'nobody signed in'; unknown from",
+  "method": "POST",
+  "path": "/api/server/refusals",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "refusals": [
+          {
+            "user_id": "",
+            "user_name": "",
+            "from": "990003999",
+            "to": "990003002",
+            "ip": "198.18.3.10",
+            "reason": "not signed in",
+            "at": 1700000000
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "recorded": 1
+      }
+    }
+  }
+}

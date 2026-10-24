@@ -7,9 +7,12 @@
 //!   hte-console snapshot <sqlite>         the database as comparable text (replay: PHP's state vs ours)
 //!   hte-console seed-expand <sql> <idp>   a phase 2 seed made concrete (fake provider URL, app-key ciphertexts)
 //!   hte-console fake-idp                  a fake OpenID provider for the replay (TEST ONLY; see fake_idp.rs)
+//!   hte-console sweep <job>...|all        phase 3: run scheduled jobs once (reach, passwords, stale, diagnostics)
+//!   hte-console schedule-locks            phase 3: the PHP scheduler lock each job takes over (for the deploy's check)
+//!   hte-console sql-apply <sqlite> <sql>  phase 3, replay only: apply a scenario step to a throwaway database
 
 use hte_console::config::Config;
-use hte_console::{api, fixture, proxy, replay, sanitise, seed, snapshot};
+use hte_console::{api, fixture, link, proxy, replay, sanitise, seed, snapshot, sweeps};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -60,6 +63,12 @@ async fn main() {
             Ok(()) => 0,
             Err(e) => fail(&e),
         },
+        Some("sweep") => sweep_cmd(&args[1..]),
+        Some("schedule-locks") => schedule_locks(),
+        Some("sql-apply") => match (args.get(1), args.get(2)) {
+            (Some(db), Some(file)) => sql_apply(db, file),
+            _ => fail("usage: hte-console sql-apply <sqlite> <sql>"),
+        },
         Some(other) => fail(&format!("unknown command {other}")),
     };
     std::process::exit(code);
@@ -84,6 +93,73 @@ fn seed_expand(file: &str, idp: &str) -> i32 {
             0
         }
         Err(e) => fail(&e),
+    }
+}
+
+/// Phase 3: `hte-console sweep <job>...` on the database HTE_CONSOLE_DATABASE names.
+fn sweep_cmd(names: &[String]) -> i32 {
+    let jobs: Vec<sweeps::Job> = if names.iter().any(|n| n == "all") {
+        sweeps::ALL.to_vec()
+    } else {
+        match names.iter().map(|n| sweeps::Job::parse(n).ok_or(n)).collect::<Result<Vec<_>, _>>() {
+            Ok(j) if !j.is_empty() => j,
+            Ok(_) => return fail("usage: hte-console sweep <reach|passwords|stale|diagnostics>...|all"),
+            Err(n) => return fail(&format!("unknown job {n}")),
+        }
+    };
+    let cfg = match Config::from_env() {
+        Ok(Config { native: Some(n), .. }) => n,
+        Ok(_) => return fail("HTE_CONSOLE_DATABASE is not set"),
+        Err(e) => return fail(&e),
+    };
+    let native = match api::Native::open(&cfg) {
+        Ok(n) => n,
+        Err(e) => return fail(&e),
+    };
+    let store = match hte_console::cache::Store::from_env() {
+        Ok(s) => s,
+        Err(e) => return fail(&e),
+    };
+    match sweeps::once(&native, &store, &jobs) {
+        Ok(lines) => {
+            lines.iter().for_each(|l| println!("{l}"));
+            0
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// Phase 3: each job's lock key in `cache_locks` (with PHP's cache prefix) and expiry, one per line.
+fn schedule_locks() -> i32 {
+    match hte_console::cache::Store::from_env() {
+        Ok(store) => {
+            for j in sweeps::ALL {
+                println!("{} {}{}", j.command(), store.prefix, j.mutex_name());
+            }
+            0
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// The replay's sweeps scenario: a step's SQL on hte-console's copy of the throwaway database (PHP's copy gets the
+/// same file through PDO). Never pointed at the live database by any script.
+fn sql_apply(db: &str, file: &str) -> i32 {
+    let sql = match std::fs::read_to_string(file) {
+        Ok(s) => s,
+        Err(e) => return fail(&format!("{file}: {e}")),
+    };
+    let c = match rusqlite::Connection::open(db) {
+        Ok(c) => c,
+        Err(e) => return fail(&format!("{db}: {e}")),
+    };
+    let _ = c.busy_timeout(std::time::Duration::from_secs(10));
+    match c.execute_batch(&sql) {
+        Ok(()) => {
+            println!("applied {file}");
+            0
+        }
+        Err(e) => fail(&format!("{file}: {e}")),
     }
 }
 
@@ -123,8 +199,19 @@ async fn serve() -> i32 {
             cfg: cfg.clone(),
         }))
     });
+    // phase 3: the server link and the scheduled jobs, beside the native routes
+    let mut scheduler = None;
     let app = match (native, shadow) {
-        (Some(n), fallback) => api::router(n, fallback),
+        (Some(n), fallback) => {
+            let (l, jobs) = match (link::Link::from_env(), sweeps::from_env()) {
+                (Ok(l), Ok(j)) => (Arc::new(l), j),
+                (Err(e), _) | (_, Err(e)) => return fail(&e),
+            };
+            let s = sweeps::Scheduler::new(n.clone(), l.store.clone(), jobs);
+            s.start();
+            scheduler = Some(s);
+            link::routes(n.clone(), l).merge(api::router(n, fallback))
+        }
         (None, Some(s)) => s,
         (None, None) => return fail("nothing to serve: set HTE_CONSOLE_UPSTREAM or HTE_CONSOLE_DATABASE"),
     };
@@ -143,7 +230,11 @@ async fn serve() -> i32 {
             _ = term.recv() => {}
         }
     };
-    if let Err(e) = axum::serve(listener, svc).with_graceful_shutdown(shutdown).await {
+    let served = axum::serve(listener, svc).with_graceful_shutdown(shutdown).await;
+    if let Some(s) = scheduler {
+        s.release_all();
+    }
+    if let Err(e) = served {
         return fail(&format!("server: {e}"));
     }
     0

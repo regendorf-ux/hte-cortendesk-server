@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 19,
+  "synthetic": true,
+  "source": "validate: addrs must be an array (no wildcard keys then)",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "addrs": "198.18.3.1"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The addrs field must be an array.",
+        "errors": {
+          "addrs": [
+            "The addrs field must be an array."
+          ]
+        }
+      }
+    }
+  }
+}

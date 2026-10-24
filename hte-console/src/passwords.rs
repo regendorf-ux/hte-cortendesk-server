@@ -1,5 +1,6 @@
 //! HTE's per-computer passwords, the heartbeat half: a port of `App\Hte\Passwords::heartbeat`, `issue`,
-//! `sealFor`, `devicePublicKey` and `updateBookEntries` (v1.15.0-hte.1). The minute sweep and the books stay in PHP.
+//! `sealFor`, `devicePublicKey` and `updateBookEntries` (v1.15.0-hte.1). The minute sweep and the books are phase 3's
+//! `passwords_sweep.rs`.
 //!
 //! The password travels only as a libsodium sealed box to the computer's own ed25519 key (converted to
 //! curve25519), as registered with the ID server in hbbs's `peer` table. Plaintext passwords are never logged.
@@ -67,11 +68,11 @@ pub fn seal_for(hbbs_db: &Path, crypt: &Encrypter, rustdesk_id: &[u8], row: &Row
     Ok(Some(base64::engine::general_purpose::STANDARD.encode(sealed)))
 }
 
-/// `Passwords::issue($device, $reason)`
-fn issue(c: &Connection, crypt: &Encrypter, rustdesk_id: &[u8], reason: &str, now: &str) -> Result<Row, Fault> {
+/// `Passwords::issue($device, $reason)`; also the sweep's (phase 3).
+pub(crate) fn issue(c: &Connection, crypt: &Encrypter, rustdesk_id: &[u8], reason: &str, now: &str) -> Result<Row, Fault> {
     let enc = crypt.encrypt_string(generate().as_bytes());
-    // Str::limit($reason, 60, ''): every reason used here is short ASCII
-    let reason: String = reason.chars().take(60).collect();
+    // Str::limit($reason, 60, ''): the sweep's "access removed (names)" can be longer
+    let reason = crate::validate::str_limit(reason, 60, "");
     match find(c, rustdesk_id)? {
         Some(mut row) => {
             let next = std::cmp::max(row.val("current_version").to_int(), row.val("confirmed_version").to_int()) + 1;

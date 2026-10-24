@@ -17,3 +17,11 @@ a path is a `{{g<xx>}}` template whose value sits in the fixture's `"vars"` (the
 for a long token). Replay it on its own: `replay.sh fixtures/clientapi`.
 
 Captured fixtures come from the shadow on the server and stay on the server until a person has read them.
+
+`serverlink/` holds phase 3's server-link fixtures, all synthetic (the ID server's calls carry the server link secret
+and are never captured), written by `replay/make-serverlink-fixtures.py` from the PHP source, with their seed (the
+world of HTE's ReachTest). The policy's body depends on the whole replay database, so its fixtures check status and
+type and `replay.sh` compares PHP's policy with hte-console's; 422 answers that name nested attributes (`addrs.0.id`,
+which the leftover scan reads as a host name) are checked by digest, their text is in the generator.
+`sweeps/` is phase 3's scenario for the scheduled jobs (`sweeps.plan`: SQL steps and sweeps, run by `replay.sh` on
+both consoles' databases after the HTTP replay).

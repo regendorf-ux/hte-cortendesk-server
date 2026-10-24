@@ -2,7 +2,9 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## 0.4.0 (2026-10-24): phase 4, the signed-in client
+## 0.4.1 (2026-10-24): phase 4, the signed-in client, on top of phase 3
+
+0.4.0 was tagged from a branch without phase 3 and must not be deployed; 0.4.1 is the same work merged with 0.3.0.
 
 - Native: the address books (legacy `GET|POST /api/ab`, `POST /api/ab/get`, and the multi-book API under `/api/ab/`),
   `GET|POST /api/server-config`, the group tab (`/api/device-group/accessible`, `/api/users`, `/api/peers`), the session
@@ -11,8 +13,33 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
   `/webclient` and `/rdclient/*` stay PHP; the websocket bridge is Caddy's.
 - `fixtures/clientapi/`: 118 synthetic fixtures and their seed, written by `replay/make-clientapi-fixtures.py`; the replay
   learns `"vars"` (preset variables), `{{name}}` in the path, masks `tm` and marks random UUIDs.
-- Version 0.4.0 (0.3.0 is phase 3, built apart). New env: `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, `HTE_CONSOLE_ID_SERVER`,
+- Version 0.4.1. New env: `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, `HTE_CONSOLE_ID_SERVER`,
   `HTE_CONSOLE_PUBLIC_KEY`.
+
+## 0.3.0 (2026-10-24): phase 3, the server link and the sweeps
+
+- Native: `GET /api/server/policy` (ServerLink::policy with HTE's `scope` block, ETag/304, the pull recorded in
+  Laravel's cache), `POST /api/server/local-addrs`, `POST /api/server/refusals` (alarm 102), behind PHP's shared
+  secret and `throttle:600,1,server-link`; Laravel's validator for their bodies (`src/validate.rs`).
+- Scheduled jobs (`HTE_CONSOLE_SWEEPS`, none by default): the reach sweep (15 s, alarm 103), computer passwords
+  (rotation on schedule and on access loss, the "HTE Remote" books), stale sessions, the diagnostics heartbeat; each
+  under the lock PHP's scheduler takes for it (`cache_locks`), so PHP skips what hte-console runs and resumes when
+  it stops. Needs the PHP container on `CACHE_STORE=database`.
+- New: `hte-console sweep`, `schedule-locks`, `sql-apply` (replay only). The replay forwards `If-None-Match`, captures
+  a response header (`capture_header`) and compares a body by digest (`"kind": "sha256"`); `seed-sql` never seeds the
+  server link's bearer as a client token; the snapshot compares Laravel's `cache` table for the two keys hte-console
+  writes (times masked) and masks lock owners. `replay.sh`: the secret and the database cache on both consoles, the
+  two policies compared, and `fixtures/sweeps/` run step by step on both databases.
+- `fixtures/serverlink/` (31 synthetic fixtures and the ReachTest world as a seed, written by
+  `replay/make-serverlink-fixtures.py`), `fixtures/sweeps/` (a scenario of SQL steps and sweeps).
+- From the independent review before release: the validator walks the body by reference (a 500-entry batch cloned
+  it some 30 000 times) and runs before the shared database connection is taken; a 4 MiB limit of the link's own;
+  the scheduler does not take a lock after the stop gave them back, and a restarted service takes back the locks a
+  killed one left (owners `hte-console-svc-`/`hte-console-cli-`); each sweep row in a savepoint; a lock insert that
+  fails for another reason than the key is an error; the replay compares tokens both policies hold exactly and exits
+  2 when a setup step fails. Tests for each.
+- Phase 1's `Passwords::issue` now cuts the reason as `Str::limit($reason, 60, '')` does (the sweep's reasons can be
+  longer than 60 characters).
 
 ## 0.2.0 (2026-10-24): phase 2, the client sign-in
 
