@@ -162,16 +162,17 @@ async fn handle(State((n, link)): State<(Arc<Native>, Arc<Link>)>, ConnectInfo(p
         let (s, b) = message(405, &format!("The {} method is not supported for route {}. Supported methods: {}.", method, route.uri(), route.methods().join(", ")));
         return respond(s, Some(b), vec![("allow", route.methods().join(", "))], head);
     }
-    // ValidatePostSize, bounded far below PHP's limit (hbbs sends at most 500 entries a batch)
+    // ValidatePostSize, bounded below PHP's limit: 500 entries of the longest values hbbs may send fit
+    let max = max_body();
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
     let too_large = || {
         let (s, b) = message(413, "The POST data is too large.");
         respond(s, Some(b), vec![], false)
     };
-    if declared.map_or(false, |l| l > n.max_body as u64) {
+    if declared.map_or(false, |l| l > max as u64) {
         return too_large();
     }
-    let Ok(body) = axum::body::to_bytes(body, n.max_body).await else { return too_large() };
+    let Ok(body) = axum::body::to_bytes(body, max).await else { return too_large() };
 
     // VerifyServerSecret
     if link.secret.is_empty() {
@@ -214,11 +215,18 @@ async fn handle(State((n, link)): State<(Arc<Native>, Arc<Link>)>, ConnectInfo(p
     let if_none_match = header_str(&parts.headers, "if-none-match").map(str::to_string);
     let (n2, link2) = (n.clone(), link.clone());
     let out = tokio::task::spawn_blocking(move || {
-        let c = n2.db.lock().unwrap_or_else(|e| e.into_inner());
+        // the bodies are validated before the shared connection is taken (other routes wait on it)
+        let lock = || n2.db.lock().unwrap_or_else(|e| e.into_inner());
         match route {
-            Route::Policy => policy(&c, &link2.store, &agent, now),
-            Route::LocalAddrs => Ok(local_addrs(&c, &input, now)),
-            Route::Refusals => Ok(refusals(&c, &input, now)),
+            Route::Policy => policy(&lock(), &link2.store, &agent, now),
+            Route::LocalAddrs => Ok(match validate::validate(input.all(), ADDR_RULES) {
+                Err(body) => Reply::Json(422, body),
+                Ok(data) => local_addrs(&lock(), &data, now),
+            }),
+            Route::Refusals => Ok(match validate::validate(input.all(), REFUSAL_RULES) {
+                Err(body) => Reply::Json(422, body),
+                Ok(data) => refusals(&lock(), &data, now),
+            }),
         }
     })
     .await;
@@ -301,13 +309,15 @@ const REFUSAL_RULES: &[(&str, &[Rule])] = &[
     ("refusals.*.at", &[Rule::Nullable, Rule::Integer, Rule::Min(0)]),
 ];
 
-/// POST /api/server/local-addrs
-fn local_addrs(c: &Connection, input: &Input, now: i64) -> Reply {
-    let data = match validate::validate(input.all(), ADDR_RULES) {
-        Ok(d) => d,
-        Err(body) => return Reply::Json(422, body),
-    };
-    match local_addrs_inner(c, &data, now) {
+/// `HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES` (default 4 MiB): 500 refusals of the longest values allowed, written with
+/// JSON escapes, stay below it.
+fn max_body() -> usize {
+    std::env::var("HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(4 * 1024 * 1024)
+}
+
+/// POST /api/server/local-addrs, on the validated data
+fn local_addrs(c: &Connection, data: &php::Arr, now: i64) -> Reply {
+    match local_addrs_inner(c, data, now) {
         Ok(n) => Reply::Json(200, format!(r#"{{"updated":{n}}}"#)),
         Err(f) => fail("server/local-addrs", &f),
     }
@@ -344,12 +354,8 @@ fn local_addrs_inner(c: &Connection, data: &php::Arr, now: i64) -> Result<usize,
     Ok(updated)
 }
 
-/// POST /api/server/refusals
-fn refusals(c: &Connection, input: &Input, now: i64) -> Reply {
-    let data = match validate::validate(input.all(), REFUSAL_RULES) {
-        Ok(d) => d,
-        Err(body) => return Reply::Json(422, body),
-    };
+/// POST /api/server/refusals, on the validated data
+fn refusals(c: &Connection, data: &php::Arr, now: i64) -> Reply {
     let list = data.get_str("refusals").map(|v| v.to_array()).unwrap_or_default();
     match crate::reach::record_refusals(c, &list, now) {
         Ok(n) => Reply::Json(200, format!(r#"{{"recorded":{n}}}"#)),

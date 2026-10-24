@@ -114,7 +114,8 @@ docker run -d --name "$TAG-php" --network "$TAG" -v "$WORK/data:/data" -v "$WORK
   "$PHP_IMAGE" </dev/null >/dev/null
 wait_for "$TAG-php" http://127.0.0.1:8080/health/live || exit 2
 # phase 3: PHP's cache prefix, for hte-console to write the cache rows PHP reads
-CACHE_PREFIX="$(docker exec -u www-data -w /app "$TAG-php" php artisan tinker --execute='echo config("cache.prefix");' </dev/null | tr -d '\r\n')"
+CACHE_PREFIX="$(docker exec -u www-data -w /app "$TAG-php" php artisan tinker --execute='echo config("cache.prefix");' </dev/null | tr -d '\r\n')" \
+  || { echo "could not ask PHP for its cache prefix" >&2; exit 2; }
 [ -n "$CACHE_PREFIX" ] || { echo "could not read PHP's cache prefix" >&2; exit 2; }
 
 echo "== starting the fake identity provider (TEST ONLY) for the sign-in fixtures"
@@ -200,10 +201,25 @@ if [ "$NATIVE" != 0 ]; then
   for side in php rust; do
     docker exec "$TAG-$side" wget -q -O - --header "Authorization: Bearer $LINK_SECRET" --header "User-Agent: hte-replay" \
       http://127.0.0.1:8080/api/server/policy </dev/null > "$WORK/policy-$side.json" || { echo "no policy from $side" >&2; exit 2; }
-    # sign-in tokens are minted at random on each side: compare the devices and people they map to
-    python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); p["tokens"]=sorted(p["tokens"].values()); p["scope"]["token_users"]=sorted(p["scope"]["token_users"].values()); print(json.dumps(p, indent=1))' \
-      "$WORK/policy-$side.json" > "$WORK/policy-$side.norm" </dev/null
   done
+  # sign-in tokens are minted at random on each side: a token both sides hold is compared exactly (hash -> device,
+  # hash -> person); the ones only one side holds are reduced to the devices and people they map to
+  python3 - "$WORK" <<'PY' || { echo "a policy is not JSON" >&2; exit 1; }
+import json, sys
+w = sys.argv[1]
+php, rust = (json.load(open(f"{w}/policy-{s}.json")) for s in ("php", "rust"))
+def norm(p, other):
+    for path in (("tokens",), ("scope", "token_users")):
+        mine, theirs = p, other
+        for k in path[:-1]:
+            mine, theirs = mine[k], theirs[k]
+        m, t = mine[path[-1]], theirs[path[-1]]
+        mine[path[-1]] = {"both": {k: v for k, v in m.items() if k in t}, "only": sorted(v for k, v in m.items() if k not in t)}
+    return p
+a, b = norm(json.loads(json.dumps(php)), rust), norm(json.loads(json.dumps(rust)), php)
+for name, p in (("php", a), ("rust", b)):
+    open(f"{w}/policy-{name}.norm", "w").write(json.dumps(p, indent=1))
+PY
   policy_status=0
   if diff -u "$WORK/policy-php.norm" "$WORK/policy-rust.norm" > "$WORK/policy.diff"; then
     echo "policies: identical ($(python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); print(len(p["allow"]), "allowed,", len(p["incoming_only"]), "incoming only,", len(p["tokens"]), "tokens, scope", "on" if p["scope"]["enforce"] else "off", "with", len(p["scope"]["users"]), "people")' "$WORK/policy-php.json" </dev/null))"
@@ -244,8 +260,10 @@ if [ "$NATIVE" != 0 ]; then
       case "$verb" in
         sql)
           docker cp "$WORK/steps/$rest" "$TAG-php:/tmp/step.sql" </dev/null
-          docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/step.sql"));' </dev/null
-          docker run --rm --network none -v "$WORK/rdata:/data" -v "$WORK/steps:/steps:ro" "$CONSOLE_IMAGE" sql-apply /data/cortendesk.sqlite "/steps/$rest" </dev/null >/dev/null
+          docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/step.sql"));' </dev/null \
+            || { echo "step $rest failed on PHP's database" >&2; exit 2; }
+          docker run --rm --network none -v "$WORK/rdata:/data" -v "$WORK/steps:/steps:ro" "$CONSOLE_IMAGE" sql-apply /data/cortendesk.sqlite "/steps/$rest" </dev/null >/dev/null \
+            || { echo "step $rest failed on hte-console's database" >&2; exit 2; }
           echo "  $rest";;
         sweep)
           for job in $rest; do

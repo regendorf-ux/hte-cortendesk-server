@@ -834,3 +834,88 @@ fn schedule_lock_names_follow_laravels_mutex_names() {
         assert_eq!(job.command(), cmd);
     }
 }
+
+// ------------------------------------------------------------------------------- from the independent review ---
+
+#[tokio::test]
+async fn a_full_batch_of_the_longest_refusals_is_taken_and_a_larger_body_is_413() {
+    let h = harness().await;
+    let long = |c: char, n: usize| c.to_string().repeat(n);
+    let one = json!({"user_id": long('7', 40), "user_name": long('n', 255), "from": "990003004", "to": "990003001", "ip": long('1', 64), "reason": long('r', 100), "at": 1_700_000_000});
+    let batch = json!({"refusals": vec![one; 500]});
+    let t = std::time::Instant::now();
+    let r = h.post("/api/server/refusals", batch).await;
+    assert_eq!((r.status, r.body.as_str()), (200, r#"{"recorded":500}"#));
+    assert!(t.elapsed() < std::time::Duration::from_secs(5), "validated in {:?}", t.elapsed());
+    // 501 entries: Laravel's max:500
+    let r = h.post("/api/server/refusals", json!({"refusals": vec![json!({"to": "990003001"}); 501]})).await;
+    assert_eq!(r.json()["errors"]["refusals"], json!(["The refusals field must not have more than 500 items."]));
+    let big = format!(r#"{{"refusals":[{{"to":"{}"}}]}}"#, "x".repeat(4 * 1024 * 1024));
+    let r = h.client.post(format!("{}/api/server/refusals", h.url)).header("authorization", format!("Bearer {SECRET}")).header("content-type", "application/json").body(big).send().await.unwrap();
+    assert_eq!(r.status().as_u16(), 413);
+}
+
+#[tokio::test]
+async fn a_restarted_service_takes_back_its_own_locks_at_once() {
+    let h = harness().await;
+    let key = |j: Job| format!("{PREFIX}{}", j.mutex_name());
+    h.sql(&format!(
+        "insert into cache_locks (key, owner, expiration) values ('{}', 'hte-console-svc-killed00000', {e}), ('{}', 'hte-console-cli-running0000', {e}), ('{}', 'PhPsCheDuLeR0001', {e})",
+        key(Job::Reach),
+        key(Job::Stale),
+        key(Job::Diagnostics),
+        e = h.now() + 600
+    ));
+    h.sql("delete from client_tokens where user_id <> 930004");
+    h.session("990003004", "990003002", 1);
+    let s = Scheduler::new(h.native.clone(), h.store.clone(), vec![Job::Reach, Job::Stale, Job::Diagnostics]);
+    s.start();
+    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+    assert!(h.disconnect_requested(1), "the reach sweep ran at once with the lock taken back");
+    let owner = |j: Job| h.one::<String>(&format!("select owner from cache_locks where key = '{}'", key(j)));
+    assert!(owner(Job::Reach).starts_with("hte-console-svc-") && owner(Job::Reach) != "hte-console-svc-killed00000");
+    assert_eq!(owner(Job::Stale), "hte-console-cli-running0000", "a sweep run's lock is not taken");
+    assert_eq!(owner(Job::Diagnostics), "PhPsCheDuLeR0001", "nor PHP's");
+    s.release_all();
+}
+
+#[tokio::test]
+async fn a_held_lock_is_refreshed_and_none_is_taken_after_the_stop() {
+    let h = harness().await;
+    let key = format!("{PREFIX}{}", Job::Reach.mutex_name());
+    let s = Scheduler::new(h.native.clone(), h.store.clone(), vec![Job::Reach]);
+    s.tick(Job::Reach);
+    let first: (String, i64) = h.db().query_row("select owner, expiration from cache_locks where key = ?", [&key], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    h.advance(15);
+    s.tick(Job::Reach);
+    let second: (String, i64) = h.db().query_row("select owner, expiration from cache_locks where key = ?", [&key], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!((second.0.as_str(), second.1), (first.0.as_str(), first.1 + 15));
+    s.release_all();
+    s.tick(Job::Reach); // a tick that was waiting for the database when the stop came
+    assert_eq!(h.count("cache_locks"), 0);
+}
+
+#[tokio::test]
+async fn a_write_failing_half_way_leaves_the_row_for_the_next_run() {
+    let h = harness().await;
+    h.sql("delete from client_tokens where user_id <> 930003");
+    h.session("990003004", "990003002", 1);
+    h.sql("insert into settings (key, value) values ('hte_pw_enabled', '1')");
+    confirmed(&h, "990003002", "tok-5eed00000003f002");
+    h.sweep(&[Job::Passwords]);
+    // the log table is gone for a moment: both sweeps fail on their last write
+    h.sql("delete from user_group_user where user_id = 930003; alter table console_audits rename to console_audits_away");
+    {
+        let c = h.native.db.lock().unwrap();
+        assert!(hte_console::reach::sweep(&c, h.now()).is_err());
+        assert!(hte_console::passwords_sweep::sweep(&c, &h.native.crypt, h.now()).is_err());
+    }
+    assert!(!h.disconnect_requested(1));
+    assert_eq!(h.count("alarm_logs"), 0);
+    assert_eq!(h.one::<i64>("select current_version from hte_device_passwords"), 1);
+    assert_eq!(h.one::<String>("select reach_user_ids from hte_device_passwords"), "[930001,930003]", "the lost person is still there");
+    h.sql("alter table console_audits_away rename to console_audits");
+    h.sweep(&[Job::Reach, Job::Passwords]);
+    assert!(h.disconnect_requested(1));
+    assert_eq!(h.one::<String>("select issued_reason from hte_device_passwords"), "access removed (user-5eed3003)");
+}

@@ -72,6 +72,7 @@ Environment (nothing HTE-specific is in this repository):
 | `CORTENDESK_SERVER_SECRET` | the server link secret, as PHP gets it; else the file `HTE_CONSOLE_SERVER_SECRET_FILE` (default `/data/.server_secret`, which the PHP image writes root-only: the deploy passes the variable). Empty: `/api/server/*` answer 404, as an unlinked PHP |
 | `HTE_CONSOLE_CACHE_PREFIX` | PHP's `cache.prefix` (else `CACHE_PREFIX`, else `Str::slug(APP_NAME)-cache-`); the deploy passes PHP's own value |
 | `HTE_CONSOLE_SWEEPS` | which scheduled jobs run here: `reach,passwords,stale,diagnostics` or `all`; default none |
+| `HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES` | default 4194304 (500 refusals of the longest values fit) |
 
 Run it as the user that owns the database file (compose `user:`), or as root: SQLite creates its `-wal`/`-shm`
 files with the creating process's owner, and files PHP cannot write would break PHP. `serve` refuses to start
@@ -144,11 +145,21 @@ takes and keeps the very lock `withoutOverlapping` takes (`cache_locks`, `Event:
 30, 10 minutes), so PHP's `schedule:run` skips the job as it skips one still running. hte-console skips a tick while
 PHP holds the lock, gives the locks back on a clean stop (PHP resumes at its next tick) and, if it dies, they expire.
 
-Proven by `tests/server_link.rs` (26 end-to-end tests: ReachTest's and PasswordsTest's assertions for these paths
+Proven by `tests/server_link.rs` (30 end-to-end tests: ReachTest's and PasswordsTest's assertions for these paths
 by their names, the exact policy body, ETag/304/HEAD/405, 404/401, the 600 limit across the three routes, the local
-address rules, 422s, 300 random bodies, the scheduler lock against a PHP-held one, the sweeps scenario), by the 31
+address rules, 422s, 300 random bodies, the scheduler lock against a PHP-held one, its refresh, its take-back after a restart, no lock after the stop, a
+write failing half way, a full batch of the longest refusals, the sweeps scenario), by the 31
 synthetic fixtures in `fixtures/serverlink/` and by `fixtures/sweeps/`, which `replay.sh` runs against PHP and
 hte-console: answers, both policies against each other, and the databases after the sweeps' steps.
+
+### Deliberate differences (invisible to the ID server)
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| a sweep's writes for one session or one computer | separate statements: a failure half way (a busy database) can leave a disconnect without its alarm, or a lost person recorded without the new password (never rotated after) | one savepoint per row: all or none, the next run does it again; a run that succeeds ends as PHP's |
+| a lock its own scheduler left (killed) | `withoutOverlapping` waits for the expiry (up to 30 minutes) | the service takes back locks a previous hte-console service left, at start (never PHP's, never a `sweep` run's) |
+| a tick waiting when the process stops | n/a | does not take a lock after the locks were given back |
+| request bodies | PHP's limit | 4 MiB on these routes (413); validated before the shared database connection is taken |
 
 ### Known differences, not visible to the ID server at HTE
 

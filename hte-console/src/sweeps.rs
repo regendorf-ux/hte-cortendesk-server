@@ -18,6 +18,7 @@ use crate::laravel;
 use crate::php::{Fault, Val};
 use crate::sqlite::{self as db, P};
 use rusqlite::Connection;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
 /// `AuditConnection::STALE_AFTER_MINUTES`
@@ -143,15 +144,18 @@ pub fn run(n: &Native, c: &Connection, store: &Store, job: Job, now: i64) -> Res
     })
 }
 
-/// The lock owner this process writes into `cache_locks` (PHP's are 16 random letters).
-pub fn owner() -> String {
-    format!("hte-console-{}", laravel::str_random(12))
+/// The service's lock owner (PHP's are 16 random letters). Fixed prefix, so a restarted service knows its own.
+const SERVICE_OWNER: &str = "hte-console-svc-";
+
+/// A lock owner for this process: `hte-console-svc-...` for the service, `hte-console-cli-...` for `sweep`.
+pub fn owner(service: bool) -> String {
+    format!("{}{}", if service { SERVICE_OWNER } else { "hte-console-cli-" }, laravel::str_random(12))
 }
 
 /// `hte-console sweep <job>...`: each job once, under PHP's lock (taken and released, so a PHP scheduler running at
 /// the same moment never overlaps it). Used by the replay and by hand.
 pub fn once(n: &Native, store: &Store, jobs: &[Job]) -> Result<Vec<String>, String> {
-    let me = owner();
+    let me = owner(false);
     let c = n.db.lock().unwrap_or_else(|e| e.into_inner());
     let mut out = vec![];
     for &job in jobs {
@@ -174,15 +178,18 @@ pub struct Scheduler {
     store: Store,
     owner: String,
     jobs: Vec<Job>,
+    /// Set by `release_all` under the database mutex: a tick that waited for it does not take a lock again.
+    stopped: AtomicBool,
 }
 
 impl Scheduler {
     pub fn new(native: Arc<Native>, store: Store, jobs: Vec<Job>) -> Arc<Scheduler> {
-        Arc::new(Scheduler { native, store, owner: owner(), jobs })
+        Arc::new(Scheduler { native, store, owner: owner(true), jobs, stopped: AtomicBool::new(false) })
     }
 
     /// Start a tokio task per job. Each tick: take (or refresh) PHP's lock, run, keep the lock.
     pub fn start(self: &Arc<Self>) {
+        self.take_back();
         for &job in &self.jobs {
             let me = self.clone();
             tokio::spawn(async move {
@@ -204,6 +211,9 @@ impl Scheduler {
     pub fn tick(&self, job: Job) {
         let n = &self.native;
         let c = n.db.lock().unwrap_or_else(|e| e.into_inner());
+        if self.stopped.load(Ordering::SeqCst) {
+            return;
+        }
         let now = n.now();
         match self.store.acquire(&c, &job.mutex_name(), job.expires_minutes() * 60, &self.owner, now) {
             Ok(true) => {}
@@ -221,9 +231,32 @@ impl Scheduler {
         }
     }
 
+    /// At start: the locks a previous hte-console service left (killed before it could give them back) are ours to
+    /// take over at once, not after they expire (up to 30 minutes without the job, PHP skipping it too). Only the
+    /// service's own rows: PHP's and a `sweep` run's stay.
+    fn take_back(&self) {
+        let c = self.native.db.lock().unwrap_or_else(|e| e.into_inner());
+        for &job in &self.jobs {
+            let key = format!("{}{}", self.store.prefix, job.mutex_name());
+            let r = db::exec(
+                &c,
+                r#"update "cache_locks" set "owner" = ? where "key" = ? and "owner" like ? and "owner" != ?"#,
+                &[P(Val::str(&self.owner)), P(Val::str(&key)), P(Val::str(&format!("{SERVICE_OWNER}%"))), P(Val::str(&self.owner))],
+            );
+            match r {
+                Ok(n) if n > 0 => tracing::info!(job = job.name(), "took back the lock a previous hte-console left"),
+                Ok(_) => {}
+                Err(f) => {
+                    let _ = crate::api::fail("taking back a lock", &f);
+                }
+            }
+        }
+    }
+
     /// On a clean stop: give the locks back, so PHP's scheduler runs these tasks again at its next tick.
     pub fn release_all(&self) {
         let c = self.native.db.lock().unwrap_or_else(|e| e.into_inner());
+        self.stopped.store(true, Ordering::SeqCst);
         for &job in &self.jobs {
             let _ = self.store.release(&c, &job.mutex_name(), &self.owner);
         }

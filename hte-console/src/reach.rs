@@ -282,6 +282,23 @@ pub fn reach_ids(c: &Connection, device: &Row) -> Result<Vec<i64>, Fault> {
     Ok(seen)
 }
 
+/// One row's writes all or none (PHP's are separate statements; a failure half way, a busy database say, could leave
+/// a disconnect without its alarm, or a lost person recorded without the new password: here the row is left as it
+/// was and the next run does it again). The end state of a run that succeeds is PHP's.
+pub(crate) fn atomically<T>(c: &Connection, f: impl FnOnce() -> Result<T, Fault>) -> Result<T, Fault> {
+    c.execute_batch("SAVEPOINT hte_row").map_err(db::fault)?;
+    match f() {
+        Ok(v) => {
+            c.execute_batch("RELEASE hte_row").map_err(db::fault)?;
+            Ok(v)
+        }
+        Err(e) => {
+            let _ = c.execute_batch("ROLLBACK TO hte_row; RELEASE hte_row");
+            Err(e)
+        }
+    }
+}
+
 /// `ConsoleAudit::system($action, $summary, $targetType, $targetId)`: a "system" line in the console log
 /// (created_at only; no ip).
 pub fn console_audit_system(c: &Connection, action: &str, summary: &str, target_type: &str, target_id: &[u8], now: i64) -> Result<(), Fault> {
@@ -412,28 +429,30 @@ pub fn sweep(c: &Connection, now: i64) -> Result<usize, Fault> {
     )?;
     for mut s in sessions {
         let Some(why) = verdict(c, &s, now)? else { continue };
-        db::update_dirty(
-            c,
-            "audit_connections",
-            &mut s,
-            vec![
-                ("disconnect_requested_at", Val::str(&ts), laravel::Cast::Date),
-                ("disconnect_sent_at", Val::Null, laravel::Cast::Date),
-                ("disconnect_requested_by", Val::Null, laravel::Cast::Plain),
-            ],
-            &ts,
-        )?;
-        let from = s.val("from_peer").to_php_string()?;
-        let to = s.val("rustdesk_id").to_php_string()?;
-        let info = php::assoc(vec![("from".to_string(), Val::Str(from.clone())), ("to".to_string(), Val::Str(to.clone())), ("reason".to_string(), Val::str(&why))]);
-        alarm(c, SWEEP_ALARM, Some(s.val("conn_id")), &info, now)?;
-        let summary = format!(
-            "Closed session {} from {} on {}: {why}",
-            String::from_utf8_lossy(&s.val("conn_id").to_php_string()?),
-            String::from_utf8_lossy(&from),
-            String::from_utf8_lossy(&to)
-        );
-        console_audit_system(c, "session.disconnect", &summary, "device", &to, now)?;
+        atomically(c, || {
+            db::update_dirty(
+                c,
+                "audit_connections",
+                &mut s,
+                vec![
+                    ("disconnect_requested_at", Val::str(&ts), laravel::Cast::Date),
+                    ("disconnect_sent_at", Val::Null, laravel::Cast::Date),
+                    ("disconnect_requested_by", Val::Null, laravel::Cast::Plain),
+                ],
+                &ts,
+            )?;
+            let from = s.val("from_peer").to_php_string()?;
+            let to = s.val("rustdesk_id").to_php_string()?;
+            let info = php::assoc(vec![("from".to_string(), Val::Str(from.clone())), ("to".to_string(), Val::Str(to.clone())), ("reason".to_string(), Val::str(&why))]);
+            alarm(c, SWEEP_ALARM, Some(s.val("conn_id")), &info, now)?;
+            let summary = format!(
+                "Closed session {} from {} on {}: {why}",
+                String::from_utf8_lossy(&s.val("conn_id").to_php_string()?),
+                String::from_utf8_lossy(&from),
+                String::from_utf8_lossy(&to)
+            );
+            console_audit_system(c, "session.disconnect", &summary, "device", &to, now)
+        })?;
         closed += 1;
     }
     if closed > 0 {

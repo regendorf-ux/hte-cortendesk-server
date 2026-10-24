@@ -56,47 +56,53 @@ pub fn sweep(c: &Connection, crypt: &Encrypter, now: i64) -> Result<Stats, Fault
         if device.val("status") != Val::str("active") {
             continue;
         }
-        let now_ids = reach::reach_ids(c, &device)?;
-        // $row->reach_user_ids (array cast): null unless the stored JSON decodes to an array
-        let before = laravel::from_json(&row.val("reach_user_ids"));
-        // array_diff($before, $now): compared as strings
-        let lost: Vec<Val> = match &before {
-            Val::Arr(a) => a
-                .iter()
-                .map(|(_, v)| v.clone())
-                .filter(|v| {
-                    let s = v.to_php_string().unwrap_or_default();
-                    !now_ids.iter().any(|n| n.to_string().into_bytes() == s)
-                })
-                .collect(),
-            _ => vec![],
-        };
-        let mut list = crate::php::Arr::new();
-        for id in &now_ids {
-            list.push(Val::Int(*id));
-        }
-        let encoded = crate::php::json_encode(&Val::Arr(list)).unwrap_or_else(|| "[]".into());
-        db::update_dirty(c, "hte_device_passwords", &mut row, vec![("reach_user_ids", Val::str(&encoded), Cast::Json)], &ts)?;
-
-        let reason = if row.val("current_version").to_int() == 0 {
-            Some("first password".to_string())
-        } else if !lost.is_empty() {
-            let names = db::rows(c, &format!(r#"select "username" from "users" where "id" in ({})"#, vec!["?"; lost.len()].join(", ")), &lost.iter().cloned().map(P).collect::<Vec<_>>())?;
-            let names: Vec<String> = names.iter().map(|r| String::from_utf8_lossy(&r.val("username").to_php_string().unwrap_or_default()).into_owned()).collect();
-            Some(format!("access removed ({})", names.join(", ")))
-        } else if days > 0 && !pending(&row) && !row.is_null("confirmed_at") {
-            let at = laravel::parse_ts(&row.val("confirmed_at")).ok_or_else(|| Fault::Other("unparsable hte_device_passwords.confirmed_at".into()))?;
-            (at < now - days * 86_400).then(|| format!("every {days} days"))
-        } else {
-            None
-        };
-        if let Some(reason) = reason {
-            if !pending(&row) {
-                passwords::issue(c, crypt, &rid, &reason, &ts)?;
-                let rid_s = String::from_utf8_lossy(&rid).into_owned();
-                reach::console_audit_system(c, "hte.password", &format!("New password for {rid_s}: {reason}"), "device", &rid, now)?;
-                stats.issued += 1;
+        let issued = reach::atomically(c, || -> Result<bool, Fault> {
+            let now_ids = reach::reach_ids(c, &device)?;
+            // $row->reach_user_ids (array cast): null unless the stored JSON decodes to an array
+            let before = laravel::from_json(&row.val("reach_user_ids"));
+            // array_diff($before, $now): compared as strings
+            let lost: Vec<Val> = match &before {
+                Val::Arr(a) => a
+                    .iter()
+                    .map(|(_, v)| v.clone())
+                    .filter(|v| {
+                        let s = v.to_php_string().unwrap_or_default();
+                        !now_ids.iter().any(|n| n.to_string().into_bytes() == s)
+                    })
+                    .collect(),
+                _ => vec![],
+            };
+            let mut list = crate::php::Arr::new();
+            for id in &now_ids {
+                list.push(Val::Int(*id));
             }
+            let encoded = crate::php::json_encode(&Val::Arr(list)).unwrap_or_else(|| "[]".into());
+            db::update_dirty(c, "hte_device_passwords", &mut row, vec![("reach_user_ids", Val::str(&encoded), Cast::Json)], &ts)?;
+
+            let reason = if row.val("current_version").to_int() == 0 {
+                Some("first password".to_string())
+            } else if !lost.is_empty() {
+                let names = db::rows(c, &format!(r#"select "username" from "users" where "id" in ({})"#, vec!["?"; lost.len()].join(", ")), &lost.iter().cloned().map(P).collect::<Vec<_>>())?;
+                let names: Vec<String> = names.iter().map(|r| String::from_utf8_lossy(&r.val("username").to_php_string().unwrap_or_default()).into_owned()).collect();
+                Some(format!("access removed ({})", names.join(", ")))
+            } else if days > 0 && !pending(&row) && !row.is_null("confirmed_at") {
+                let at = laravel::parse_ts(&row.val("confirmed_at")).ok_or_else(|| Fault::Other("unparsable hte_device_passwords.confirmed_at".into()))?;
+                (at < now - days * 86_400).then(|| format!("every {days} days"))
+            } else {
+                None
+            };
+            if let Some(reason) = reason {
+                if !pending(&row) {
+                    passwords::issue(c, crypt, &rid, &reason, &ts)?;
+                    let rid_s = String::from_utf8_lossy(&rid).into_owned();
+                    reach::console_audit_system(c, "hte.password", &format!("New password for {rid_s}: {reason}"), "device", &rid, now)?;
+                    return Ok(true);
+                }
+            }
+            Ok(false)
+        })?;
+        if issued {
+            stats.issued += 1;
         }
     }
     stats.books = sync_books(c, crypt, now)?;

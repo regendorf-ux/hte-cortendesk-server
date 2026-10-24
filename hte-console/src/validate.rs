@@ -40,55 +40,38 @@ fn exists<'a>(a: &'a Arr, seg: &str) -> Option<&'a Val> {
     a.get(&Key::from_bytes(seg.as_bytes()))
 }
 
+/// Walk `key` segment by segment, by reference.
+fn walk<'a>(data: &'a Arr, key: &str) -> Option<&'a Val> {
+    let mut segs = key.split('.');
+    let mut cur = exists(data, segs.next()?)?;
+    for seg in segs {
+        cur = match cur {
+            Val::Arr(a) => exists(a, seg)?,
+            _ => return None,
+        };
+    }
+    Some(cur)
+}
+
 /// `Arr::get($array, $key)`: the whole key first, then segment by segment.
-fn arr_get(data: &Arr, key: &str) -> Option<Val> {
+fn arr_get<'a>(data: &'a Arr, key: &str) -> Option<&'a Val> {
     if let Some(v) = exists(data, key) {
-        return Some(v.clone());
+        return Some(v);
     }
     if !key.contains('.') {
         return None;
     }
-    let mut cur = Val::Arr(data.clone());
-    for seg in key.split('.') {
-        cur = match &cur {
-            Val::Arr(a) => exists(a, seg)?.clone(),
-            _ => return None,
-        };
-    }
-    Some(cur)
+    walk(data, key)
 }
 
 /// `Arr::has($array, $key)`
 fn arr_has(data: &Arr, key: &str) -> bool {
-    if data.is_empty() {
-        return false;
-    }
-    if exists(data, key).is_some() {
-        return true;
-    }
-    let mut cur = Val::Arr(data.clone());
-    for seg in key.split('.') {
-        cur = match &cur {
-            Val::Arr(a) => match exists(a, seg) {
-                Some(v) => v.clone(),
-                None => return false,
-            },
-            _ => return false,
-        };
-    }
-    true
+    !data.is_empty() && (exists(data, key).is_some() || walk(data, key).is_some())
 }
 
 /// `data_get($target, $key)`: segment by segment only (`validated()` reads the data this way).
-fn data_get(data: &Arr, key: &str) -> Option<Val> {
-    let mut cur = Val::Arr(data.clone());
-    for seg in key.split('.') {
-        cur = match &cur {
-            Val::Arr(a) => exists(a, seg)?.clone(),
-            _ => return None,
-        };
-    }
-    Some(cur)
+fn data_get<'a>(data: &'a Arr, key: &str) -> Option<&'a Val> {
+    walk(data, key)
 }
 
 /// `Arr::set($array, $key, $value)`
@@ -170,7 +153,7 @@ fn expand(attribute: &str, data: &Arr) -> Vec<String> {
     if !lead.is_empty() {
         if let Some(v) = arr_get(data, lead) {
             if let Val::Arr(c) = &mut copy {
-                arr_set(c, lead, v);
+                arr_set(c, lead, v.clone());
             }
         }
     }
@@ -394,16 +377,19 @@ pub fn validate(data: &Arr, rules: &[(&str, &[Rule])]) -> Outcome {
         let array = rs.contains(&Rule::Array);
         let nullable = rs.contains(&Rule::Nullable);
         let has_implicit = rs.iter().any(|r| r.implicit());
-        let value = arr_get(data, attr).unwrap_or(Val::Null);
+        let null = Val::Null;
+        let value = arr_get(data, attr).unwrap_or(&null);
+        let present_any = arr_has(data, attr);
+        let is_null = matches!(arr_get(data, attr), Some(Val::Null));
         let mut failed_implicit = false;
         for &rule in rs {
             // isValidatable: present (or the rule is implicit), and not null when nullable
-            let present = match &value {
+            let present = match value {
                 Val::Str(s) if php::trim(s).is_empty() => rule.implicit(),
-                _ => arr_has(data, attr) || rule.implicit(),
+                _ => present_any || rule.implicit(),
             };
-            let not_null = rule.implicit() || !nullable || !matches!(arr_get(data, attr), Some(Val::Null));
-            if present && not_null && !passes(rule, &value, numeric) {
+            let not_null = rule.implicit() || !nullable || !is_null;
+            if present && not_null && !passes(rule, value, numeric) {
                 let shown = if ex.implicit.iter().any(|(k, _)| k == attr) { attr.clone() } else { displayable(attr) };
                 let msg = message(rule, &shown, numeric, array);
                 match errors.iter_mut().find(|(k, _)| k == attr) {
@@ -446,7 +432,7 @@ pub fn validate(data: &Arr, rules: &[(&str, &[Rule])]) -> Outcome {
 fn validated(data: &Arr, ex: &Exploded) -> Arr {
     let mut out = Arr::new();
     for (key, rs) in &ex.rules {
-        let Some(v) = data_get(data, key) else { continue };
+        let Some(v) = data_get(data, key).cloned() else { continue };
         let has_children = ex.rules.iter().any(|(k, _)| k.len() > key.len() && k.starts_with(key.as_str()) && k.as_bytes()[key.len()] == b'.');
         if rs.contains(&Rule::Array) && !matches!(v, Val::Null) && has_children {
             continue;

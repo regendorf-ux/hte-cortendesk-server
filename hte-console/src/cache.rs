@@ -120,7 +120,9 @@ impl Store {
         );
         let acquired = match inserted {
             Ok(_) => true,
-            // QueryException (the key exists): take it over when it is ours or has expired
+            // the key exists (Laravel catches the QueryException): take it over when it is ours or has expired.
+            // Any other error (busy, read-only, no table) is an error, not a held lock.
+            Err(Fault::Other(m)) if !m.contains("UNIQUE constraint failed") && !m.contains("constraint failed") => return Err(Fault::Other(m)),
             Err(_) => {
                 db::exec(
                     c,

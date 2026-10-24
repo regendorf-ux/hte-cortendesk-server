@@ -18,6 +18,12 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
   two policies compared, and `fixtures/sweeps/` run step by step on both databases.
 - `fixtures/serverlink/` (31 synthetic fixtures and the ReachTest world as a seed, written by
   `replay/make-serverlink-fixtures.py`), `fixtures/sweeps/` (a scenario of SQL steps and sweeps).
+- From the independent review before release: the validator walks the body by reference (a 500-entry batch cloned
+  it some 30 000 times) and runs before the shared database connection is taken; a 4 MiB limit of the link's own;
+  the scheduler does not take a lock after the stop gave them back, and a restarted service takes back the locks a
+  killed one left (owners `hte-console-svc-`/`hte-console-cli-`); each sweep row in a savepoint; a lock insert that
+  fails for another reason than the key is an error; the replay compares tokens both policies hold exactly and exits
+  2 when a setup step fails. Tests for each.
 - Phase 1's `Passwords::issue` now cuts the reason as `Str::limit($reason, 60, '')` does (the sweep's reasons can be
   longer than 60 characters).
 
