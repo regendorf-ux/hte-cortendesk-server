@@ -101,7 +101,7 @@ fn scan(dir: Option<&String>) -> i32 {
 async fn replay_cmd(dir: Option<&String>, base: Option<&String>) -> i32 {
     let (Some(dir), Some(base)) = (dir, base) else { return fail("usage: hte-console replay <dir> <base-url>") };
     let s = sanitiser_from_env();
-    match replay::run(&PathBuf::from(dir), base, |v| s.json(v, "")).await {
+    match replay::run(&PathBuf::from(dir), base, &s).await {
         Ok(r) => {
             println!("{} fixtures, {} skipped, {} differences", r.total, r.skipped, r.differences.len());
             r.differences.iter().for_each(|d| println!("{d}"));

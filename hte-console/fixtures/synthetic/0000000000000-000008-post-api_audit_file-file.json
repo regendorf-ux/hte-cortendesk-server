@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 8,
+  "synthetic": true,
+  "source": "AuditController",
+  "method": "POST",
+  "path": "/api/audit/file",
+  "query": {},
+  "request": {
+    "headers": {
+      "content-type": "application/json",
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000003",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "peer_id": "990000001",
+        "path": "text-00000004",
+        "is_file": true,
+        "type": 0,
+        "info": "text-00000005",
+        "nonce": "text-00000006"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

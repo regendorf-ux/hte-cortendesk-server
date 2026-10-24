@@ -110,7 +110,7 @@ async fn replay_finds_no_difference_against_the_same_answers_and_one_against_cha
     c.post(format!("{base}/api/heartbeat")).header("content-type", "application/json").body(r#"{"id":"123456789"}"#).send().await.unwrap();
     tokio::time::sleep(Duration::from_millis(300)).await;
     let s = Sanitiser::new(Some("salt"), &[]);
-    let same = hte_console::replay::run(dir.path(), &php, |v| s.json(v, "")).await.unwrap();
+    let same = hte_console::replay::run(dir.path(), &php, &s).await.unwrap();
     assert_eq!((same.total, same.differences.len()), (1, 0), "{:?}", same.differences);
 
     // an answer that is not the recorded one
@@ -118,6 +118,6 @@ async fn replay_finds_no_difference_against_the_same_answers_and_one_against_cha
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = l.local_addr().unwrap();
     tokio::spawn(async move { axum::serve(l, changed).await.unwrap() });
-    let diff = hte_console::replay::run(dir.path(), &format!("http://{addr}"), |v| s.json(v, "")).await.unwrap();
+    let diff = hte_console::replay::run(dir.path(), &format!("http://{addr}"), &s).await.unwrap();
     assert_eq!(diff.differences.len(), 2, "{:?}", diff.differences); // status 200 vs 201, and the body
 }

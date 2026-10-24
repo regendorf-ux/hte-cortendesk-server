@@ -91,7 +91,7 @@ fn parse_json(content_type: &str, body: &[u8]) -> Option<Value> {
     serde_json::from_slice(body).ok()
 }
 
-fn body_value(s: &Sanitiser, content_type: &str, body: &[u8]) -> Value {
+pub fn body_value(s: &Sanitiser, content_type: &str, body: &[u8]) -> Value {
     if body.is_empty() {
         return json!({"kind": "empty"});
     }
@@ -104,8 +104,21 @@ fn body_value(s: &Sanitiser, content_type: &str, body: &[u8]) -> Value {
             return json!({"kind": "form", "fields": s.pairs(&parse_pairs(t))});
         }
     }
+    // A status token such as SYSINFO_UPDATED or ID_NOT_FOUND is part of the contract and holds nothing real.
+    if let Some(t) = status_token(body) {
+        return json!({"kind": "text", "text": t});
+    }
     // Pages and other text are never recorded (they carry names, tokens and sessions in forms we do not parse).
     json!({"kind": "omitted", "len": body.len()})
+}
+
+/// A short upper-case word the console answers in plain text (`SYSINFO_UPDATED`); nothing else qualifies.
+pub fn status_token(body: &[u8]) -> Option<&str> {
+    let t = std::str::from_utf8(body).ok()?.trim();
+    let ok = (3..=40).contains(&t.len())
+        && t.starts_with(|c: char| c.is_ascii_uppercase())
+        && t.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+    ok.then_some(t)
 }
 
 fn headers_value(s: &Sanitiser, allow: &[&str], h: &[(String, String)]) -> Value {

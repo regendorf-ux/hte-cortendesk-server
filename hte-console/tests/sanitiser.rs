@@ -165,3 +165,20 @@ fn sanitising_twice_changes_nothing() {
     s.json(&mut again, "");
     assert_eq!(v, again);
 }
+
+#[test]
+fn status_tokens_are_text_and_pages_are_not() {
+    assert_eq!(fixture::status_token(b"SYSINFO_UPDATED"), Some("SYSINFO_UPDATED"));
+    assert_eq!(fixture::status_token(b"ID_NOT_FOUND\n"), Some("ID_NOT_FOUND"));
+    assert_eq!(fixture::status_token(b"jsmith"), None);
+    assert_eq!(fixture::status_token(b"<html>OK</html>"), None);
+    assert_eq!(fixture::status_token(b"OK"), None);
+}
+
+#[test]
+fn the_synthetic_fixtures_are_clean() {
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synthetic");
+    let found = fixture::scan(&s(), &dir).unwrap();
+    assert!(found.is_empty(), "{found:?}");
+    assert!(fixture::list(&dir).unwrap().len() >= 8);
+}
