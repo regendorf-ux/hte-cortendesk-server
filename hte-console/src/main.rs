@@ -1,12 +1,13 @@
-//! hte-console, phase 0: a shadow proxy and the tools around it.
+//! hte-console: phase 0's shadow proxy and tools, phase 1's native device endpoints.
 //!
-//!   hte-console serve                     the proxy (default); environment: see config.rs
+//!   hte-console serve                     serve (default); environment: see config.rs
 //!   hte-console scan <dir>                fail if any fixture holds anything real
 //!   hte-console replay <dir> <base-url>   replay fixtures, print differences (exit 1 when any)
 //!   hte-console seed-sql <dir>            SQL (placeholders only) for the replay database
+//!   hte-console snapshot <sqlite>         the database as comparable text (replay: PHP's state vs ours)
 
 use hte_console::config::Config;
-use hte_console::{api, fixture, proxy, replay, sanitise, seed};
+use hte_console::{api, fixture, proxy, replay, sanitise, seed, snapshot};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -40,6 +41,14 @@ async fn main() {
             }
             Some(Err(e)) => fail(&e),
             None => fail("usage: hte-console seed-sql <dir>"),
+        },
+        Some("snapshot") => match args.get(1).map(|p| snapshot::snapshot(&PathBuf::from(p))) {
+            Some(Ok(s)) => {
+                print!("{s}");
+                0
+            }
+            Some(Err(e)) => fail(&e),
+            None => fail("usage: hte-console snapshot <sqlite>"),
         },
         Some(other) => fail(&format!("unknown command {other}")),
     };
@@ -89,7 +98,18 @@ async fn serve() -> i32 {
     };
     let svc = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
     let shutdown = async {
-        let _ = tokio::signal::ctrl_c().await;
+        // SIGINT or SIGTERM (`docker stop`): finish the requests in flight, then close the database cleanly.
+        let mut term = match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+            Ok(t) => t,
+            Err(_) => {
+                let _ = tokio::signal::ctrl_c().await;
+                return;
+            }
+        };
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            _ = term.recv() => {}
+        }
     };
     if let Err(e) = axum::serve(listener, svc).with_graceful_shutdown(shutdown).await {
         return fail(&format!("server: {e}"));

@@ -12,5 +12,6 @@ pub mod proxy;
 pub mod replay;
 pub mod sanitise;
 pub mod seed;
+pub mod snapshot;
 pub mod strategy;
 pub mod sync;
