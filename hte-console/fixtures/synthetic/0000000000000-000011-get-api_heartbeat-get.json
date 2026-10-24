@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 11,
+  "synthetic": true,
+  "source": "routes/api.php: POST only; the method-not-allowed exception is rendered as JSON for api paths",
+  "method": "GET",
+  "path": "/api/heartbeat",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The GET method is not supported for route api/heartbeat. Supported methods: POST."
+      }
+    }
+  }
+}

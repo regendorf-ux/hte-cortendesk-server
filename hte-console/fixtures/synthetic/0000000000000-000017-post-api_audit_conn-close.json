@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 17,
+  "synthetic": true,
+  "source": "AuditController connection, action close: the open row gets action close and closed_at",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "action": "close",
+        "id": "990000001",
+        "conn_id": 7001,
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "nonce": "text-00000009"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 12,
+  "synthetic": true,
+  "source": "Laravel isJson() is false for text/plain and PHP parses only form bodies, so there is no id: ID_NOT_FOUND",
+  "method": "POST",
+  "path": "/api/sysinfo",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "text/plain"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "raw",
+      "content_type": "text/plain",
+      "text": "{\"id\":\"990000004\"}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "text",
+      "text": "ID_NOT_FOUND"
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 23,
+  "synthetic": true,
+  "source": "SyncController heartbeat: an unknown device gets sysinfo 1 before the HTE password hook runs",
+  "method": "POST",
+  "path": "/api/heartbeat",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000007",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "hte_pw": 0
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "sysinfo": 1
+      }
+    }
+  }
+}

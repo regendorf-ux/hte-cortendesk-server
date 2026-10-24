@@ -182,3 +182,11 @@ fn the_synthetic_fixtures_are_clean() {
     assert!(found.is_empty(), "{found:?}");
     assert!(fixture::list(&dir).unwrap().len() >= 8);
 }
+
+#[test]
+fn committed_synthetic_fixtures_hold_placeholders_only() {
+    // What `hte-console scan` checks before every replay, run on the fixtures in the repository.
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synthetic");
+    let problems = hte_console::fixture::scan(&Sanitiser::new(Some("any salt"), &[]), &dir).unwrap();
+    assert!(problems.is_empty(), "{problems:?}");
+}

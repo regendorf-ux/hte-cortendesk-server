@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 18,
+  "synthetic": true,
+  "source": "AuditController once(): an array ip throws inside the write: 500 Audit record not stored, and the nonce is forgotten",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "action": "new",
+        "id": "990000001",
+        "conn_id": 7003,
+        "ip": [
+          "198.18.0.9"
+        ],
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "nonce": "text-0000000a"
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Audit record not stored"
+      }
+    }
+  }
+}

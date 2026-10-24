@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 10,
+  "synthetic": true,
+  "source": "Laravel Request json(): invalid JSON decodes to an empty input, so there is no id and the answer is an empty object",
+  "method": "POST",
+  "path": "/api/heartbeat",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "raw",
+      "content_type": "application/json",
+      "text": "{\"id\":\"990000001\","
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {}
+    }
+  }
+}
