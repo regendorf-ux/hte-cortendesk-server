@@ -1,4 +1,4 @@
-# HTE, Inc. (2026-10-24): build the hte-console image (phase 0 of the console without PHP: a shadow proxy).
+# HTE, Inc. (2026-10-24): build the hte-console image (the console without PHP: phase 0 shadow proxy, phase 1 device endpoints).
 # Separate from hte-image.yml on purpose: its own tag (`hte-console-v<version>`, which that workflow's
 # `v*-hte.*` filter does not match) and its own image. The server image (hbbs, hbbr) is not touched.
 name: hte-console
@@ -40,10 +40,12 @@ jobs:
         with:
           targets: x86_64-unknown-linux-musl
       - uses: Swatinem/rust-cache@v2
-      - name: Install musl tools
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      # Since phase 1 the console links libsodium and SQLite (C, built from source by their -sys crates):
+      # cross, as hte-image.yml builds hbbs, is the proven way to get both static for musl.
+      - name: Install cross
+        run: cargo install cross --git https://github.com/cross-rs/cross --locked
       - name: Build
-        run: cargo build --release -p hte-console --target x86_64-unknown-linux-musl
+        run: cross build --release -p hte-console --target x86_64-unknown-linux-musl
       - name: Collect binary
         run: |
           mkdir -p hte-console/bin/amd64
@@ -84,6 +86,6 @@ jobs:
           tags: ${{ steps.tag.outputs.tags }}
           labels: |
             org.opencontainers.image.title=HTE Console
-            org.opencontainers.image.description=HTE Remote console in Rust (phase 0, shadow proxy). AGPL-3.0.
+            org.opencontainers.image.description=HTE Remote console in Rust (phase 1, device endpoints; shadow proxy for the rest). AGPL-3.0.
             org.opencontainers.image.licenses=AGPL-3.0-only
             org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server
