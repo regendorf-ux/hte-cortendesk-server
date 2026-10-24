@@ -62,6 +62,11 @@ fn list(name: &str) -> Vec<String> {
         .collect()
 }
 
+/// A variable that is set and not empty (compose passes `${VAR:-}` as an empty string).
+fn set(name: &str) -> Option<String> {
+    std::env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+}
+
 fn num(name: &str, default: u64) -> u64 {
     std::env::var(name).ok().and_then(|v| v.trim().parse().ok()).unwrap_or(default)
 }
@@ -72,12 +77,10 @@ impl Config {
             database: PathBuf::from(db),
             app_key_file: PathBuf::from(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())),
             hbbs_db: PathBuf::from(std::env::var("HTE_CONSOLE_HBBS_DB").unwrap_or_else(|_| "/data/rustdesk/db_v2.sqlite3".into())),
-            trusted_proxies: std::env::var("HTE_CONSOLE_TRUSTED_PROXIES")
-                .or_else(|_| std::env::var("TRUSTED_PROXIES"))
-                .unwrap_or_else(|_| crate::laravel::DEFAULT_TRUSTED.into()),
-            api_version: std::env::var("HTE_CONSOLE_API_VERSION")
-                .or_else(|_| std::env::var("CORTENDESK_API_VERSION"))
-                .unwrap_or_else(|_| PORTED_PHP_VERSION.into()),
+            trusted_proxies: set("HTE_CONSOLE_TRUSTED_PROXIES")
+                .or_else(|| set("TRUSTED_PROXIES"))
+                .unwrap_or_else(|| crate::laravel::DEFAULT_TRUSTED.into()),
+            api_version: set("HTE_CONSOLE_API_VERSION").or_else(|| set("CORTENDESK_API_VERSION")).unwrap_or_else(|| PORTED_PHP_VERSION.into()),
             device_max_body: num("HTE_CONSOLE_DEVICE_MAX_BODY_BYTES", 1024 * 1024) as usize,
             busy: Duration::from_millis(num("HTE_CONSOLE_DB_BUSY_MS", 10_000)),
             wal: num("HTE_CONSOLE_DB_WAL", 1) != 0,
