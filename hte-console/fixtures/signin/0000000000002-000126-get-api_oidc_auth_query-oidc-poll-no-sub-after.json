@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 126,
+  "synthetic": true,
+  "source": "after the failure was collected: pending",
+  "method": "GET",
+  "path": "/api/oidc/auth-query",
+  "query": {
+    "code": "{{c16}}",
+    "id": "990000316",
+    "uuid": "UExBQ0VIT0xERVIhAAAA2A=="
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.250"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "No authed oidc is found"
+      }
+    }
+  }
+}

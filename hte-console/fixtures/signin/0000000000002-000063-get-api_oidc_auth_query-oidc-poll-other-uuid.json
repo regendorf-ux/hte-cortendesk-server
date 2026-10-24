@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 63,
+  "synthetic": true,
+  "source": "belongsToDevice(): the uuid must match too",
+  "method": "GET",
+  "path": "/api/oidc/auth-query",
+  "query": {
+    "code": "{{c1}}",
+    "id": "990000202",
+    "uuid": "UExBQ0VIT0xERVIhAAAA2A=="
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.250"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "No authed oidc is found"
+      }
+    }
+  }
+}

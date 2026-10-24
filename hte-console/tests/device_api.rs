@@ -70,6 +70,7 @@ async fn harness_with(trusted: &str) -> H {
         max_body: 1 << 20,
         limiter: Mutex::new(Limiter::default()),
         nonces: Mutex::new(Nonces::default()),
+        signin: hte_console::signin::State::new(hte_console::oidc::Oidc::new(false, false), None, "CortenDesk".into()),
         clock: Box::new(move || ck.load(Ordering::SeqCst)),
     });
     let app = router(native.clone(), None).into_make_service_with_connect_info::<std::net::SocketAddr>();

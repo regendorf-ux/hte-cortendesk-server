@@ -14,6 +14,8 @@ use std::net::IpAddr;
 /// `$request->input()`, after the global middleware (TrimStrings, ConvertEmptyStringsToNull).
 pub struct Input {
     bag: Arr,
+    /// `$request->query()`: the query string alone, cleaned the same way.
+    query: Arr,
     /// `$request->isJson()`: the Content-Type contains "/json" or "+json" (case-sensitive, as Laravel checks it).
     pub is_json: bool,
     /// `$request->getContent()`
@@ -73,7 +75,17 @@ impl Input {
             // client sends it to these endpoints): its fields are absent, a documented divergence.
             Arr::new()
         };
-        Input { bag: source.union(&query_bag), is_json, raw: body.to_vec() }
+        Input { bag: source.union(&query_bag), query: query_bag, is_json, raw: body.to_vec() }
+    }
+
+    /// `$request->query($key)`: None when absent.
+    pub fn query(&self, key: &str) -> Option<&Val> {
+        self.query.get_str(key)
+    }
+
+    /// `(string) $request->query($key, '')`
+    pub fn query_string(&self, key: &str) -> Result<Vec<u8>, Fault> {
+        self.query(key).map_or(Ok(vec![]), |v| v.to_php_string())
     }
 
     /// `$request->input($key)`: None when the key is absent (the caller applies the default), Some(Null) when present and null.
@@ -193,6 +205,11 @@ impl Trusted {
         self.cidrs.is_empty() && !self.peer
     }
 
+    /// Is this peer a trusted proxy?
+    pub fn trusts(&self, peer: &IpAddr) -> bool {
+        self.contains(peer, peer)
+    }
+
     fn contains(&self, ip: &IpAddr, peer: &IpAddr) -> bool {
         (self.peer && ip == peer) || self.cidrs.iter().any(|c| c.contains(ip))
     }
@@ -261,7 +278,7 @@ fn b64() -> base64::engine::GeneralPurpose {
 }
 
 /// PHP's non-strict `base64_decode`: foreign bytes skipped, data after padding still read.
-fn base64_decode_lenient(s: &[u8]) -> Vec<u8> {
+pub fn base64_decode_lenient(s: &[u8]) -> Vec<u8> {
     let filtered: Vec<u8> = s.iter().copied().filter(|c| c.is_ascii_alphanumeric() || *c == b'+' || *c == b'/').collect();
     let mut out = vec![];
     let mut buf = 0u32;
@@ -393,6 +410,113 @@ pub fn uuid4() -> String {
     b[8] = (b[8] & 0x3f) | 0x80;
     let h = hex::encode(b);
     format!("{}-{}-{}-{}-{}", &h[0..8], &h[8..12], &h[12..16], &h[16..20], &h[20..32])
+}
+
+// ------------------------------------------------------------------------------------- random, hashing ---
+
+/// `Str::random($n)`: letters and digits from the system's CSPRNG (Laravel draws base64 and drops `+/=`, which is
+/// the same uniform choice among 62 characters).
+pub fn str_random(n: usize) -> String {
+    use rand::Rng;
+    const ALPHABET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::rngs::OsRng;
+    (0..n).map(|_| ALPHABET[rng.gen_range(0..ALPHABET.len())] as char).collect()
+}
+
+/// `BCRYPT_ROUNDS`, as Laravel's hashing config reads it (default 12).
+pub fn bcrypt_rounds() -> u32 {
+    std::env::var("BCRYPT_ROUNDS").ok().and_then(|v| v.trim().parse().ok()).filter(|c| (4..=31).contains(c)).unwrap_or(12)
+}
+
+/// `Hash::make($value)`: a `$2y$` bcrypt hash at Laravel's cost.
+pub fn hash_make(value: &[u8]) -> Result<String, Fault> {
+    bcrypt::hash_with_result(c_string(value), bcrypt_rounds())
+        .map(|h| h.format_for_version(bcrypt::Version::TwoY))
+        .map_err(|_| Fault::Other("bcrypt hashing failed".into()))
+}
+
+/// PHP hands the password to crypt_blowfish as a C string: it ends at the first NUL byte.
+fn c_string(v: &[u8]) -> &[u8] {
+    v.iter().position(|&b| b == 0).map_or(v, |p| &v[..p])
+}
+
+/// `password_get_info($hash)['algoName'] === 'bcrypt'`: PHP knows a bcrypt hash only as `$2y$` and 60 bytes.
+pub fn is_php_bcrypt(hash: &[u8]) -> bool {
+    hash.len() == 60 && hash.starts_with(b"$2y$")
+}
+
+/// `Hash::check($value, $hashed)` with Laravel's bcrypt driver (`verify` on, its default): an empty hash is false,
+/// a hash PHP does not see as bcrypt is a RuntimeException (500), anything crypt cannot use is false.
+pub fn hash_check(value: &[u8], hashed: &Val) -> Result<bool, Fault> {
+    let hashed = hashed.to_php_string()?;
+    if hashed.is_empty() {
+        return Ok(false);
+    }
+    if !is_php_bcrypt(&hashed) {
+        return Err(Fault::Other("This password does not use the Bcrypt algorithm.".into()));
+    }
+    let Ok(h) = std::str::from_utf8(&hashed) else { return Ok(false) };
+    Ok(bcrypt::verify(c_string(value), h).unwrap_or(false))
+}
+
+/// A bcrypt hash of nothing anyone knows, at Laravel's cost: checked against when there is no account to check,
+/// so an unknown name takes as long as a wrong password (PHP answers those at once; see the crate's notes).
+pub static DUMMY_HASH: once_cell::sync::Lazy<String> =
+    once_cell::sync::Lazy::new(|| hash_make(str_random(40).as_bytes()).unwrap_or_else(|_| String::new()));
+
+/// Spend the time one `Hash::check` takes, with a result nobody can use.
+pub fn hash_check_dummy(value: &[u8]) {
+    if !DUMMY_HASH.is_empty() {
+        let _ = std::hint::black_box(bcrypt::verify(c_string(value), &DUMMY_HASH));
+    }
+}
+
+// ------------------------------------------------------------------------------------------ http helpers ---
+
+/// `$request->bearerToken()`: the text after the LAST `Bearer ` (any case) up to a comma; None when absent.
+pub fn bearer_token(authorization: Option<&[u8]>) -> Option<Vec<u8>> {
+    let h = authorization?;
+    let lower = h.to_ascii_lowercase();
+    let pos = lower.windows(7).rposition(|w| w == b"bearer ")?;
+    let rest = &h[pos + 7..];
+    Some(match rest.iter().position(|&b| b == b',') {
+        Some(c) => rest[..c].to_vec(),
+        None => rest.to_vec(),
+    })
+}
+
+/// Blade's `{{ }}`: `htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true)`.
+pub fn e(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    for c in s.chars() {
+        match c {
+            '&' => out.push_str("&amp;"),
+            '<' => out.push_str("&lt;"),
+            '>' => out.push_str("&gt;"),
+            '"' => out.push_str("&quot;"),
+            '\'' => out.push_str("&#039;"),
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// PHP's `urlencode` (what `http_build_query` uses by default): letters, digits and `-_.` stay, a space is `+`.
+pub fn urlencode(s: &[u8]) -> String {
+    let mut out = String::with_capacity(s.len() * 3);
+    for &c in s {
+        match c {
+            b'a'..=b'z' | b'A'..=b'Z' | b'0'..=b'9' | b'-' | b'_' | b'.' => out.push(c as char),
+            b' ' => out.push('+'),
+            _ => out.push_str(&format!("%{c:02X}")),
+        }
+    }
+    out
+}
+
+/// `http_build_query($pairs)` for string values.
+pub fn http_build_query(pairs: &[(&str, &[u8])]) -> String {
+    pairs.iter().map(|(k, v)| format!("{}={}", urlencode(k.as_bytes()), urlencode(v))).collect::<Vec<_>>().join("&")
 }
 
 // --------------------------------------------------------------------------------------- dirty checking ---

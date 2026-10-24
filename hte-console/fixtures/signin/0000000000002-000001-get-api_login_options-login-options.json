@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 1,
+  "synthetic": true,
+  "source": "loginOptions(): SSO on, label 'Sign in with Microsoft' -> clientProviderName() strips the verb",
+  "method": "GET",
+  "path": "/api/login-options",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        "common-oidc/[{\"name\":\"Microsoft\"}]"
+      ]
+    }
+  }
+}

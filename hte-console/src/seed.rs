@@ -18,7 +18,8 @@ pub fn sql(dir: &Path) -> Result<String, String> {
     for p in list(dir).map_err(|e| e.to_string())? {
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         if let Some(a) = fx["request"]["headers"]["authorization"].as_str() {
-            if let Some(t) = a.strip_prefix("Bearer ") {
+            // a `{{template}}` is a token the replay itself signs in for (phase 2), not one to seed
+            if let Some(t) = a.strip_prefix("Bearer ").filter(|t| !t.starts_with("{{")) {
                 tokens.insert(t.to_string());
             }
         }
@@ -44,4 +45,21 @@ pub fn sql(dir: &Path) -> Result<String, String> {
         );
     }
     Ok(s)
+}
+
+/// `hte-console seed-expand <sql> <idp-url>`: a phase 2 seed file made concrete for one replay. `@@IDP@@` becomes
+/// the fake identity provider's URL (it is also the issuer), `@@ENCRYPT(<text>)@@` becomes `Crypt::encryptString`
+/// of the text under the replay database's own app key (the `encrypted` cast of `users.totp_secret`).
+pub fn expand(sql: &str, idp: &str, crypt: &crate::laravel::Encrypter) -> Result<String, String> {
+    let mut out = String::with_capacity(sql.len());
+    let mut rest = sql.replace("@@IDP@@", idp.trim_end_matches('/'));
+    while let Some(i) = rest.find("@@ENCRYPT(") {
+        out.push_str(&rest[..i]);
+        let after = &rest[i + "@@ENCRYPT(".len()..];
+        let end = after.find(")@@").ok_or("unterminated @@ENCRYPT(")?;
+        out.push_str(&crypt.encrypt_string(after[..end].as_bytes()));
+        rest = after[end + 3..].to_string();
+    }
+    out.push_str(&rest);
+    Ok(out)
 }

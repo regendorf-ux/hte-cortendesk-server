@@ -4,7 +4,9 @@
 //! Every table, every row in rowid order, every column with its SQLite storage class (so an integer stored where
 //! PHP stores text is a difference). Masked, and only these: timestamps (`*_at`: the two runs happen at different
 //! times), `guid` (a random UUID), `*_enc` (Laravel ciphertext has a random IV) and `strategy_version` (it is
-//! `time()`). A masked value still shows whether it is null.
+//! `time()`); phase 2 adds what sign-in mints at random (`token`, `access_token`, and `code`, `state`, `nonce`,
+//! `verifier` of `oidc_auth_requests`), a bcrypt hash (`$2y$...`, salted) and `totp_last_timestep` (the 30-second step
+//! the run happened in). A masked value still shows whether it is null.
 
 use rusqlite::types::ValueRef;
 use rusqlite::{Connection, OpenFlags};
@@ -20,6 +22,10 @@ fn masked(col: &str) -> Option<&'static str> {
         Some("<enc>")
     } else if col == "strategy_version" {
         Some("<time>")
+    } else if matches!(col, "token" | "access_token" | "code" | "state" | "nonce" | "verifier") {
+        Some("<random>")
+    } else if col == "totp_last_timestep" {
+        Some("<step>")
     } else {
         None
     }
@@ -30,6 +36,7 @@ fn cell(col: &str, v: ValueRef<'_>) -> Value {
         ValueRef::Null => return Value::Null,
         ValueRef::Integer(i) => ("integer", i.to_string()),
         ValueRef::Real(f) => ("real", format!("{f:?}")),
+        ValueRef::Text(t) if t.len() == 60 && t.starts_with(b"$2y$") => ("text", "<bcrypt>".into()),
         ValueRef::Text(t) => ("text", String::from_utf8_lossy(t).into_owned()),
         ValueRef::Blob(b) => ("blob", hex::encode(b)),
     };

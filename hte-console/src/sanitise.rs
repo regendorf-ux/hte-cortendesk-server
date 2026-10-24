@@ -71,7 +71,10 @@ static PLACEHOLDER: Lazy<Regex> = Lazy::new(|| {
         r"|(?:host|dom)-[0-9a-f]{10}\.example\.invalid",
         r"|198\.1[89]\.\d{1,3}\.\d{1,3}",
         r"|2001:db8::[0-9a-f]{4}:[0-9a-f]{4}",
-        r"|(?:user|host|text)-[0-9a-f]{8})$"
+        r"|(?:user|host|text)-[0-9a-f]{8}",
+        // a replay template or marker of a synthetic fixture (`{{token1}}`, `{{random}}`): filled in or compared at
+        // replay time, never a captured value
+        r"|\{\{[a-z0-9_:.-]{1,40}\}\})$"
     ))
     .unwrap()
 });

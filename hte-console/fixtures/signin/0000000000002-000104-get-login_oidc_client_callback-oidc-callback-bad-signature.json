@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 104,
+  "synthetic": true,
+  "source": "php-jwt: signed by another key; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token failed verification: Signature verification failed"
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u11",
+    "mode": "bad-signature",
+    "profile": "anna"
+  }
+}

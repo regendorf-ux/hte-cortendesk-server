@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 132,
+  "synthetic": true,
+  "source": "exchangeCode(): no id_token; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The provider returned no ID token. Ensure the &quot;openid&quot; scope is granted."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u18",
+    "mode": "no-id-token",
+    "profile": "anna"
+  }
+}

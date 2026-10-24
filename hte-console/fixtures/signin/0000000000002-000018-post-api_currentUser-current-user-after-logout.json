@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 18,
+  "synthetic": true,
+  "source": "the deleted token no longer authenticates",
+  "method": "POST",
+  "path": "/api/currentUser",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.12",
+      "authorization": "Bearer {{t1}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Unauthenticated."
+      }
+    }
+  }
+}

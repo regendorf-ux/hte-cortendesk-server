@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "seq": 64,
+  "synthetic": true,
+  "source": "authorized: AuthBody, the row deleted",
+  "method": "GET",
+  "path": "/api/oidc/auth-query",
+  "query": {
+    "code": "{{c1}}",
+    "id": "990000202",
+    "uuid": "UExBQ0VIT0xERVIhAAAA0w=="
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.250"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "access_token": "{{random}}",
+        "type": "access_token",
+        "tfa_type": "",
+        "secret": "",
+        "user": {
+          "name": "990005001",
+          "display_name": "text-5eed0a01",
+          "email": "user-5eed00a001@example.invalid",
+          "note": "",
+          "status": 1,
+          "is_admin": false,
+          "info": {}
+        }
+      }
+    }
+  },
+  "capture": {
+    "t3": "/access_token"
+  }
+}

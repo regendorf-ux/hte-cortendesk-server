@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "seq": 17,
+  "synthetic": true,
+  "source": "logout(): the token row is deleted, {}",
+  "method": "POST",
+  "path": "/api/logout",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.12",
+      "authorization": "Bearer {{t1}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {}
+    }
+  }
+}

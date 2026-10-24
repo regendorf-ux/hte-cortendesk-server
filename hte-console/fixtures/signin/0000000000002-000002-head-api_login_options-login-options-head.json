@@ -1,0 +1,29 @@
+{
+  "format": 1,
+  "seq": 2,
+  "synthetic": true,
+  "source": "Route->match(['get','head']): HEAD runs the route, the body is dropped",
+  "method": "HEAD",
+  "path": "/api/login-options",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

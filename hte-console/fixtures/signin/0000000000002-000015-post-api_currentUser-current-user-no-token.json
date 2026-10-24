@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 15,
+  "synthetic": true,
+  "source": "auth:client without a bearer: 401 Unauthenticated.",
+  "method": "POST",
+  "path": "/api/currentUser",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.12"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Unauthenticated."
+      }
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 3,
+  "synthetic": true,
+  "source": "Laravel: MethodNotAllowedHttpException rendered as JSON for api/*",
+  "method": "PUT",
+  "path": "/api/login-options",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The PUT method is not supported for route api/login-options. Supported methods: GET, HEAD."
+      }
+    }
+  }
+}

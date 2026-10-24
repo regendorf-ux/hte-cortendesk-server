@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 67,
+  "synthetic": true,
+  "source": "the SSO token works; userinfo's name lost to the token's (array_merge)",
+  "method": "POST",
+  "path": "/api/currentUser",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.1",
+      "authorization": "Bearer {{t3}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "990005001",
+        "display_name": "text-5eed0a01",
+        "email": "user-5eed00a001@example.invalid",
+        "note": "",
+        "status": 1,
+        "is_admin": false,
+        "info": {}
+      }
+    }
+  }
+}

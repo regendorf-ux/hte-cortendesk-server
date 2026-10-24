@@ -185,8 +185,26 @@ fn the_synthetic_fixtures_are_clean() {
 
 #[test]
 fn committed_synthetic_fixtures_hold_placeholders_only() {
-    // What `hte-console scan` checks before every replay, run on the fixtures in the repository.
-    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synthetic");
-    let problems = hte_console::fixture::scan(&Sanitiser::new(Some("any salt"), &[]), &dir).unwrap();
-    assert!(problems.is_empty(), "{problems:?}");
+    // What `hte-console scan` checks before every replay, run on the fixtures in the repository (phase 1's and
+    // phase 2's sign-in fixtures).
+    for d in ["fixtures/synthetic", "fixtures/signin"] {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(d);
+        let problems = hte_console::fixture::scan(&Sanitiser::new(Some("any salt"), &[]), &dir).unwrap();
+        assert!(problems.is_empty(), "{d}: {problems:?}");
+    }
+}
+
+#[test]
+fn replay_templates_are_placeholders_and_nothing_else_is() {
+    // phase 2: `{{name}}` is filled in at replay time; only that exact shape counts as a placeholder
+    use hte_console::sanitise::is_placeholder;
+    for t in ["{{t1}}", "{{random}}", "{{oidc-url}}", "{{totp_last}}", "Bearer {{t1}}"] {
+        assert!(is_placeholder(t), "{t}");
+    }
+    for t in ["{{Real Secret}}", "x{{t1}}", "{{t1}}x", "{{}}", "{{a b}}", &format!("{{{{{}}}}}", "a".repeat(41))] {
+        assert!(!is_placeholder(t), "{t}");
+    }
+    // a value under a secret key that is no template is still replaced
+    let s = Sanitiser::new(Some("salt"), &[]);
+    assert!(s.scalar("password", "{{not-closed").starts_with("tok-"));
 }

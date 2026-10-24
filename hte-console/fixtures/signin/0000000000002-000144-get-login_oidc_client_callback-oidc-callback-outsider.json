@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 144,
+  "synthetic": true,
+  "source": "OidcUserResolver->domainAllowed (LoginLog 'sso', failed); fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "Your email domain is not permitted to sign in to this console."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u21",
+    "mode": "ok",
+    "profile": "outsider"
+  }
+}

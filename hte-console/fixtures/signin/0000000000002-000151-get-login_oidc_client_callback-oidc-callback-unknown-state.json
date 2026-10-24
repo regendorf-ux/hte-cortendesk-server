@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 151,
+  "synthetic": true,
+  "source": "browserCallback(): no row for the state -> 400 page",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {
+    "state": "tok-5eed00000000aaaa",
+    "code": "tok-5eed00000000bbbb"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "This sign-in request has expired."
+      ]
+    }
+  }
+}

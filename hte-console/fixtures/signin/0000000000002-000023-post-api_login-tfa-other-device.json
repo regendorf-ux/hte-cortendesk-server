@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 23,
+  "synthetic": true,
+  "source": "verifyCode(): bound to the device that gave the password",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.30"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "type": "tfa_code",
+        "secret": "{{s1}}",
+        "id": "990000299",
+        "tfaCode": "{{totp}}"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Your sign-in expired. Sign in again."
+      }
+    }
+  }
+}

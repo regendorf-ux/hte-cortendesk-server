@@ -5,6 +5,8 @@
 //!   hte-console replay <dir> <base-url>   replay fixtures, print differences (exit 1 when any)
 //!   hte-console seed-sql <dir>            SQL (placeholders only) for the replay database
 //!   hte-console snapshot <sqlite>         the database as comparable text (replay: PHP's state vs ours)
+//!   hte-console seed-expand <sql> <idp>   a phase 2 seed made concrete (fake provider URL, app-key ciphertexts)
+//!   hte-console fake-idp                  a fake OpenID provider for the replay (TEST ONLY; see fake_idp.rs)
 
 use hte_console::config::Config;
 use hte_console::{api, fixture, proxy, replay, sanitise, seed, snapshot};
@@ -50,9 +52,39 @@ async fn main() {
             Some(Err(e)) => fail(&e),
             None => fail("usage: hte-console snapshot <sqlite>"),
         },
+        Some("seed-expand") => match (args.get(1), args.get(2)) {
+            (Some(f), Some(idp)) => seed_expand(f, idp),
+            _ => fail("usage: hte-console seed-expand <sql> <idp-url>"),
+        },
+        Some("fake-idp") => match hte_console::fake_idp::serve_from_env().await {
+            Ok(()) => 0,
+            Err(e) => fail(&e),
+        },
         Some(other) => fail(&format!("unknown command {other}")),
     };
     std::process::exit(code);
+}
+
+fn seed_expand(file: &str, idp: &str) -> i32 {
+    // the app key as the PHP image reads it: APP_KEY, else the key file
+    let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => match std::fs::read_to_string(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())) {
+            Ok(k) => k,
+            Err(e) => return fail(&format!("cannot read the app key: {e}")),
+        },
+    };
+    let crypt = match hte_console::laravel::Encrypter::from_app_key(&key) {
+        Ok(c) => c,
+        Err(e) => return fail(&e),
+    };
+    match std::fs::read_to_string(file).map_err(|e| e.to_string()).and_then(|s| seed::expand(&s, idp, &crypt)) {
+        Ok(s) => {
+            print!("{s}");
+            0
+        }
+        Err(e) => fail(&e),
+    }
 }
 
 fn fail(msg: &str) -> i32 {

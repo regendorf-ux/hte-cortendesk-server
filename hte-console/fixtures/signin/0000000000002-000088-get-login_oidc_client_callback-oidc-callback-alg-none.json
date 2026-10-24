@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 88,
+  "synthetic": true,
+  "source": "acceptedSigningAlgorithms() never holds none; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token was signed with an algorithm this provider does not advertise (none)."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u7",
+    "mode": "alg-none",
+    "profile": "anna"
+  }
+}

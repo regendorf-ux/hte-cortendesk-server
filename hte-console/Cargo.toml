@@ -1,6 +1,6 @@
 [package]
 name = "hte-console"
-version = "0.1.2"
+version = "0.2.0"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database."
@@ -32,6 +32,13 @@ aes = "0.8"
 cbc = { version = "0.1", features = ["alloc"] }
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 libc = "0.2"
+# Phase 2 (client sign-in), again only crates the workspace lockfile already holds: bcrypt 0.13 is hbbs's ($2y$ hashes,
+# Laravel's Hash), ring 0.17 is rustls's (RS256 ID-token signatures; also signs for the replay's fake identity
+# provider), sha1 for TOTP (otphp's default), url for the identity provider's endpoints.
+bcrypt = "0.13"
+ring = "0.17"
+sha1 = "0.10"
+url = "2"
 
 [dev-dependencies]
 tempfile = "3"

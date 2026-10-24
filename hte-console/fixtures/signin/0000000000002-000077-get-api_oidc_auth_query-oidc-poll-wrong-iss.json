@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 77,
+  "synthetic": true,
+  "source": "authQuery(): the failure is handed over once, the row deleted",
+  "method": "GET",
+  "path": "/api/oidc/auth-query",
+  "query": {
+    "code": "{{c4}}",
+    "id": "990000304",
+    "uuid": "UExBQ0VIT0xERVIhAAAA2A=="
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.250"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "The ID token was issued by an unexpected issuer."
+      }
+    }
+  }
+}

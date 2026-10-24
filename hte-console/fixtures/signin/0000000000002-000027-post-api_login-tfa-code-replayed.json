@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 27,
+  "synthetic": true,
+  "source": "consumeTotp(): the conditional UPDATE claims nothing for a used step",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.30"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "type": "tfa_code",
+        "secret": "{{s2}}",
+        "id": "990000205",
+        "tfaCode": "{{totp_last}}"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "That code has already been used. Wait for the next one."
+      }
+    }
+  }
+}

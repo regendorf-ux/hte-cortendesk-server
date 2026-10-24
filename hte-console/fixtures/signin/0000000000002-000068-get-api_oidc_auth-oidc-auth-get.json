@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 68,
+  "synthetic": true,
+  "source": "Route->post: GET is 405",
+  "method": "GET",
+  "path": "/api/oidc/auth",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The GET method is not supported for route api/oidc/auth. Supported methods: POST."
+      }
+    }
+  }
+}

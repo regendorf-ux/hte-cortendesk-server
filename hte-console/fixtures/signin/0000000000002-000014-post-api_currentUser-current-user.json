@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 14,
+  "synthetic": true,
+  "source": "currentUser(): the guard finds the token, stamps last_used_at; UserPayload",
+  "method": "POST",
+  "path": "/api/currentUser",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.12",
+      "authorization": "Bearer {{t1}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "user-5eed0002",
+        "display_name": "text-5eed0002",
+        "email": "user-5eed000002@example.invalid",
+        "note": "",
+        "status": 1,
+        "is_admin": true,
+        "info": {}
+      }
+    }
+  }
+}

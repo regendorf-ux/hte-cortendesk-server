@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 96,
+  "synthetic": true,
+  "source": "php-jwt: exp past (60 s leeway); fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token failed verification: Expired token"
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u9",
+    "mode": "expired",
+    "profile": "anna"
+  }
+}

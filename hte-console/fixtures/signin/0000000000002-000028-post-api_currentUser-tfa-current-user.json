@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 28,
+  "synthetic": true,
+  "source": "the TOTP sign-in's token works",
+  "method": "POST",
+  "path": "/api/currentUser",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.30",
+      "authorization": "Bearer {{t2}}"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "user-5eed0006",
+        "display_name": "text-5eed0006",
+        "email": "user-5eed000006@example.invalid",
+        "note": "",
+        "status": 1,
+        "is_admin": false,
+        "info": {}
+      }
+    }
+  }
+}

@@ -36,6 +36,8 @@ pub struct Native {
     pub max_body: usize,
     pub limiter: Mutex<Limiter>,
     pub nonces: Mutex<Nonces>,
+    /// Phase 2: the client sign-in's process memory and the identity provider side.
+    pub signin: crate::signin::State,
     /// Unix seconds; tests replace it.
     pub clock: Box<dyn Fn() -> i64 + Send + Sync>,
 }
@@ -74,6 +76,7 @@ impl Native {
             max_body: cfg.device_max_body,
             limiter: Mutex::new(Limiter::default()),
             nonces: Mutex::new(Nonces::default()),
+            signin: crate::signin::State::from_env(),
             clock: Box::new(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)),
         })
     }
@@ -103,6 +106,11 @@ fn warn_unported(c: &Connection) {
     if let Ok(v) = crate::sqlite::setting(c, "apprise_enabled", "0") {
         if v == b"1" {
             tracing::warn!("apprise_enabled is 1: hte-console does not send device/alarm notifications (phase 1 ports none)");
+        }
+    }
+    if let Ok(v) = crate::sqlite::setting(c, "email_login_verification", "0") {
+        if v == b"1" {
+            tracing::warn!("email_login_verification is 1: hte-console sends no mail, so a password sign-in that would get an emailed code is refused (PHP's own answer when mail fails)");
         }
     }
 }
@@ -171,7 +179,7 @@ fn json_message(status: u16, msg: &str) -> Reply {
 /// one is dropped whole once everything in it has expired, so nothing is ever scanned, whatever a flood sends.
 /// A generation that reaches `cap` entries starts the next one early (memory stays at two generations; under such
 /// a flood some live entries are forgotten early, never kept beyond their time).
-struct Generations<V> {
+pub struct Generations<V> {
     cur: HashMap<[u8; 32], (V, i64)>,
     prev: HashMap<[u8; 32], (V, i64)>,
     started: i64,
@@ -179,23 +187,23 @@ struct Generations<V> {
     cap: usize,
 }
 
-impl<V: Copy> Generations<V> {
-    fn new(window: i64, cap: usize) -> Self {
+impl<V: Clone> Generations<V> {
+    pub fn new(window: i64, cap: usize) -> Self {
         Generations { cur: HashMap::new(), prev: HashMap::new(), started: i64::MIN, window, cap }
     }
     /// The unexpired value and its expiry.
-    fn get(&self, k: &[u8; 32], now: i64) -> Option<(V, i64)> {
-        self.cur.get(k).or_else(|| self.prev.get(k)).copied().filter(|(_, exp)| now < *exp)
+    pub fn get(&self, k: &[u8; 32], now: i64) -> Option<(V, i64)> {
+        self.cur.get(k).or_else(|| self.prev.get(k)).cloned().filter(|(_, exp)| now < *exp)
     }
     /// `exp` is capped at `now + window`.
-    fn put(&mut self, k: [u8; 32], v: V, exp: i64, now: i64) {
+    pub fn put(&mut self, k: [u8; 32], v: V, exp: i64, now: i64) {
         if now >= self.started.saturating_add(self.window) || self.cur.len() >= self.cap {
             self.prev = std::mem::take(&mut self.cur);
             self.started = now;
         }
         self.cur.insert(k, (v, exp.min(now.saturating_add(self.window))));
     }
-    fn remove(&mut self, k: &[u8; 32]) {
+    pub fn remove(&mut self, k: &[u8; 32]) {
         self.cur.remove(k);
         self.prev.remove(k);
     }
@@ -241,6 +249,10 @@ impl Limiter {
     pub fn available_in(&self, k: &[u8], now: i64) -> i64 {
         self.live(&Self::key(k), now).map_or(0, |(_, exp)| (exp - now).max(0))
     }
+    /// `RateLimiter::clear($key)`
+    pub fn clear(&mut self, k: &[u8]) {
+        self.buckets.remove(&Self::key(k));
+    }
 }
 
 /// AppServiceProvider's `device-sync`: 120 a minute per address and device id, 6000 a minute per address.
@@ -281,7 +293,7 @@ impl Nonces {
 
 // ---------------------------------------------------------------------------------------------- routing ---
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Endpoint {
     Heartbeat,
     Sysinfo,
@@ -289,6 +301,14 @@ pub enum Endpoint {
     AuditFile,
     AuditAlarm,
     Version,
+    // phase 2
+    LoginOptions,
+    Login,
+    Logout,
+    CurrentUser,
+    OidcAuth,
+    OidcAuthQuery,
+    ClientCallback,
 }
 
 impl Endpoint {
@@ -300,27 +320,55 @@ impl Endpoint {
             Endpoint::AuditFile => "api/audit/file",
             Endpoint::AuditAlarm => "api/audit/alarm",
             Endpoint::Version => "api/version",
+            Endpoint::LoginOptions => "api/login-options",
+            Endpoint::Login => "api/login",
+            Endpoint::Logout => "api/logout",
+            Endpoint::CurrentUser => "api/currentUser",
+            Endpoint::OidcAuth => "api/oidc/auth",
+            Endpoint::OidcAuthQuery => "api/oidc/auth-query",
+            Endpoint::ClientCallback => "login/oidc/client-callback",
         }
     }
     fn methods(self) -> &'static [&'static str] {
         match self {
-            Endpoint::Version => &["GET", "HEAD"],
+            Endpoint::Version | Endpoint::LoginOptions | Endpoint::OidcAuthQuery | Endpoint::ClientCallback => &["GET", "HEAD"],
             _ => &["POST"],
         }
     }
+    /// Phase 2's routes: small bodies, their own limits.
+    fn signin(self) -> bool {
+        matches!(
+            self,
+            Endpoint::LoginOptions | Endpoint::Login | Endpoint::Logout | Endpoint::CurrentUser | Endpoint::OidcAuth | Endpoint::OidcAuthQuery | Endpoint::ClientCallback
+        )
+    }
+    /// A web route (HTML answers, no CORS), not `api/*`.
+    fn web(self) -> bool {
+        self == Endpoint::ClientCallback
+    }
 }
+
+/// Every path hte-console answers itself (phase 1 and phase 2), for the Caddy routes and the shadow's capture rule.
+pub const NATIVE_PATHS: &[(&str, Endpoint)] = &[
+    ("/api/heartbeat", Endpoint::Heartbeat),
+    ("/api/sysinfo", Endpoint::Sysinfo),
+    ("/api/audit/conn", Endpoint::AuditConn),
+    ("/api/audit/file", Endpoint::AuditFile),
+    ("/api/audit/alarm", Endpoint::AuditAlarm),
+    ("/api/version", Endpoint::Version),
+    ("/api/login-options", Endpoint::LoginOptions),
+    ("/api/login", Endpoint::Login),
+    ("/api/logout", Endpoint::Logout),
+    ("/api/currentUser", Endpoint::CurrentUser),
+    ("/api/oidc/auth", Endpoint::OidcAuth),
+    ("/api/oidc/auth-query", Endpoint::OidcAuthQuery),
+    ("/login/oidc/client-callback", Endpoint::ClientCallback),
+];
 
 /// The native routes; `fallback` (the shadow proxy) answers everything else.
 pub fn router(native: Arc<Native>, fallback: Option<Router>) -> Router {
     let mut r = Router::new();
-    for (path, ep) in [
-        ("/api/heartbeat", Endpoint::Heartbeat),
-        ("/api/sysinfo", Endpoint::Sysinfo),
-        ("/api/audit/conn", Endpoint::AuditConn),
-        ("/api/audit/file", Endpoint::AuditFile),
-        ("/api/audit/alarm", Endpoint::AuditAlarm),
-        ("/api/version", Endpoint::Version),
-    ] {
+    for (path, ep) in NATIVE_PATHS.iter().copied() {
         r = r.route(path, any(move |s, c, req| handle(s, c, req, ep)));
     }
     let r = r.route("/__hte-console/health", any(|| async { "ok" })).with_state(native);
@@ -334,14 +382,20 @@ fn header_str<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
     h.get(name).and_then(|v| v.to_str().ok())
 }
 
+/// The largest body a sign-in route reads (`HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES`, default 64 KiB): a sign-in is a few
+/// hundred bytes.
+fn signin_max_body() -> usize {
+    std::env::var("HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
+}
+
 async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, req: Request<Body>, ep: Endpoint) -> Response<Body> {
     let (parts, body) = req.into_parts();
     let method = parts.method.clone();
     let head = method == Method::HEAD;
 
-    // HandleCors: a preflight (OPTIONS with Access-Control-Request-Method; fruitcake does not ask for Origin)
-    // never reaches the route.
-    if method == Method::OPTIONS && parts.headers.contains_key("access-control-request-method") {
+    // HandleCors (api/* only): a preflight (OPTIONS with Access-Control-Request-Method; fruitcake does not ask for
+    // Origin) never reaches the route.
+    if !ep.web() && method == Method::OPTIONS && parts.headers.contains_key("access-control-request-method") {
         let mut extra = vec![
             ("access-control-allow-methods", header_str(&parts.headers, "access-control-request-method").unwrap_or("").to_ascii_uppercase()),
             ("access-control-max-age", "0".to_string()),
@@ -355,7 +409,10 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
     if !ep.methods().contains(&method.as_str()) {
         if method == Method::OPTIONS {
             // the router answers OPTIONS for a known path itself
-            return respond(Reply::Text(200, vec![]), vec![("allow", ep.methods().join(",")), ("vary", "Access-Control-Request-Method".into())], false);
+            return respond_for(ep, Reply::Text(200, vec![]), vec![("allow", ep.methods().join(",")), ("vary", "Access-Control-Request-Method".into())], false);
+        }
+        if ep.web() {
+            return page_response(405, crate::signin::error_page(405, "Method Not Allowed"), head);
         }
         let msg = format!("The {} method is not supported for route {}. Supported methods: {}.", method, ep.route(), ep.methods().join(", "));
         return respond(json_message(405, &msg), vec![("allow", ep.methods().join(", "))], head);
@@ -364,24 +421,263 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
         return respond(Reply::Text(200, n.api_version.as_bytes().to_vec()), vec![], head);
     }
 
-    // ValidatePostSize, bounded here far below PHP's limit: no device sends more than a few kilobytes.
+    // ValidatePostSize, bounded here far below PHP's limit: no device sends more than a few kilobytes, no sign-in
+    // more than a few hundred bytes.
+    let max = if ep.signin() { signin_max_body() } else { n.max_body };
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
-    if declared.map_or(false, |l| l > n.max_body as u64) {
-        return respond(json_message(413, "The POST data is too large."), vec![], false);
+    if declared.map_or(false, |l| l > max as u64) {
+        return too_large(ep);
     }
-    let body = match axum::body::to_bytes(body, n.max_body).await {
+    let body = match axum::body::to_bytes(body, max).await {
         Ok(b) => b,
-        Err(_) => return respond(json_message(413, "The POST data is too large."), vec![], false),
+        Err(_) => return too_large(ep),
     };
     let xff: Vec<&str> = parts.headers.get_all("x-forwarded-for").iter().filter_map(|v| v.to_str().ok()).collect();
     let ip = laravel::client_ip(peer.ip(), &xff, &n.trusted);
     let input = Input::new(method.as_str(), header_str(&parts.headers, header::CONTENT_TYPE.as_str()), parts.uri.query(), &body);
+
+    if ep.signin() {
+        let root = request_root(&n, &parts.headers, peer.ip());
+        let bearer = laravel::bearer_token(parts.headers.get(header::AUTHORIZATION).map(|v| v.as_bytes()));
+        return signin_route(n, ep, input, ip, root, bearer, head).await;
+    }
 
     let n2 = n.clone();
     let out = tokio::task::spawn_blocking(move || throttled(&n2, ep, &input, &ip)).await;
     match out {
         Ok((reply, headers)) => respond(reply, headers, false),
         Err(_) => respond(Reply::server_error(), vec![], false),
+    }
+}
+
+fn too_large(ep: Endpoint) -> Response<Body> {
+    if ep.web() {
+        return page_response(413, crate::signin::error_page(413, "Content Too Large"), false);
+    }
+    respond(json_message(413, "The POST data is too large."), vec![], false)
+}
+
+/// `respond`, without CORS for a web route.
+fn respond_for(ep: Endpoint, r: Reply, extra: Vec<(&'static str, String)>, head: bool) -> Response<Body> {
+    let mut resp = respond(r, extra, head);
+    if ep.web() {
+        resp.headers_mut().remove("access-control-allow-origin");
+    }
+    resp
+}
+
+/// An HTML page as Laravel sends a view (no session cookie: see the crate's notes).
+fn page_response(status: u16, html: String, head: bool) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))
+        .header(header::CONTENT_TYPE, "text/html; charset=UTF-8")
+        .header(header::CACHE_CONTROL, "no-cache, private")
+        .header("x-content-type-options", "nosniff")
+        .header("referrer-policy", "no-referrer")
+        .body(if head { Body::empty() } else { Body::from(html) })
+        .unwrap_or_else(|_| Response::new(Body::empty()))
+}
+
+/// The console's origin for links and the OIDC redirect URI: `HTE_CONSOLE_PUBLIC_URL` when set (hardened: the
+/// Host header then decides nothing); else as Laravel builds it (scheme from X-Forwarded-Proto, also untrusted as
+/// the image's nginx passes `HTTPS=on`; Host and port; X-Forwarded-Port/-Prefix from a trusted proxy). None for a
+/// Host Symfony would refuse.
+fn request_root(n: &Native, h: &HeaderMap, peer: std::net::IpAddr) -> Option<String> {
+    if let Some(u) = &n.signin.public_url {
+        return Some(u.clone());
+    }
+    let trusted = n.trusted.trusts(&peer);
+    let first = |name: &str| header_str(h, name).map(|v| v.split(',').next().unwrap_or("").trim().to_string());
+    let proto = first("x-forwarded-proto").unwrap_or_default().to_ascii_lowercase();
+    let secure = proto == "https" || (trusted && ["https", "on", "ssl", "1"].contains(&proto.as_str()));
+    let scheme = if secure { "https" } else { "http" };
+    let host_header = header_str(h, "host").unwrap_or("").trim().to_ascii_lowercase();
+    let (host, host_port) = if let Some(rest) = host_header.strip_prefix('[') {
+        let (h, tail) = rest.split_once(']')?;
+        (format!("[{h}]"), tail.strip_prefix(':').and_then(|p| p.parse::<u16>().ok()))
+    } else {
+        match host_header.rsplit_once(':') {
+            Some((h, p)) => (h.to_string(), p.parse::<u16>().ok()),
+            None => (host_header.clone(), None),
+        }
+    };
+    // Symfony: preg_replace('/(?:^\[)?[a-zA-Z0-9-:\]_]+\.?/', '', $host) must leave nothing
+    let ok = !host.is_empty() && host.chars().all(|c| c.is_ascii_alphanumeric() || "-.:[]_".contains(c));
+    if !ok {
+        return None;
+    }
+    let port = if trusted { first("x-forwarded-port").and_then(|p| p.parse::<u16>().ok()).or(host_port) } else { host_port };
+    let default = if secure { 443 } else { 80 };
+    let port = port.filter(|p| *p != default).map(|p| format!(":{p}")).unwrap_or_default();
+    let prefix = if trusted { first("x-forwarded-prefix").map(|p| p.trim_end_matches('/').to_string()).unwrap_or_default() } else { String::new() };
+    Some(format!("{scheme}://{host}{port}{prefix}"))
+}
+
+/// Laravel's `throttle:<max>,<minutes>,<prefix>` keys: the prefix and sha1 of `|<ip>` (no user on these routes).
+fn throttle_key(prefix: &str, ip: &str) -> Vec<u8> {
+    use sha1::Digest as _;
+    format!("{prefix}{}", hex::encode(sha1::Sha1::digest(format!("|{ip}").as_bytes()))).into_bytes()
+}
+
+/// The throttles of a sign-in route, outermost first (routes/api.php: the `client-auth` group, then the route's own).
+fn signin_limits(ep: Endpoint, ip: &str) -> Vec<(Vec<u8>, u64)> {
+    let mut l = vec![];
+    if matches!(ep, Endpoint::LoginOptions | Endpoint::Login | Endpoint::OidcAuth | Endpoint::OidcAuthQuery) {
+        l.push((throttle_key("client-auth", ip), 240));
+    }
+    match ep {
+        Endpoint::Login => l.push((throttle_key("client-login", ip), 20)),
+        Endpoint::OidcAuth => l.push((throttle_key("client-oidc", ip), 20)),
+        Endpoint::OidcAuthQuery => l.push((throttle_key("client-oidc-poll", ip), 400)),
+        _ => {}
+    }
+    l
+}
+
+type Headers = Vec<(&'static str, String)>;
+
+/// Nested ThrottleRequests middlewares on the way in: each checks, then hits, then passes on. The first that is
+/// full answers 429 with its own headers (an outer one keeps them: they show fewer attempts left).
+fn throttle_in(n: &Native, limits: &[(Vec<u8>, u64)], now: i64) -> Option<(Reply, Headers)> {
+    let mut l = n.limiter.lock().unwrap_or_else(|e| e.into_inner());
+    for (k, max) in limits {
+        if l.too_many(k, *max, now) {
+            let retry = l.available_in(k, now);
+            return Some((
+                json_message(429, "Too Many Attempts."),
+                vec![
+                    ("x-ratelimit-limit", max.to_string()),
+                    ("x-ratelimit-remaining", "0".to_string()),
+                    ("retry-after", retry.to_string()),
+                    ("x-ratelimit-reset", (now + retry).to_string()),
+                ],
+            ));
+        }
+        l.hit(k, 60, now);
+    }
+    None
+}
+
+/// On the way out: the innermost sets its headers, an outer one replaces them only with fewer attempts left.
+fn throttle_out(n: &Native, limits: &[(Vec<u8>, u64)], now: i64) -> Headers {
+    let l = n.limiter.lock().unwrap_or_else(|e| e.into_inner());
+    let mut shown: Option<(u64, u64)> = None;
+    for (k, max) in limits.iter().rev() {
+        let rem = l.remaining(k, *max, now);
+        if shown.map_or(true, |(_, r)| rem < r) {
+            shown = Some((*max, rem));
+        }
+    }
+    shown.map_or(vec![], |(m, r)| vec![("x-ratelimit-limit", m.to_string()), ("x-ratelimit-remaining", r.to_string())])
+}
+
+async fn blocking<T: Send + 'static>(n: &Arc<Native>, f: impl FnOnce(&Native, &Connection) -> T + Send + 'static) -> Option<T> {
+    let n2 = n.clone();
+    tokio::task::spawn_blocking(move || {
+        let conn = n2.db.lock().unwrap_or_else(|e| e.into_inner());
+        f(&n2, &conn)
+    })
+    .await
+    .ok()
+}
+
+/// Phase 2's routes: throttles, guard, handler.
+async fn signin_route(n: Arc<Native>, ep: Endpoint, input: Input, ip: String, root: Option<String>, bearer: Option<Vec<u8>>, head: bool) -> Response<Body> {
+    let now = n.now();
+    let input = Arc::new(input);
+    if ep == Endpoint::ClientCallback {
+        return client_callback(n, input, ip, root, head, now).await;
+    }
+    let limits = signin_limits(ep, &ip);
+    if let Some((r, h)) = throttle_in(&n, &limits, now) {
+        return respond(r, h, head);
+    }
+    let reply = match ep {
+        Endpoint::LoginOptions => blocking(&n, |n, c| crate::signin::login_options(n, c)).await,
+        Endpoint::Login => {
+            let (i, ip) = (input.clone(), ip.clone());
+            blocking(&n, move |n, c| crate::signin::login(n, c, &i, &ip, now)).await
+        }
+        Endpoint::OidcAuthQuery => {
+            let i = input.clone();
+            blocking(&n, move |_, c| crate::signin::auth_query(c, &i, now)).await
+        }
+        Endpoint::Logout | Endpoint::CurrentUser => {
+            let out = blocking(&n, move |_, c| -> Option<Reply> {
+                match crate::signin::authenticate(c, bearer.as_deref(), now) {
+                    Ok(None) => None,
+                    Ok(Some((token, user))) => Some(if ep == Endpoint::Logout { crate::signin::logout(c, &token) } else { crate::signin::current_user(&user) }),
+                    Err(f) => Some(fail("client-token guard", &f)),
+                }
+            })
+            .await;
+            match out {
+                Some(None) => Some(json_message(401, "Unauthenticated.")),
+                Some(Some(r)) => Some(r),
+                None => None,
+            }
+        }
+        Endpoint::OidcAuth => oidc_auth(&n, input.clone(), root, now).await,
+        _ => None,
+    };
+    let reply = reply.unwrap_or_else(Reply::server_error);
+    let headers = throttle_out(&n, &limits, now);
+    respond(reply, headers, head)
+}
+
+/// POST /api/oidc/auth: the row first (database), then the provider's discovery (network, no lock held).
+async fn oidc_auth(n: &Arc<Native>, input: Arc<Input>, root: Option<String>, now: i64) -> Option<Reply> {
+    let i = input.clone();
+    let started = blocking(n, move |n, c| crate::signin::oidc_start(n, c, &i, now)).await?;
+    let st = match started {
+        Err(f) => return Some(fail("oidc/auth", &f)),
+        Ok(Err(reply)) => return Some(reply),
+        Ok(Ok(st)) => st,
+    };
+    let Some(root) = root else {
+        // Symfony refuses the Host header (SuspiciousOperationException -> 404)
+        let _ = blocking(n, move |_, c| crate::sqlite::exec(c, r#"delete from "oidc_auth_requests" where "id" = ?"#, &[crate::sqlite::P(crate::php::Val::Int(st.id))])).await;
+        return Some(json_message(404, "Bad hostname provided."));
+    };
+    let redirect = format!("{root}/login/oidc/client-callback");
+    let url = n.signin.oidc.authorization_url(&st.settings, &redirect, &st.state, &st.nonce, &st.verifier).await;
+    blocking(n, move |_, c| crate::signin::oidc_started(c, &st, url)).await
+}
+
+/// GET /login/oidc/client-callback: a page for the browser the client opened.
+async fn client_callback(n: Arc<Native>, input: Arc<Input>, ip: String, root: Option<String>, head: bool, now: i64) -> Response<Body> {
+    use crate::signin::{error_page, render_page, CallbackStart, Page};
+    let Some(root) = root else { return page_response(404, error_page(404, "Not Found"), head) };
+    let show = |p: Page| page_response(p.status, render_page(&p, &root, &n.signin.app_name, &n.api_version), head);
+    let server_error = |w: &str, f: &crate::php::Fault| {
+        let _ = fail(w, f);
+        page_response(500, error_page(500, "Server Error"), head)
+    };
+    let i = input.clone();
+    let start = match blocking(&n, move |n, c| crate::signin::callback_start(n, c, &i, now)).await {
+        Some(Ok(s)) => s,
+        Some(Err(f)) => return server_error("oidc client-callback", &f),
+        None => return page_response(500, error_page(500, "Server Error"), head),
+    };
+    let (row, code, settings) = match start {
+        CallbackStart::Page(p) => return show(p),
+        CallbackStart::Exchange { row, code, settings } => (row, code, settings),
+    };
+    // one completion per state at a time; a second, concurrent use reads as expired
+    let state = String::from_utf8_lossy(&row.val("state").to_php_string().unwrap_or_default()).into_owned();
+    if !n.signin.inflight.lock().unwrap_or_else(|e| e.into_inner()).insert(state.clone()) {
+        return show(Page { status: 400, ok: false, message: "This sign-in request has expired. Start again from HTE Remote.".into() });
+    }
+    let redirect = format!("{root}/login/oidc/client-callback");
+    let verifier = String::from_utf8_lossy(&row.val("verifier").to_php_string().unwrap_or_default()).into_owned();
+    let nonce = String::from_utf8_lossy(&row.val("nonce").to_php_string().unwrap_or_default()).into_owned();
+    let claims = n.signin.oidc.exchange_code(&settings, &code, &redirect, &verifier, &nonce, now).await;
+    let done = blocking(&n, move |_, c| crate::signin::callback_finish(c, &row, claims, &ip, now)).await;
+    n.signin.inflight.lock().unwrap_or_else(|e| e.into_inner()).remove(&state);
+    match done {
+        Some(Ok(p)) => show(p),
+        Some(Err(f)) => server_error("oidc client-callback", &f),
+        None => page_response(500, error_page(500, "Server Error"), head),
     }
 }
 
@@ -421,6 +717,7 @@ fn throttled(n: &Native, ep: Endpoint, input: &Input, ip: &str) -> (Reply, Vec<(
             Endpoint::AuditFile => crate::audit::file(n, &conn, input, ip, now),
             Endpoint::AuditAlarm => crate::audit::alarm(n, &conn, input, now),
             Endpoint::Version => Reply::text(&n.api_version),
+            _ => Reply::server_error(), // phase 2's routes never come here (signin_route)
         }
     };
     // An uncaught exception skips the limiter's headers; any other answer gets them.

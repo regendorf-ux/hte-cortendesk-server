@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 9,
+  "synthetic": true,
+  "source": "login(): isSsoPending() (oidc_status pending)",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.10"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": "user-5eed0005",
+        "password": "tok-5eed00000000b002",
+        "id": "990000201",
+        "uuid": "UExBQ0VIT0xERVIhAAAA0g==",
+        "deviceInfo": {
+          "os": "Windows",
+          "type": "client",
+          "name": "text-5eed0d01"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Your account is waiting for administrator approval."
+      }
+    }
+  }
+}

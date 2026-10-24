@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 10,
+  "synthetic": true,
+  "source": "(string) $request->input('username'): Array to string conversion -> 500",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.11"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": [
+          "user-5eed0002"
+        ],
+        "password": "tok-5eed00000000b002"
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 70,
+  "synthetic": true,
+  "source": "OidcUserResolver: first-time link by email, then admit() refreshes the name",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Signed in to HTE Remote",
+        "You are signed in as text-5eed0a08."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u2",
+    "mode": "ok",
+    "profile": "linked"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 80,
+  "synthetic": true,
+  "source": "verifyIdToken(): client_id not among aud; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token was not issued for this client."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u5",
+    "mode": "wrong-aud",
+    "profile": "anna"
+  }
+}

@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "seq": 24,
+  "synthetic": true,
+  "source": "verifyCode(): the current code -> step burnt, Cache->pull, RateLimiter->clear, signIn()",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.30"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "type": "tfa_code",
+        "secret": "{{s1}}",
+        "id": "990000205",
+        "tfaCode": "{{totp}}"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "access_token": "{{random}}",
+        "type": "access_token",
+        "tfa_type": "",
+        "secret": "",
+        "user": {
+          "name": "user-5eed0006",
+          "display_name": "text-5eed0006",
+          "email": "user-5eed000006@example.invalid",
+          "note": "",
+          "status": 1,
+          "is_admin": false,
+          "info": {}
+        }
+      }
+    }
+  },
+  "capture": {
+    "t2": "/access_token"
+  }
+}

@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "seq": 127,
+  "synthetic": true,
+  "source": "auth(): OidcAuthRequest->start, buildAuthorizationUrl (PKCE S256)",
+  "method": "POST",
+  "path": "/api/oidc/auth",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.4.17"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000317",
+        "uuid": "UExBQ0VIT0xERVIhAAAA2A==",
+        "op": "sso",
+        "deviceInfo": {
+          "os": "Mac OS",
+          "type": "client",
+          "name": "text-5eed0d02"
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": "{{random}}",
+        "url": "{{oidc-url}}"
+      }
+    }
+  },
+  "capture": {
+    "c17": "/code",
+    "u17": "/url"
+  }
+}

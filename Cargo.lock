@@ -1905,11 +1905,12 @@ dependencies = [
 
 [[package]]
 name = "hte-console"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "aes",
  "axum 0.7.9",
  "base64 0.22.1",
+ "bcrypt",
  "bytes",
  "cbc",
  "chrono",
@@ -1921,15 +1922,18 @@ dependencies = [
  "rand 0.8.8",
  "regex",
  "reqwest 0.12.28",
+ "ring 0.17.14",
  "rusqlite",
  "serde",
  "serde_json",
+ "sha1",
  "sha2",
  "sodiumoxide",
  "tempfile",
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "url",
 ]
 
 [[package]]

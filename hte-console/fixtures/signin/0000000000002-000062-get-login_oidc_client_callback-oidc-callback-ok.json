@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 62,
+  "synthetic": true,
+  "source": "browserCallback(): exchange, verify, provision (policy active), token, 990000202 approved and owned",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Signed in to HTE Remote",
+        "You are signed in as text-5eed0a01."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u1",
+    "mode": "ok",
+    "profile": "anna",
+    "keep": "cb1"
+  }
+}

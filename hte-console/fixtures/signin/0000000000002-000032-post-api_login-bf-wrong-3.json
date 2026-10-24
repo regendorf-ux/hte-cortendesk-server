@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 32,
+  "synthetic": true,
+  "source": "wrong code 3 of the first prompt (limiter hit 3)",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.40"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "type": "tfa_code",
+        "secret": "{{s3}}",
+        "id": "990000205",
+        "tfaCode": "{{totp_wrong}}"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "That code is incorrect or has expired."
+      }
+    }
+  }
+}

@@ -234,32 +234,39 @@ fn create_device(c: &Connection, id: &[u8], attrs: Vec<(&str, Val, Cast)>, ip: &
     device.set("updated_at", Val::str(&ts));
     device.set("created_at", Val::str(&ts));
     strategy::sync_resolved_for(c, &mut device, &ts)?;
-    approve_if_signed_in(c, &mut device, now)?;
+    approve_if_signed_in(c, &mut device, None, now)?;
     Ok(())
 }
 
-/// `DeviceEnrollment::approveIfSignedIn($device)` without a user: the device's newest client token decides.
-fn approve_if_signed_in(c: &Connection, device: &mut Row, now: i64) -> Result<bool, Fault> {
+/// `DeviceEnrollment::approveIfSignedIn($device, $user)`. Without a user (a new device from sysinfo), the device's
+/// newest client token decides; with one (a client that just signed in, phase 2), that user.
+pub(crate) fn approve_if_signed_in(c: &Connection, device: &mut Row, signed_in: Option<&Row>, now: i64) -> Result<bool, Fault> {
     if device.val("status") != Val::str("pending") || db::setting(c, "auto_approve_signed_in", "0")? != b"1" {
         return Ok(false);
     }
-    let Some(token) = db::first(
-        c,
-        r#"select * from "client_tokens" where "device_id" = ? and "user_id" is not null order by "id" desc limit 1"#,
-        &[P(device.val("rustdesk_id"))],
-    )?
-    else {
-        return Ok(false);
-    };
-    let valid = match token.val("expires_at") {
-        Val::Null => true,
-        v => laravel::parse_ts(&v).ok_or_else(|| Fault::Other("unparsable client_tokens.expires_at".into()))? > now,
-    };
-    if !valid {
-        return Ok(false);
-    }
-    let Some(user) = db::first(c, r#"select * from "users" where "users"."id" = ? limit 1"#, &[P(token.val("user_id"))])? else {
-        return Ok(false);
+    let user = match signed_in {
+        Some(u) => u.clone(),
+        None => {
+            let Some(token) = db::first(
+                c,
+                r#"select * from "client_tokens" where "device_id" = ? and "user_id" is not null order by "id" desc limit 1"#,
+                &[P(device.val("rustdesk_id"))],
+            )?
+            else {
+                return Ok(false);
+            };
+            let valid = match token.val("expires_at") {
+                Val::Null => true,
+                v => laravel::parse_ts(&v).ok_or_else(|| Fault::Other("unparsable client_tokens.expires_at".into()))? > now,
+            };
+            if !valid {
+                return Ok(false);
+            }
+            let Some(user) = db::first(c, r#"select * from "users" where "users"."id" = ? limit 1"#, &[P(token.val("user_id"))])? else {
+                return Ok(false);
+            };
+            user
+        }
     };
     if !user.val("is_active").to_bool() {
         return Ok(false);

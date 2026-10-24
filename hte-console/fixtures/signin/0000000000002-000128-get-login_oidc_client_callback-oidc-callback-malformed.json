@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 128,
+  "synthetic": true,
+  "source": "decodeSegment(): not three segments; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The provider returned a malformed ID token."
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u17",
+    "mode": "malformed",
+    "profile": "anna"
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "seq": 20,
+  "synthetic": true,
+  "source": "signedIn(): a soft-deleted device is left alone",
+  "method": "POST",
+  "path": "/api/login",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.2.13"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": "user-5eed0002",
+        "password": "tok-5eed00000000b002",
+        "id": "990000204",
+        "uuid": "UExBQ0VIT0xERVIhAAAA2A=="
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "access_token": "{{random}}",
+        "type": "access_token",
+        "tfa_type": "",
+        "secret": "",
+        "user": {
+          "name": "user-5eed0002",
+          "display_name": "text-5eed0002",
+          "email": "user-5eed000002@example.invalid",
+          "note": "",
+          "status": 1,
+          "is_admin": true,
+          "info": {}
+        }
+      }
+    }
+  }
+}

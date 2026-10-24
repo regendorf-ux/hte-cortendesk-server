@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 100,
+  "synthetic": true,
+  "source": "php-jwt: nbf 10 minutes ahead; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token failed verification: Cannot handle token with nbf prior to "
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u10",
+    "mode": "nbf-future",
+    "profile": "anna"
+  }
+}

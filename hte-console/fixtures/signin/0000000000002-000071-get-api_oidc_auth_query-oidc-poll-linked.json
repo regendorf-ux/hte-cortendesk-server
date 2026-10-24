@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "seq": 71,
+  "synthetic": true,
+  "source": "the poll collects the token",
+  "method": "GET",
+  "path": "/api/oidc/auth-query",
+  "query": {
+    "code": "{{c2}}",
+    "id": "990000206",
+    "uuid": "UExBQ0VIT0xERVIhAAAA2A=="
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.250"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "access_token": "{{random}}",
+        "type": "access_token",
+        "tfa_type": "",
+        "secret": "",
+        "user": {
+          "name": "user-5eed0008",
+          "display_name": "text-5eed0a08",
+          "email": "user-5eed000008@example.invalid",
+          "note": "",
+          "status": 1,
+          "is_admin": false,
+          "info": {}
+        }
+      }
+    }
+  }
+}

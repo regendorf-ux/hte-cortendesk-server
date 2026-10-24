@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 120,
+  "synthetic": true,
+  "source": "php-jwt: the key says RS384; fail(): 403 page, failure kept",
+  "method": "GET",
+  "path": "/login/oidc/client-callback",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.3.251"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "text/html"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "Sign-in failed",
+        "The ID token failed verification: Incorrect key for this algorithm"
+      ]
+    }
+  },
+  "browser": {
+    "authorize": "u15",
+    "mode": "wrong-alg-key",
+    "profile": "anna"
+  }
+}
