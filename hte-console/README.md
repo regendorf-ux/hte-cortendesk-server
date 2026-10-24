@@ -140,7 +140,7 @@ paths whatever its prefixes say).
 | redirect URI and page links | from the request's Host header | from `HTE_CONSOLE_PUBLIC_URL` when set |
 | request bodies | PHP's limit | 64 KiB on these routes (413) |
 | lookups by token, code, state | SQL equality | SQL equality, then compared again in constant time |
-| the callback page | Laravel's web group: session and XSRF cookies | no cookies (nothing on the page uses them); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` |
+| the callback page | Laravel's web group: session and XSRF cookies | no cookies (nothing on the page uses them); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` (a proxy's own policy wins: HTE's Caddy sets `strict-origin-when-cross-origin` for the whole site, which also keeps the code and state out of a cross-origin Referer) |
 
 ### Known differences, not visible to a RustDesk client at HTE
 
