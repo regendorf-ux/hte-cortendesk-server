@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 78,
+  "synthetic": true,
+  "source": "peerAdd(): a blank alias is filled from a computer she may see (Device->visibleTo); the password is encrypted",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "POST",
+  "path": "/api/ab/peer/add/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000411",
+        "password": "tok-5eed000000000451",
+        "tags": [
+          "text-5eed04e2"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 99,
+  "synthetic": true,
+  "source": "tagAdd(): (int) '7'",
+  "vars": {
+    "ga1": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "method": "POST",
+  "path": "/api/ab/tag/add/{{ga1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed04d9",
+        "color": "7"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

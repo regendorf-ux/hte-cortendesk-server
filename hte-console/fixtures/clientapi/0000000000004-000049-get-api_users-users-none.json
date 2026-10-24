@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "seq": 49,
+  "synthetic": true,
+  "source": "users(): access granted to the person alone; an empty name and no email read as ''",
+  "method": "GET",
+  "path": "/api/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a04"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "name": "user-5eed0403",
+            "display_name": "user-5eed0403",
+            "email": "user-5eed040003@example.invalid",
+            "note": "",
+            "status": 1,
+            "is_admin": false,
+            "info": {}
+          },
+          {
+            "name": "user-5eed0404",
+            "display_name": "user-5eed0404",
+            "email": "",
+            "note": "",
+            "status": 1,
+            "is_admin": false,
+            "info": {}
+          },
+          {
+            "name": "user-5eed0405",
+            "display_name": "text-5eed0405",
+            "email": "user-5eed040005@example.invalid",
+            "note": "",
+            "status": 0,
+            "is_admin": false,
+            "info": {}
+          }
+        ]
+      }
+    }
+  }
+}

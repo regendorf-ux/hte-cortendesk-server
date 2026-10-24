@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 41,
+  "synthetic": true,
+  "source": "Route->match(['get','post']); Ben's book is empty: (object) [] encodes as {}",
+  "method": "GET",
+  "path": "/api/server-config",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "message": "success",
+        "data": {
+          "id_server": "host-5eed0401.example.invalid:21116",
+          "key": "tok-5eed00000000a1b2",
+          "peers": {}
+        }
+      }
+    }
+  }
+}

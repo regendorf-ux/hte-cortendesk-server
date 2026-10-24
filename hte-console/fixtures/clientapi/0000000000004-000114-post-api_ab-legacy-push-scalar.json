@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 114,
+  "synthetic": true,
+  "source": "legacyPush(): JSON that is not an array: the same error",
+  "method": "POST",
+  "path": "/api/ab",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "data": "42"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Malformed address book payload"
+      }
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 108,
+  "synthetic": true,
+  "source": "tagRename(): FULL needed",
+  "vars": {
+    "gc1": "00000000-0000-4000-8000-0000000004c1"
+  },
+  "method": "PUT",
+  "path": "/api/ab/tag/rename/{{gc1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "old": "text-5eed04ef",
+        "new": "text-5eed04f0"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Permission denied"
+      }
+    }
+  }
+}

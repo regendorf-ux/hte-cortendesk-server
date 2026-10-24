@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 76,
+  "synthetic": true,
+  "source": "peerAdd(): READ_WRITE needed, a read rule is not enough",
+  "vars": {
+    "gc1": "00000000-0000-4000-8000-0000000004c1"
+  },
+  "method": "POST",
+  "path": "/api/ab/peer/add/{{gc1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000424"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Permission denied"
+      }
+    }
+  }
+}

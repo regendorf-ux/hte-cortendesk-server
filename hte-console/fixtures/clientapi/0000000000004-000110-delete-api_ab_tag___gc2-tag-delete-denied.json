@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 110,
+  "synthetic": true,
+  "source": "tagDelete(): FULL needed",
+  "vars": {
+    "gc2": "00000000-0000-4000-8000-0000000004c2"
+  },
+  "method": "DELETE",
+  "path": "/api/ab/tag/{{gc2}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        "text-5eed04ef"
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Permission denied"
+      }
+    }
+  }
+}

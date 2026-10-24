@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 115,
+  "synthetic": true,
+  "source": "(string) $request->input('data'): Array to string conversion -> 500",
+  "method": "POST",
+  "path": "/api/ab",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "data": [
+          "x"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

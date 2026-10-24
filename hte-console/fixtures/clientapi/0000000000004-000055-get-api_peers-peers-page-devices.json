@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "seq": 55,
+  "synthetic": true,
+  "source": "peers(): forPage(2, 2)",
+  "method": "GET",
+  "path": "/api/peers",
+  "query": {
+    "current": "2",
+    "pageSize": "2"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 5,
+        "data": [
+          {
+            "id": "990000413",
+            "info": {
+              "username": "",
+              "os": "windows",
+              "device_name": "host-5eed0413"
+            },
+            "status": 0,
+            "user": "",
+            "user_name": "",
+            "device_group_name": "text-5eed04b2",
+            "note": ""
+          },
+          {
+            "id": "990000414",
+            "info": {
+              "username": "",
+              "os": "linux",
+              "device_name": "host-5eed0414"
+            },
+            "status": 1,
+            "user": "",
+            "user_name": "",
+            "device_group_name": "text-5eed04b3",
+            "note": ""
+          }
+        ]
+      }
+    }
+  }
+}

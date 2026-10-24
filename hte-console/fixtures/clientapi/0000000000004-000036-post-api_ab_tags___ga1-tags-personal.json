@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 36,
+  "synthetic": true,
+  "source": "tags(): ordered by name, color an int",
+  "vars": {
+    "ga1": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "method": "POST",
+  "path": "/api/ab/tags/{{ga1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        {
+          "name": "text-5eed04d1",
+          "color": 4278190080
+        },
+        {
+          "name": "text-5eed04d2",
+          "color": 5
+        }
+      ]
+    }
+  }
+}

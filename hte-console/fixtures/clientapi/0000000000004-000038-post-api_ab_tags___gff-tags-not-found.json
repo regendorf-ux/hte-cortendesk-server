@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 38,
+  "synthetic": true,
+  "source": "bookOrFail(): no such guid",
+  "vars": {
+    "gff": "00000000-0000-4000-8000-0000000004ff"
+  },
+  "method": "POST",
+  "path": "/api/ab/tags/{{gff}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Address book not found"
+      }
+    }
+  }
+}

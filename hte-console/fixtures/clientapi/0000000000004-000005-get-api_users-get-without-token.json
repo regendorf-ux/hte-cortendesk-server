@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 5,
+  "synthetic": true,
+  "source": "auth:client covers the GET routes too",
+  "method": "GET",
+  "path": "/api/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Unauthenticated."
+      }
+    }
+  }
+}

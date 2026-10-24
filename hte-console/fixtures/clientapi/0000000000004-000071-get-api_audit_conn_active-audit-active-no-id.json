@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 71,
+  "synthetic": true,
+  "source": "activeConnection(): no id",
+  "method": "GET",
+  "path": "/api/audit/conn/active",
+  "query": {
+    "session_id": "tok-5eed000000007001"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": ""
+    }
+  }
+}

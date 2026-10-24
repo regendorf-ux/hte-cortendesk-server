@@ -25,7 +25,7 @@ pub struct Input {
 /// TrimStrings never trims these (top-level keys only, as `Str::is` matches them).
 const NEVER_TRIM: &[&[u8]] = &[b"current_password", b"password", b"password_confirmation"];
 
-fn clean(a: &mut Arr, prefix: &[u8]) {
+pub(crate) fn clean(a: &mut Arr, prefix: &[u8]) {
     for (k, v) in a.iter_mut() {
         let mut path = prefix.to_vec();
         path.extend_from_slice(&k.as_bytes());
@@ -66,7 +66,7 @@ impl Input {
             bag
         } else if method == "GET" || method == "HEAD" {
             query_bag.clone()
-        } else if is_form(ct) && method == "POST" {
+        } else if is_form(ct) && matches!(method, "POST" | "PUT" | "PATCH" | "DELETE") {
             let mut bag = php::parse_str(body);
             clean(&mut bag, b"");
             bag

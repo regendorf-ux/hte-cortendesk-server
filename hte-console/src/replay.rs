@@ -3,7 +3,7 @@
 //! Paced below the console's rate limit per address and device (see `Pace`).
 //!
 //! Synthetic fixtures (never captured ones) may also use, for phase 2's sign-in flows:
-//! - `{{name}}` in the request (query values, JSON body strings, the Authorization header): a value captured from an
+//! - `{{name}}` in the request (the path, query values, JSON body strings, the Authorization header): a value captured from an
 //!   earlier answer by `"capture": {"name": "/json/pointer"}`; `{{totp}}` is the current code of
 //!   `totp::REPLAY_SECRET` (and is kept as `{{totp_last}}`), `{{totp_wrong}}` six digits that are not;
 //! - `"browser": {"authorize": "<var holding an authorize URL>", "mode": "<fake mode>", "profile": "<fake person>",
@@ -26,6 +26,7 @@ static ALNUM40: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9]{40}$").unwr
 static ALNUM48: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9]{48}$").unwrap());
 static SECONDS: Lazy<Regex> = Lazy::new(|| Regex::new(r"Try again in \d+ seconds\.").unwrap());
 static ATOM_TS: Lazy<Regex> = Lazy::new(|| Regex::new(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\+00:00").unwrap());
+static UUID: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$").unwrap());
 static TEMPLATE: Lazy<Regex> = Lazy::new(|| Regex::new(r"\{\{([a-z0-9_:.-]{1,40})\}\}").unwrap());
 
 /// An authorize URL as the console builds it, reduced to a marker when every parameter has the right shape (the
@@ -72,7 +73,7 @@ pub fn normalise(v: &mut Value, key: &str) {
         }
         Value::Number(n) => {
             let k = key.to_ascii_lowercase();
-            if k.ends_with("_at") || k == "time" || k == "timestamp" || k == "modified_at" {
+            if k.ends_with("_at") || k == "time" || k == "timestamp" || k == "modified_at" || k == "tm" {
                 *v = Value::String("<ts>".into());
             } else if (k == "id" || k.ends_with("_id")) && n.as_u64().map_or(false, |u| u < 100_000_000) {
                 *v = Value::String("<id>".into());
@@ -83,7 +84,7 @@ pub fn normalise(v: &mut Value, key: &str) {
 }
 
 /// Before the live answer is sanitised: what sign-in mints at random becomes a marker when it has the right shape
-/// (a 48-character token, a 40-character secret or code), and an authorize URL its shape check.
+/// (a 48-character token, a 40-character secret or code, a random UUID), and an authorize URL its shape check.
 pub fn mark_random(v: &mut Value, key: &str) {
     match v {
         Value::Object(m) => {
@@ -97,6 +98,9 @@ pub fn mark_random(v: &mut Value, key: &str) {
                 *v = Value::String("{{random}}".into());
             } else if key == "url" && s.starts_with("http") {
                 *v = Value::String(oidc_url_shape(s));
+            } else if UUID.is_match(s) && !s.starts_with("00000000-0000-4000-8000-") {
+                // phase 4: a guid the console made up (a new personal book, a session guid assigned on first request)
+                *v = Value::String("{{random}}".into());
             }
         }
         _ => {}
@@ -224,7 +228,14 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).map_err(|e| e.to_string())?).map_err(|e| format!("{name}: {e}"))?;
         report.total += 1;
         let now = chrono::Utc::now().timestamp();
-        let (method, mut path) = (fx["method"].as_str().unwrap_or("GET"), fx["path"].as_str().unwrap_or("/").to_string());
+        // phase 4: `"vars": {"g1": "<placeholder>"}` presets variables; a path carries `{{g1}}` (a guid in a path would
+        // be mistaken for a long token by the sanitiser)
+        for (k, v) in fx["vars"].as_object().into_iter().flatten() {
+            if let Some(v) = v.as_str() {
+                vars.insert(k.clone(), v.to_string());
+            }
+        }
+        let (method, mut path) = (fx["method"].as_str().unwrap_or("GET"), fill(fx["path"].as_str().unwrap_or("/"), &mut vars, now));
         let mut q = query_string(&fill_json(&fx["query"], &mut vars, now));
         if let Some(b) = fx.get("browser").filter(|b| b.is_object()) {
             match browser(&client, b, &mut vars).await {

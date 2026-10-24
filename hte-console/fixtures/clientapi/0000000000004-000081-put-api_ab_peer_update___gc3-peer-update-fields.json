@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 81,
+  "synthetic": true,
+  "source": "peerUpdate(): present fields only; tags replaced by names",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "PUT",
+  "path": "/api/ab/peer/update/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000431",
+        "alias": "text-5eed0461",
+        "tags": [
+          "text-5eed04e2",
+          "text-5eed04e1"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

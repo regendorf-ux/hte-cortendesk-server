@@ -1,0 +1,74 @@
+{
+  "format": 1,
+  "seq": 52,
+  "synthetic": true,
+  "source": "scopeOwnershipVisibleTo(): own + every accessible folder",
+  "method": "GET",
+  "path": "/api/peers",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "id": "990000412",
+            "info": {
+              "username": "",
+              "os": "macos",
+              "device_name": "host-5eed0412"
+            },
+            "status": 0,
+            "user": "user-5eed0403",
+            "user_name": "user-5eed0403",
+            "device_group_name": "text-5eed04b1",
+            "note": ""
+          },
+          {
+            "id": "990000413",
+            "info": {
+              "username": "",
+              "os": "windows",
+              "device_name": "host-5eed0413"
+            },
+            "status": 0,
+            "user": "",
+            "user_name": "",
+            "device_group_name": "text-5eed04b2",
+            "note": ""
+          },
+          {
+            "id": "990000414",
+            "info": {
+              "username": "",
+              "os": "linux",
+              "device_name": "host-5eed0414"
+            },
+            "status": 1,
+            "user": "",
+            "user_name": "",
+            "device_group_name": "text-5eed04b3",
+            "note": ""
+          }
+        ]
+      }
+    }
+  }
+}

@@ -14,7 +14,9 @@
 # HTE_REPLAY_NATIVE=0 skips the hte-console half (phase 0 behaviour: PHP only). Phase 2: a fake identity provider
 # (`hte-console fake-idp`, TEST ONLY) runs beside them on the same throwaway network, and a seed file may carry
 # @@IDP@@ and @@ENCRYPT(...)@@ markers (filled in with that provider's URL and the throwaway database's app key);
-# fixtures/signin holds the synthetic sign-in fixtures (nothing of sign-in is ever captured). The replay is paced below the
+# fixtures/signin holds the synthetic sign-in fixtures (nothing of sign-in is ever captured); phase 4: fixtures/clientapi
+# holds the synthetic client-API fixtures (address books, group tab, server-config, audit note) and its own seed
+# (run it as `replay.sh fixtures/clientapi` alone: its lists assume only its own people and computers). The replay is paced below the
 # console's rate limit (110 a minute per address and device; HTE_CONSOLE_REPLAY_PER_MINUTE), so hours of captured
 # heartbeats take a few minutes per side.
 # Exit 0 = no differences anywhere and the check caught the change, 1 = differences (printed), 2 = could not run.
@@ -63,12 +65,12 @@ snapshot() { # snapshot <data-dir> > file: the database in that directory as com
 summary() { # one line per endpoint and kind: how many fixtures, how many matched, how many differ
   echo "== per kind ($2)"
   printf '%-10s %-10s %6s %6s %6s\n' endpoint kind total match differ
-  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback; do
+  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback ab server-config device-group users peers webclient-config; do
     for kind in captured synthetic; do
       if [ "$kind" = synthetic ]; then pat='^000000000000[0-9]-'; else pat='^[1-9]'; fi
       # file names end the path slug with "-" (synthetic) or ".json" (captured); audit/* share one line
       slug="$(echo "$ep" | tr '-' '_')"
-      case "$slug" in client_callback) m="-login_oidc_client_callback[-.]";; audit) m="-api_audit_";; *) m="-api_${slug}[-.]";; esac
+      case "$slug" in client_callback) m="-login_oidc_client_callback[-.]";; audit) m="-api_audit[_-]";; ab) m="-api_ab[_-]";; webclient_config) m="-webclient_config_index_js[-.]";; *) m="-api_${slug}[-.]";; esac
       total="$(ls "$FIXTURES" | grep -E "$pat" | grep -c -- "$m" || true)"
       differ="$(grep -E '^[0-9]{13}-[0-9]{6}-.*\.json: ' "$1" | cut -d: -f1 | sort -u | grep -E "$pat" | grep -c -- "$m" || true)"
       [ "$total" -gt 0 ] || continue

@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 11,
+  "synthetic": true,
+  "source": "Laravel: MethodNotAllowedHttpException, the verbs of the other routes on this URI, in Router verb order",
+  "method": "POST",
+  "path": "/api/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The POST method is not supported for route api/users. Supported methods: GET, HEAD."
+      }
+    }
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 42,
+  "synthetic": true,
+  "source": "configJs(): the bootstrap script, application/javascript, built from the request's own address; no login",
+  "method": "GET",
+  "path": "/webclient-config/index.js",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/javascript"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "html",
+      "contains": [
+        "('api-server', 'http",
+        "const ws2_prefix = 'wc-';",
+        "(ws2_prefix + 'api-server', 'http",
+        "webclient_magic_queryonline = 0;"
+      ]
+    }
+  }
+}

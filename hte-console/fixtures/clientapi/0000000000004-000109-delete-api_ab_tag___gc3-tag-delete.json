@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 109,
+  "synthetic": true,
+  "source": "tagDelete(): the tags go, and leave the entries' tag_ids",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "DELETE",
+  "path": "/api/ab/tag/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        "text-5eed04e5",
+        "text-5eed04e1",
+        ""
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

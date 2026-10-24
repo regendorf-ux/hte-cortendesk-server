@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 45,
+  "synthetic": true,
+  "source": "accessibleDeviceGroupIds(): a group_accesses grant to the person alone",
+  "method": "GET",
+  "path": "/api/device-group/accessible",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a04"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 1,
+        "data": [
+          {
+            "name": "text-5eed04b3"
+          }
+        ]
+      }
+    }
+  }
+}

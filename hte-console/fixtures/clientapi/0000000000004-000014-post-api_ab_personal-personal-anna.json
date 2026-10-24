@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 14,
+  "synthetic": true,
+  "source": "personal(): AddressBook->personalFor finds her book",
+  "method": "POST",
+  "path": "/api/ab/personal",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "guid": "00000000-0000-4000-8000-0000000004a1"
+      }
+    }
+  }
+}

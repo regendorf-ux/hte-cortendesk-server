@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 67,
+  "synthetic": true,
+  "source": "activeConnection(): a conn_type that is not numeric is ignored",
+  "method": "GET",
+  "path": "/api/audit/conn/active",
+  "query": {
+    "id": "990000451",
+    "session_id": "tok-5eed000000007001",
+    "conn_type": "abc"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": "00000000-0000-4000-8000-0000000004f4"
+    }
+  }
+}

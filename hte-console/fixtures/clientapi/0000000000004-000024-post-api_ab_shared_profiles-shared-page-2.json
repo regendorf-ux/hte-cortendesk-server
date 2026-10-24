@@ -1,0 +1,52 @@
+{
+  "format": 1,
+  "seq": 24,
+  "synthetic": true,
+  "source": "pagination(): current=2&pageSize=2 slices the sorted list, total is all of it",
+  "method": "POST",
+  "path": "/api/ab/shared/profiles",
+  "query": {
+    "current": "2",
+    "pageSize": "2"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 4,
+        "data": [
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c3",
+            "name": "text-5eed04c3",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 3
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c5",
+            "name": "text-5eed04c5",
+            "owner": "user-5eed0402",
+            "note": "",
+            "rule": 3
+          }
+        ]
+      }
+    }
+  }
+}

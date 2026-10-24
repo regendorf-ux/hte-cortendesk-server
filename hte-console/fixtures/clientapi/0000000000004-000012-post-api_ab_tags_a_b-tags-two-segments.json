@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 12,
+  "synthetic": true,
+  "source": "{guid} is one path segment: NotFoundHttpException rendered as JSON",
+  "method": "POST",
+  "path": "/api/ab/tags/a/b",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The route api/ab/tags/a/b could not be found."
+      }
+    }
+  }
+}

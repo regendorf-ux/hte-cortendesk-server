@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "seq": 88,
+  "synthetic": true,
+  "source": "peers(): the personal book after add and update",
+  "method": "POST",
+  "path": "/api/ab/peers",
+  "query": {
+    "ab": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "id": "990000421",
+            "username": "user-5eed0421",
+            "hostname": "host-5eed0421",
+            "platform": "Windows",
+            "alias": "text-5eed0421",
+            "tags": [
+              "text-5eed04d1"
+            ],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": "",
+            "hash": "tok-5eed000000000421"
+          },
+          {
+            "id": "990000422",
+            "username": "",
+            "hostname": "host-5eed0422",
+            "platform": "Linux",
+            "alias": "",
+            "tags": [
+              "text-5eed04d1",
+              "text-5eed04d2"
+            ],
+            "forceAlwaysRelay": "true",
+            "rdpPort": "3389",
+            "rdpUsername": "user-5eed0422",
+            "loginName": "user-5eed0922",
+            "hash": "tok-5eed000000000462"
+          },
+          {
+            "id": "990000423",
+            "username": "user-5eed0423",
+            "hostname": "host-5eed0423",
+            "platform": "Linux",
+            "alias": "text-5eed0423",
+            "tags": [
+              "text-5eed04d2"
+            ],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": "",
+            "hash": "tok-5eed000000000423"
+          }
+        ]
+      }
+    }
+  }
+}

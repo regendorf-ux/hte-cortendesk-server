@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 56,
+  "synthetic": true,
+  "source": "note(): her own session (from_peer = her token's device), nobody wrote a note: stored, trimmed (TrimStrings)",
+  "method": "PUT",
+  "path": "/api/audit",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "raw",
+      "content_type": "application/json",
+      "text": "{\"guid\":\"00000000-0000-4000-8000-0000000004f1\",\"note\":\"  text-5eed0a01  \"}"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {}
+    }
+  }
+}

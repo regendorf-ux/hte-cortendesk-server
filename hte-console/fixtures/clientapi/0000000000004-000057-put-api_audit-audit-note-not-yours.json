@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 57,
+  "synthetic": true,
+  "source": "note(): the row's from_peer is another computer",
+  "method": "PUT",
+  "path": "/api/audit",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "guid": "00000000-0000-4000-8000-0000000004f1",
+        "note": "text-5eed0a02"
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Not your session"
+      }
+    }
+  }
+}

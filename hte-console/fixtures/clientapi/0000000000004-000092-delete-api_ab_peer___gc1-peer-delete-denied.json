@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 92,
+  "synthetic": true,
+  "source": "peerDelete(): read only",
+  "vars": {
+    "gc1": "00000000-0000-4000-8000-0000000004c1"
+  },
+  "method": "DELETE",
+  "path": "/api/ab/peer/{{gc1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        "990000411"
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Permission denied"
+      }
+    }
+  }
+}

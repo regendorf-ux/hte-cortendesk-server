@@ -1,0 +1,55 @@
+{
+  "format": 1,
+  "seq": 48,
+  "synthetic": true,
+  "source": "users(): status=1 keeps the active ones; display_name falls back to the username",
+  "method": "GET",
+  "path": "/api/users",
+  "query": {
+    "status": "1"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 2,
+        "data": [
+          {
+            "name": "user-5eed0402",
+            "display_name": "text-5eed0402",
+            "email": "user-5eed040002@example.invalid",
+            "note": "text-5eed0902",
+            "status": 1,
+            "is_admin": false,
+            "info": {}
+          },
+          {
+            "name": "user-5eed0403",
+            "display_name": "user-5eed0403",
+            "email": "user-5eed040003@example.invalid",
+            "note": "",
+            "status": 1,
+            "is_admin": false,
+            "info": {}
+          }
+        ]
+      }
+    }
+  }
+}

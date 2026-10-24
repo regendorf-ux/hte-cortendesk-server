@@ -154,7 +154,7 @@ pub fn fail(where_: &str, f: &Fault) -> Reply {
     Reply::server_error()
 }
 
-fn respond(r: Reply, extra: Vec<(&'static str, String)>, head: bool) -> Response<Body> {
+pub(crate) fn respond(r: Reply, extra: Vec<(&'static str, String)>, head: bool) -> Response<Body> {
     let (status, ct, body) = match r {
         Reply::Json(s, b) => (s, "application/json", b.into_bytes()),
         Reply::Text(s, b) => (s, "text/html; charset=UTF-8", b),
@@ -172,7 +172,7 @@ fn respond(r: Reply, extra: Vec<(&'static str, String)>, head: bool) -> Response
     b.body(if head { Body::empty() } else { Body::from(body) }).unwrap_or_else(|_| Response::new(Body::empty()))
 }
 
-fn json_message(status: u16, msg: &str) -> Reply {
+pub(crate) fn json_message(status: u16, msg: &str) -> Reply {
     let mut s = String::new();
     let _ = crate::php::enc_str(msg.as_bytes(), &mut s);
     Reply::Json(status, format!(r#"{{"message":{s}}}"#))
@@ -376,6 +376,7 @@ pub fn router(native: Arc<Native>, fallback: Option<Router>) -> Router {
     for (path, ep) in NATIVE_PATHS.iter().copied() {
         r = r.route(path, any(move |s, c, req| handle(s, c, req, ep)));
     }
+    let r = crate::client::mount(r); // phase 4: the bearer-token client endpoints
     let r = r.route("/__hte-console/health", any(|| async { "ok" })).with_state(native);
     match fallback {
         Some(f) => r.fallback_service(f),
@@ -383,7 +384,7 @@ pub fn router(native: Arc<Native>, fallback: Option<Router>) -> Router {
     }
 }
 
-fn header_str<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
+pub(crate) fn header_str<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
     h.get(name).and_then(|v| v.to_str().ok())
 }
 
@@ -487,7 +488,7 @@ fn page_response(status: u16, html: String, head: bool) -> Response<Body> {
 /// Host header then decides nothing); else as Laravel builds it (scheme from X-Forwarded-Proto, also untrusted as
 /// the image's nginx passes `HTTPS=on`; Host and port; X-Forwarded-Port/-Prefix from a trusted proxy). None for a
 /// Host Symfony would refuse.
-fn request_root(n: &Native, h: &HeaderMap, peer: std::net::IpAddr) -> Option<String> {
+pub(crate) fn request_root(n: &Native, h: &HeaderMap, peer: std::net::IpAddr) -> Option<String> {
     if let Some(u) = &n.signin.public_url {
         return Some(u.clone());
     }
@@ -576,7 +577,7 @@ fn throttle_out(n: &Native, limits: &[(Vec<u8>, u64)], now: i64) -> Headers {
     shown.map_or(vec![], |(m, r)| vec![("x-ratelimit-limit", m.to_string()), ("x-ratelimit-remaining", r.to_string())])
 }
 
-async fn blocking<T: Send + 'static>(n: &Arc<Native>, f: impl FnOnce(&Native, &Connection) -> T + Send + 'static) -> Option<T> {
+pub(crate) async fn blocking<T: Send + 'static>(n: &Arc<Native>, f: impl FnOnce(&Native, &Connection) -> T + Send + 'static) -> Option<T> {
     let n2 = n.clone();
     tokio::task::spawn_blocking(move || {
         let conn = n2.db.lock().unwrap_or_else(|e| e.into_inner());

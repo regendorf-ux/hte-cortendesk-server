@@ -68,7 +68,7 @@ fn session_id(input: &Input) -> Vec<u8> {
 }
 
 /// `AuditController::cleanNote()`: trimmed, capped at 2000 characters, None when nothing is left.
-fn clean_note(note: Option<&Val>) -> Option<Vec<u8>> {
+pub(crate) fn clean_note(note: Option<&Val>) -> Option<Vec<u8>> {
     let Some(Val::Str(s)) = note else { return None };
     let t = php::trim(s);
     if t.is_empty() {

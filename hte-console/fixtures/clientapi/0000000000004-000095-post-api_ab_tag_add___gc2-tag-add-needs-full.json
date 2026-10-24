@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 95,
+  "synthetic": true,
+  "source": "tagAdd(): FULL needed; READ_WRITE (Ben on book 2) is not enough",
+  "vars": {
+    "gc2": "00000000-0000-4000-8000-0000000004c2"
+  },
+  "method": "POST",
+  "path": "/api/ab/tag/add/{{gc2}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed04e9"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Permission denied"
+      }
+    }
+  }
+}

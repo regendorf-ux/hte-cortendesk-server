@@ -1,0 +1,61 @@
+{
+  "format": 1,
+  "seq": 51,
+  "synthetic": true,
+  "source": "peers(): her own approved computers plus those in her folder; pending and deleted ones never",
+  "method": "GET",
+  "path": "/api/peers",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 2,
+        "data": [
+          {
+            "id": "990000411",
+            "info": {
+              "username": "user-5eed0411",
+              "os": "windows",
+              "device_name": "host-5eed0411"
+            },
+            "status": 1,
+            "user": "user-5eed0402",
+            "user_name": "user-5eed0402",
+            "device_group_name": "",
+            "note": "text-5eed0911"
+          },
+          {
+            "id": "990000412",
+            "info": {
+              "username": "",
+              "os": "macos",
+              "device_name": "host-5eed0412"
+            },
+            "status": 0,
+            "user": "user-5eed0403",
+            "user_name": "user-5eed0403",
+            "device_group_name": "text-5eed04b1",
+            "note": ""
+          }
+        ]
+      }
+    }
+  }
+}

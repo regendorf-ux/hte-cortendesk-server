@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 46,
+  "synthetic": true,
+  "source": "seesAllDevices(): an administrator sees every folder",
+  "method": "GET",
+  "path": "/api/device-group/accessible",
+  "query": {
+    "current": "2",
+    "pageSize": "2"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "name": "text-5eed04b3"
+          }
+        ]
+      }
+    }
+  }
+}

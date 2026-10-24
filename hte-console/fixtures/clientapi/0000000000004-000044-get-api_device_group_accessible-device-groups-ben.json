@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "seq": 44,
+  "synthetic": true,
+  "source": "accessibleDeviceGroupIds(): direct grant + user group grants + group_accesses, sorted by name",
+  "method": "GET",
+  "path": "/api/device-group/accessible",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "name": "text-5eed04b1"
+          },
+          {
+            "name": "text-5eed04b2"
+          },
+          {
+            "name": "text-5eed04b3"
+          }
+        ]
+      }
+    }
+  }
+}

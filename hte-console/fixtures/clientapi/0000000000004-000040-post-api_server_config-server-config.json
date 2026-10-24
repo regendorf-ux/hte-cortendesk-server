@@ -1,0 +1,64 @@
+{
+  "format": 1,
+  "seq": 40,
+  "synthetic": true,
+  "source": "serverConfig(): id_server and key from the settings, peers from her personal book keyed by id (tm is masked)",
+  "method": "POST",
+  "path": "/api/server-config",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "message": "success",
+        "data": {
+          "id_server": "host-5eed0401.example.invalid:21116",
+          "key": "tok-5eed00000000a1b2",
+          "peers": {
+            "990000421": {
+              "view-style": "shrink",
+              "tm": 0,
+              "info": {
+                "username": "user-5eed0421",
+                "hostname": "host-5eed0421",
+                "platform": "Windows",
+                "hash": "tok-5eed000000000421",
+                "id": "990000421"
+              },
+              "tmppwd": ""
+            },
+            "990000422": {
+              "view-style": "shrink",
+              "tm": 0,
+              "info": {
+                "username": "",
+                "hostname": "host-5eed0422",
+                "platform": "Mac OS",
+                "hash": "tok-5eed000000000422",
+                "id": "990000422"
+              },
+              "tmppwd": ""
+            }
+          }
+        }
+      }
+    }
+  }
+}

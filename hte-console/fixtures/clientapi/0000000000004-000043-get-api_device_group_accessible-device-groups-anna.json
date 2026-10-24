@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 43,
+  "synthetic": true,
+  "source": "deviceGroups(): accessibleDeviceGroupIds() = her user group's folder",
+  "method": "GET",
+  "path": "/api/device-group/accessible",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 1,
+        "data": [
+          {
+            "name": "text-5eed04b1"
+          }
+        ]
+      }
+    }
+  }
+}

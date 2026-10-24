@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "seq": 22,
+  "synthetic": true,
+  "source": "sharedProfiles(): the highest permission of every rule that matches (user rule 2 beats group rule 1)",
+  "method": "POST",
+  "path": "/api/ab/shared/profiles",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 4,
+        "data": [
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c1",
+            "name": "text-5eed04c1",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 1
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c2",
+            "name": "text-5eed04c2",
+            "owner": "user-5eed0402",
+            "note": "text-5eed04ca",
+            "rule": 2
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c3",
+            "name": "text-5eed04c3",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 3
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c6",
+            "name": "text-5eed04c6",
+            "owner": "user-5eed0403",
+            "note": "",
+            "rule": 3
+          }
+        ]
+      }
+    }
+  }
+}

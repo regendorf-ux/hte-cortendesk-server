@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 83,
+  "synthetic": true,
+  "source": "peerUpdate(): a personal book takes the hash and ignores the password",
+  "vars": {
+    "ga1": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "method": "PUT",
+  "path": "/api/ab/peer/update/{{ga1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000422",
+        "hash": "tok-5eed000000000462",
+        "password": "tok-5eed000000000463",
+        "platform": "Linux"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

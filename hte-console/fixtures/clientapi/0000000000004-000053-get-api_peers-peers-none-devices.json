@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "seq": 53,
+  "synthetic": true,
+  "source": "scopeOwnershipVisibleTo(): only the folder granted to the person",
+  "method": "GET",
+  "path": "/api/peers",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a04"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 1,
+        "data": [
+          {
+            "id": "990000414",
+            "info": {
+              "username": "",
+              "os": "linux",
+              "device_name": "host-5eed0414"
+            },
+            "status": 1,
+            "user": "",
+            "user_name": "",
+            "device_group_name": "text-5eed04b3",
+            "note": ""
+          }
+        ]
+      }
+    }
+  }
+}

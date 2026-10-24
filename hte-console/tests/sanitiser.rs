@@ -187,7 +187,7 @@ fn the_synthetic_fixtures_are_clean() {
 fn committed_synthetic_fixtures_hold_placeholders_only() {
     // What `hte-console scan` checks before every replay, run on the fixtures in the repository (phase 1's and
     // phase 2's sign-in fixtures).
-    for d in ["fixtures/synthetic", "fixtures/signin"] {
+    for d in ["fixtures/synthetic", "fixtures/signin", "fixtures/clientapi"] {
         let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join(d);
         let problems = hte_console::fixture::scan(&Sanitiser::new(Some("any salt"), &[]), &dir).unwrap();
         assert!(problems.is_empty(), "{d}: {problems:?}");

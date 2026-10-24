@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "seq": 73,
+  "synthetic": true,
+  "source": "peerAdd(): a personal book keeps the hash, drops the password; tags map by name, unknown names vanish",
+  "vars": {
+    "ga1": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "method": "POST",
+  "path": "/api/ab/peer/add/{{ga1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000423",
+        "username": "user-5eed0423",
+        "hostname": "host-5eed0423",
+        "platform": "Linux",
+        "alias": "text-5eed0423",
+        "hash": "tok-5eed000000000423",
+        "password": "tok-5eed000000000433",
+        "tags": [
+          "text-5eed04d2",
+          "text-5eed04d8"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

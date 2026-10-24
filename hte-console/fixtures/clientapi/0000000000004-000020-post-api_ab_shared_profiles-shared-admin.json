@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "seq": 20,
+  "synthetic": true,
+  "source": "sharedProfiles(): an administrator has full control of every shared book; another person's automatic book (hte_auto_books) is hidden even from them",
+  "method": "POST",
+  "path": "/api/ab/shared/profiles",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 4,
+        "data": [
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c1",
+            "name": "text-5eed04c1",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 3
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c2",
+            "name": "text-5eed04c2",
+            "owner": "user-5eed0402",
+            "note": "text-5eed04ca",
+            "rule": 3
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c3",
+            "name": "text-5eed04c3",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 3
+          },
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c4",
+            "name": "text-5eed04c4",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 3
+          }
+        ]
+      }
+    }
+  }
+}

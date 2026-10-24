@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 97,
+  "synthetic": true,
+  "source": "tagAdd(): the name exists: firstOrCreate changes nothing",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "POST",
+  "path": "/api/ab/tag/add/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed04e3",
+        "color": 43
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

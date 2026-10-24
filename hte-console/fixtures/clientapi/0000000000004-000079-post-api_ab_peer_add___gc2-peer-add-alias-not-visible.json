@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 79,
+  "synthetic": true,
+  "source": "peerAdd(): not from a computer she may not see: the alias stays blank",
+  "vars": {
+    "gc2": "00000000-0000-4000-8000-0000000004c2"
+  },
+  "method": "POST",
+  "path": "/api/ab/peer/add/{{gc2}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000411",
+        "hostname": "host-5eed0451"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

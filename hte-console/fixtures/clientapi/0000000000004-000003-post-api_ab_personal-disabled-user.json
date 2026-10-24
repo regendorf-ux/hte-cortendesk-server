@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 3,
+  "synthetic": true,
+  "source": "the client-token guard: the owner must be active",
+  "method": "POST",
+  "path": "/api/ab/personal",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a05"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Unauthenticated."
+      }
+    }
+  }
+}

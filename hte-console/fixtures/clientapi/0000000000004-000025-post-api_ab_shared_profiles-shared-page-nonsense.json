@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "seq": 25,
+  "synthetic": true,
+  "source": "pagination(): (int) 'abc' is 0, max(1, 0) = 1 per page; a negative page is page 1",
+  "method": "POST",
+  "path": "/api/ab/shared/profiles",
+  "query": {
+    "current": "-4",
+    "pageSize": "abc"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 4,
+        "data": [
+          {
+            "guid": "00000000-0000-4000-8000-0000000004c1",
+            "name": "text-5eed04c1",
+            "owner": "user-5eed0401",
+            "note": "",
+            "rule": 1
+          }
+        ]
+      }
+    }
+  }
+}

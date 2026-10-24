@@ -1,0 +1,81 @@
+{
+  "format": 1,
+  "seq": 87,
+  "synthetic": true,
+  "source": "peers(): the updates",
+  "method": "POST",
+  "path": "/api/ab/peers",
+  "query": {
+    "ab": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 3,
+        "data": [
+          {
+            "id": "990000431",
+            "username": "user-5eed0431",
+            "hostname": "host-5eed0431",
+            "platform": "Linux",
+            "alias": "text-5eed0461",
+            "tags": [
+              "text-5eed04e1",
+              "text-5eed04e2"
+            ],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": "",
+            "password": "tok-5eed000000000431"
+          },
+          {
+            "id": "990000432",
+            "username": "",
+            "hostname": "host-5eed0432",
+            "platform": "Windows",
+            "alias": "",
+            "tags": [],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": "",
+            "password": "tok-5eed000000000452"
+          },
+          {
+            "id": "990000411",
+            "username": "",
+            "hostname": "",
+            "platform": "",
+            "alias": "text-5eed0411",
+            "tags": [
+              "text-5eed04e2"
+            ],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": "",
+            "password": "tok-5eed000000000451"
+          }
+        ]
+      }
+    }
+  }
+}

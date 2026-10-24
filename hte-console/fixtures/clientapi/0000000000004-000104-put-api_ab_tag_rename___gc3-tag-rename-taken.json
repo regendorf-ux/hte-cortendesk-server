@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 104,
+  "synthetic": true,
+  "source": "tagRename(): the unique index (address_book_id, name) throws: 500",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "PUT",
+  "path": "/api/ab/tag/rename/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "old": "text-5eed04e5",
+        "new": "text-5eed04e1"
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

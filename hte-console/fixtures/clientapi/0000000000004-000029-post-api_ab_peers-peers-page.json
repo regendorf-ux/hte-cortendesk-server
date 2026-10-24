@@ -1,0 +1,51 @@
+{
+  "format": 1,
+  "seq": 29,
+  "synthetic": true,
+  "source": "peers(): forPage(2, 1)",
+  "method": "POST",
+  "path": "/api/ab/peers",
+  "query": {
+    "ab": "00000000-0000-4000-8000-0000000004c3",
+    "current": "2",
+    "pageSize": "1"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "total": 2,
+        "data": [
+          {
+            "id": "990000432",
+            "username": "",
+            "hostname": "host-5eed0432",
+            "platform": "Windows",
+            "alias": "",
+            "tags": [],
+            "forceAlwaysRelay": "false",
+            "rdpPort": "",
+            "rdpUsername": "",
+            "loginName": ""
+          }
+        ]
+      }
+    }
+  }
+}

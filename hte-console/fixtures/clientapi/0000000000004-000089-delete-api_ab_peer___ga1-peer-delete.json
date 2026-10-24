@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 89,
+  "synthetic": true,
+  "source": "peerDelete(): the ids in the body, blanks dropped by array_filter",
+  "vars": {
+    "ga1": "00000000-0000-4000-8000-0000000004a1"
+  },
+  "method": "DELETE",
+  "path": "/api/ab/peer/{{ga1}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        "990000423",
+        "",
+        "990000499"
+      ]
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

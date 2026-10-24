@@ -2,6 +2,18 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.4.0 (2026-10-24): phase 4, the signed-in client
+
+- Native: the address books (legacy `GET|POST /api/ab`, `POST /api/ab/get`, and the multi-book API under `/api/ab/`),
+  `GET|POST /api/server-config`, the group tab (`/api/device-group/accessible`, `/api/users`, `/api/peers`), the session
+  note and active-session lookup (`PUT /api/audit`, `GET /api/audit/conn/active`) and `GET /webclient-config/index.js`,
+  ported from 1.15.0-hte.1 behind phase 2's bearer-token guard, with each person's reach (README section "Phase 4").
+  `/webclient` and `/rdclient/*` stay PHP; the websocket bridge is Caddy's.
+- `fixtures/clientapi/`: 118 synthetic fixtures and their seed, written by `replay/make-clientapi-fixtures.py`; the replay
+  learns `"vars"` (preset variables), `{{name}}` in the path, masks `tm` and marks random UUIDs.
+- Version 0.4.0 (0.3.0 is phase 3, built apart). New env: `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, `HTE_CONSOLE_ID_SERVER`,
+  `HTE_CONSOLE_PUBLIC_KEY`.
+
 ## 0.2.0 (2026-10-24): phase 2, the client sign-in
 
 - Native: `GET /api/login-options`, `POST /api/login` (password, the TOTP step), `POST /api/logout`,

@@ -56,6 +56,8 @@ Environment (nothing HTE-specific is in this repository):
 | `CORTENDESK_OIDC_DISABLED` | PHP's kill switch for SSO, read the same way (`true`/`1`/`on`/`yes`) |
 | `BCRYPT_ROUNDS` | cost of new bcrypt hashes (provisioned accounts), as Laravel (default 12) |
 | `HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES` | default 65536 |
+| `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES` | phase 4: default 8388608 (the legacy address book is pushed whole) |
+| `HTE_CONSOLE_ID_SERVER`, `HTE_CONSOLE_PUBLIC_KEY` | phase 4: what `/api/server-config` says when the settings table has no `id_server`/`public_key` (else `CORTENDESK_ID_SERVER`, `CORTENDESK_PUBLIC_KEY`) |
 | `HTE_CONSOLE_OIDC_ALLOW_HTTP` | `1` lets the identity provider be plain http: the replay's fake provider only, never on the server |
 
 Run it as the user that owns the database file (compose `user:`), or as root: SQLite creates its `-wal`/`-shm`
@@ -163,3 +165,57 @@ paths whatever its prefixes say).
   (`RequireTwoFactor` and friends); the page reads no session.
 - The phase 2 routes add Laravel's rate-limit headers to a 500 too (as Laravel does); phase 1's device routes do not
   (a header-only difference, kept as it is).
+
+## Phase 4: the signed-in client (address books, group tab, audit note, web client)
+
+The routes of the `auth:client` group that HTE's RustDesk clients call, ported statement by statement from
+`AddressBookController`, `GroupTabController`, `WebClientController` and `AuditController::note/activeConnection`
+(`src/client.rs`): `GET /api/ab`, `POST /api/ab/get`, `POST /api/ab` (the legacy address book), `POST /api/ab/personal`,
+`/settings`, `/shared/profiles`, `/peers`, `/tags/{guid}`, `/peer/add|update/{guid}`, `DELETE /peer/{guid}`,
+`/tag/add|rename|update/{guid}`, `DELETE /tag/{guid}` (the multi-book API), `GET|POST /api/server-config`,
+`GET /api/device-group/accessible`, `GET /api/users`, `GET /api/peers` (the group tab), `PUT /api/audit` (the note),
+`GET /api/audit/conn/active`, and `GET /webclient-config/index.js`. The guard is phase 2's (`signin::authenticate`):
+an unknown, expired or disabled-owner token is 401 `{"message":"Unauthenticated."}`, `last_used_at` is stamped. Each
+person's reach is PHP's: `User::accessibleDeviceGroupIds`, `visibleUserIds`, `Device::scopeVisibleTo` (own computers
+plus every accessible folder, approved and not deleted), `AddressBook::permissionFor` (owner, administrator, rules:
+`everyone`/`user`/`group`, the highest wins), and HTE's `Passwords::hiddenBookFor` (another person's automatic book is
+never listed, administrators included). The SQL keeps Eloquent's shapes so row order is the same.
+
+Left to PHP, on purpose: `/webclient` (the page is bound to a login session and mints the websocket ticket) and the
+static `/rdclient/*` files; the websocket itself is the Caddy bridge (`notes/phase4/`), not this crate.
+Anything else under `/api/` keeps going to PHP. Paths that are not canonical (a trailing slash, other case) match no
+native route and go to PHP, as before.
+
+Same as PHP, including where it is odd: errors are `{"error": ...}` on HTTP 200; `pageSize` is clamped to 1..500 and a
+present-but-empty query value takes the default (`$request->query()` is `all()[$k] ?? $d` after
+`ConvertEmptyStringsToNull`); the legacy push is not a transaction (it deletes tags, inserts them, deletes entries,
+inserts them: a failure half way leaves what was done, a duplicate tag name is a 500 after the old tags are gone);
+success is an empty 200 body where PHP's is; 404/405/OPTIONS/preflight answer as Laravel's router does (the 405 lists the
+other verbs of that URI in `Router::$verbs` order).
+
+Configuration read at call time (no restart for settings): `id_server` and `public_key` come from the settings table
+(PHP's `Setting::server`), else `HTE_CONSOLE_ID_SERVER`/`CORTENDESK_ID_SERVER` and
+`HTE_CONSOLE_PUBLIC_KEY`/`CORTENDESK_PUBLIC_KEY`; the online window is the `online_window` setting, else
+`CORTENDESK_ONLINE_WINDOW`, else 60 seconds (`0` means 60, as `Device::onlineWindow()`).
+
+Proven by `tests/client_api.rs` (12 end-to-end tests: the 118 synthetic fixtures, routing, 413, reach, paging, the online
+window, a form-encoded PUT, the non-transactional push, the note length, the log holding no secret) and by the fixtures in
+`fixtures/clientapi/` (written by `replay/make-clientapi-fixtures.py` from the PHP source, with their seed), which
+`replay.sh` replays against PHP and hte-console and compares, answers and database. Run that replay on its own
+(`replay.sh fixtures/clientapi`): its lists assume only its own people and computers.
+
+### Phase 4: deliberate differences
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| request bodies | PHP's limit | 8 MiB on these routes (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`: a whole legacy book is pushed at once), 413 over it |
+| `GET /webclient-config/index.js` | Laravel's web group: session and XSRF cookies | no cookies (the script uses none); the origin is `HTE_CONSOLE_PUBLIC_URL` when set, else built from the request as the sign-in pages are |
+| `tm` in `/api/server-config` peers | `now()->subDay()` precise timestamp, whole seconds | whole seconds as well; the replay masks it |
+| a form-encoded `PUT`/`DELETE` body | read by Laravel | read the same way (clients send JSON) |
+| the `X-Forwarded-For` the websocket sees | what the client sent | the Caddy bridge overwrites it with the real peer address (a client cannot choose the address hbbs records) |
+
+### Phase 4: known differences, not visible to a RustDesk client at HTE
+
+- A legacy push whose `tag_colors` decodes to a non-empty JSON string, with a tag named by digits: PHP's
+  `$tagColors[$name] ?? 0` reads the character at that offset of the string as the colour; here it is 0. The client
+  never sends it (`tag_colors` is an object).

@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 111,
+  "synthetic": true,
+  "source": "tags(): what is left",
+  "vars": {
+    "gc3": "00000000-0000-4000-8000-0000000004c3"
+  },
+  "method": "POST",
+  "path": "/api/ab/tags/{{gc3}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000004a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": [
+        {
+          "name": "text-5eed04e2",
+          "color": 0
+        },
+        {
+          "name": "text-5eed04e4",
+          "color": 0
+        }
+      ]
+    }
+  }
+}
