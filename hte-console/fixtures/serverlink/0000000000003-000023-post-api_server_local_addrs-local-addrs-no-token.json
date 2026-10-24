@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 23,
+  "synthetic": true,
+  "source": "VerifyServerSecret before validation: 401",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "addrs": []
+      }
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Invalid server secret."
+      }
+    }
+  }
+}

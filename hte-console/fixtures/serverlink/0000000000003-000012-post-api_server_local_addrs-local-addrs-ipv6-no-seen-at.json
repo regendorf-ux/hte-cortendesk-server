@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 12,
+  "synthetic": true,
+  "source": "localAddrs: no seen_at is now; an IPv6 address passes the ip rule",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "addrs": [
+          {
+            "id": "990003002",
+            "ip": "2001:db8::3:22"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "updated": 1
+      }
+    }
+  }
+}

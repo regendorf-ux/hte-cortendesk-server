@@ -17,7 +17,9 @@ pub fn sql(dir: &Path) -> Result<String, String> {
     let mut devices = std::collections::BTreeMap::new();
     for p in list(dir).map_err(|e| e.to_string())? {
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
-        if let Some(a) = fx["request"]["headers"]["authorization"].as_str() {
+        // phase 3: the ID server's bearer is the server link secret, never a client token
+        let server_link = fx["path"].as_str().map_or(false, |p| p.starts_with("/api/server/"));
+        if let Some(a) = fx["request"]["headers"]["authorization"].as_str().filter(|_| !server_link) {
             // a `{{template}}` is a token the replay itself signs in for (phase 2), not one to seed
             if let Some(t) = a.strip_prefix("Bearer ").filter(|t| !t.starts_with("{{")) {
                 tokens.insert(t.to_string());

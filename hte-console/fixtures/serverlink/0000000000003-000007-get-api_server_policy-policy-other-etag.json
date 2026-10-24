@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "seq": 7,
+  "synthetic": true,
+  "source": "an ETag that is not the current one: the full policy",
+  "method": "GET",
+  "path": "/api/server/policy",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de",
+      "if-none-match": "\"tok-5eed00000003e7a9\""
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "omitted"
+    }
+  }
+}

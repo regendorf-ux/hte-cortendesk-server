@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 16,
+  "synthetic": true,
+  "source": "a form body is read into input() the same way",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "form",
+      "fields": {
+        "addrs[0][id]": "990003001",
+        "addrs[0][ip]": "198.18.3.25"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "updated": 1
+      }
+    }
+  }
+}

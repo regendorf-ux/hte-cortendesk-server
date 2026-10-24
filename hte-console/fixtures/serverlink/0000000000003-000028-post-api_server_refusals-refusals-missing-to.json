@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 28,
+  "synthetic": true,
+  "source": "validate: refusals.*.to required",
+  "method": "POST",
+  "path": "/api/server/refusals",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "refusals": [
+          {
+            "user_name": "user-5eed3004",
+            "from": "990003004"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "sha256",
+      "prefix": "75ac46aa03ed7058"
+    }
+  }
+}

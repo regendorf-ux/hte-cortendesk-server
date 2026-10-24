@@ -17,6 +17,12 @@
 # fixtures/signin holds the synthetic sign-in fixtures (nothing of sign-in is ever captured). The replay is paced below the
 # console's rate limit (110 a minute per address and device; HTE_CONSOLE_REPLAY_PER_MINUTE), so hours of captured
 # heartbeats take a few minutes per side.
+# Phase 3: both consoles get the server link secret (a placeholder) and Laravel's database cache store (as the server
+# runs once phase 3 is deployed); fixtures/serverlink holds the ID server's calls; after the replay the two consoles'
+# policies are compared with each other (sign-in tokens minted at random reduced to the devices they map to). A
+# directory holding `sweeps.plan` (fixtures/sweeps) is a scenario for the scheduled jobs: its steps run on PHP's
+# database with PHP's own artisan commands and on hte-console's copy with `hte-console sweep`, then the two databases
+# are compared again.
 # Exit 0 = no differences anywhere and the check caught the change, 1 = differences (printed), 2 = could not run.
 # Every docker command reads </dev/null so the script can also be piped through `ssh host 'bash -s'`.
 set -euo pipefail
@@ -36,12 +42,15 @@ WORK="$(mktemp -d)"
 FIXTURES="$WORK/fixtures"
 mkdir -p "$FIXTURES"
 mkdir -p "$WORK/sql"
+SWEEPS_DIR=""
 for d in "$@"; do
+  if [ -f "$d/sweeps.plan" ]; then SWEEPS_DIR="$d"; continue; fi   # phase 3: a scenario, not fixtures or seed
   find "$d" -maxdepth 1 -name '*.json' -exec cp -p {} "$FIXTURES"/ \; </dev/null
   find "$d" -maxdepth 1 -name '*.sql' -exec cp -p {} "$WORK/sql"/ \; </dev/null   # extra seed, applied in name order
 done
 
 IDP_SECRET="tok-5eed00000000c11e"   # the seed's oidc_client_secret (a placeholder, for the fake provider only)
+LINK_SECRET="tok-5eed00000003c0de"  # the server link secret fixtures/serverlink present (a placeholder)
 
 cleanup() {
   docker rm -f "$TAG-php" "$TAG-rust" "$TAG-idp" </dev/null >/dev/null 2>&1 || true
@@ -63,7 +72,7 @@ snapshot() { # snapshot <data-dir> > file: the database in that directory as com
 summary() { # one line per endpoint and kind: how many fixtures, how many matched, how many differ
   echo "== per kind ($2)"
   printf '%-10s %-10s %6s %6s %6s\n' endpoint kind total match differ
-  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback; do
+  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback server_policy server_local-addrs server_refusals; do
     for kind in captured synthetic; do
       if [ "$kind" = synthetic ]; then pat='^000000000000[0-9]-'; else pat='^[1-9]'; fi
       # file names end the path slug with "-" (synthetic) or ".json" (captured); audit/* share one line
@@ -101,8 +110,12 @@ docker run --rm --entrypoint cat "$PHP_IMAGE" /etc/supervisord.conf </dev/null \
 grep -q '^\[program:php-fpm\]' "$WORK/supervisord.conf" || { echo "unexpected supervisord.conf in $PHP_IMAGE" >&2; exit 2; }
 docker run -d --name "$TAG-php" --network "$TAG" -v "$WORK/data:/data" -v "$WORK/supervisord.conf:/etc/supervisord.conf:ro" \
   -e CORTENDESK_EMBEDDED_SERVER=false -e APP_ENV=production -e APP_DEBUG=false \
+  -e CORTENDESK_SERVER_SECRET="$LINK_SECRET" -e CACHE_STORE=database \
   "$PHP_IMAGE" </dev/null >/dev/null
 wait_for "$TAG-php" http://127.0.0.1:8080/health/live || exit 2
+# phase 3: PHP's cache prefix, for hte-console to write the cache rows PHP reads
+CACHE_PREFIX="$(docker exec -u www-data -w /app "$TAG-php" php artisan tinker --execute='echo config("cache.prefix");' </dev/null | tr -d '\r\n')"
+[ -n "$CACHE_PREFIX" ] || { echo "could not read PHP's cache prefix" >&2; exit 2; }
 
 echo "== starting the fake identity provider (TEST ONLY) for the sign-in fixtures"
 docker run -d --name "$TAG-idp" --network "$TAG" \
@@ -171,6 +184,7 @@ if [ "$NATIVE" != 0 ]; then
   # on the server); no HTE_CONSOLE_PUBLIC_URL here, so the redirect URI is built from the Host header as PHP does
   docker run -d --name "$TAG-rust" --network "$TAG" -v "$WORK/rdata:/data" \
     -e HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite -e HTE_CONSOLE_LISTEN=0.0.0.0:8080 -e HTE_CONSOLE_OIDC_ALLOW_HTTP=1 \
+    -e CORTENDESK_SERVER_SECRET="$LINK_SECRET" -e HTE_CONSOLE_CACHE_PREFIX="$CACHE_PREFIX" \
     "$CONSOLE_IMAGE" serve </dev/null >/dev/null
   wait_for "$TAG-rust" http://127.0.0.1:8080/__hte-console/health || exit 2
 
@@ -181,6 +195,23 @@ if [ "$NATIVE" != 0 ]; then
   set -e
   cat "$WORK/replay-rust.out"
   summary "$WORK/replay-rust.out" "hte-console"
+
+  echo "== the policy the ID server gets: PHP's against hte-console's"
+  for side in php rust; do
+    docker exec "$TAG-$side" wget -q -O - --header "Authorization: Bearer $LINK_SECRET" --header "User-Agent: hte-replay" \
+      http://127.0.0.1:8080/api/server/policy </dev/null > "$WORK/policy-$side.json" || { echo "no policy from $side" >&2; exit 2; }
+    # sign-in tokens are minted at random on each side: compare the devices and people they map to
+    python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); p["tokens"]=sorted(p["tokens"].values()); p["scope"]["token_users"]=sorted(p["scope"]["token_users"].values()); print(json.dumps(p, indent=1))' \
+      "$WORK/policy-$side.json" > "$WORK/policy-$side.norm" </dev/null
+  done
+  policy_status=0
+  if diff -u "$WORK/policy-php.norm" "$WORK/policy-rust.norm" > "$WORK/policy.diff"; then
+    echo "policies: identical ($(python3 -c 'import json,sys; p=json.load(open(sys.argv[1])); print(len(p["allow"]), "allowed,", len(p["incoming_only"]), "incoming only,", len(p["tokens"]), "tokens, scope", "on" if p["scope"]["enforce"] else "off", "with", len(p["scope"]["users"]), "people")' "$WORK/policy-php.json" </dev/null))"
+  else
+    policy_status=1
+    echo "policies DIFFER (- PHP, + hte-console):"
+    head -60 "$WORK/policy.diff"
+  fi
   docker stop -t 20 "$TAG-rust" </dev/null >/dev/null   # SIGTERM: hte-console closes the database cleanly
 
   echo "== the database after the replay: PHP's against hte-console's"
@@ -193,6 +224,48 @@ if [ "$NATIVE" != 0 ]; then
     db_status=1
     echo "databases DIFFER (- PHP, + hte-console):"
     head -100 "$WORK/db.diff"
+  fi
+
+  sweep_status=0
+  if [ -n "$SWEEPS_DIR" ]; then
+    echo "== the scheduled jobs: PHP's artisan commands against hte-console's sweeps ($(basename "$SWEEPS_DIR"))"
+    mkdir -p "$WORK/steps"
+    cp -p "$SWEEPS_DIR"/*.sql "$WORK/steps"/ </dev/null
+    for f in "$WORK"/steps/*.sql; do
+      if grep -q '@@' "$f" </dev/null; then
+        docker run --rm --network none -v "$WORK/steps:/sql:ro" -v "$WORK/app_key:/app_key:ro" -e HTE_CONSOLE_APP_KEY_FILE=/app_key \
+          "$CONSOLE_IMAGE" seed-expand "/sql/$(basename "$f")" "http://$TAG-idp:8080" </dev/null > "$f.expanded"
+        mv "$f.expanded" "$f"
+      fi
+    done
+    artisan_of() { case "$1" in reach) echo hte:reach-sweep;; passwords) echo hte:passwords;; stale) echo cortendesk:close-stale-sessions;; diagnostics) echo cortendesk:diagnostics-heartbeat;; *) echo "unknown job $1" >&2; return 1;; esac; }
+    while read -r verb rest; do
+      case "$verb" in ''|'#'*) continue;; esac
+      case "$verb" in
+        sql)
+          docker cp "$WORK/steps/$rest" "$TAG-php:/tmp/step.sql" </dev/null
+          docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/step.sql"));' </dev/null
+          docker run --rm --network none -v "$WORK/rdata:/data" -v "$WORK/steps:/steps:ro" "$CONSOLE_IMAGE" sql-apply /data/cortendesk.sqlite "/steps/$rest" </dev/null >/dev/null
+          echo "  $rest";;
+        sweep)
+          for job in $rest; do
+            docker exec -u www-data -w /app "$TAG-php" php artisan "$(artisan_of "$job")" --no-interaction </dev/null | sed 's/^/  php: /'
+          done
+          docker run --rm --network none -v "$WORK/rdata:/data" -e HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite \
+            -e HTE_CONSOLE_CACHE_PREFIX="$CACHE_PREFIX" "$CONSOLE_IMAGE" sweep $rest </dev/null | sed 's/^/  hte-console: /';;
+        *) echo "sweeps.plan: unknown step $verb" >&2; exit 2;;
+      esac
+    done < "$SWEEPS_DIR/sweeps.plan"
+    snapshot "$WORK/data" > "$WORK/php-sweeps.snapshot"
+    snapshot "$WORK/rdata" > "$WORK/rust-sweeps.snapshot"
+    grep -E '^(alarm_logs|audit_connections|console_audits|hte_device_passwords|address_books|address_book_entries|address_book_rules|hte_auto_books|cache): [0-9]+ rows$' "$WORK/php-sweeps.snapshot" | tr '\n' ' '; echo
+    if diff -u "$WORK/php-sweeps.snapshot" "$WORK/rust-sweeps.snapshot" > "$WORK/sweeps.diff"; then
+      echo "databases after the sweeps: identical"
+    else
+      sweep_status=1
+      echo "databases after the sweeps DIFFER (- PHP, + hte-console):"
+      head -100 "$WORK/sweeps.diff"
+    fi
   fi
 fi
 
@@ -217,6 +290,6 @@ FIXTURES="$saved"
 if [ "$caught" -ne 1 ]; then echo "THE REPLAY DID NOT NOTICE A CHANGED FIXTURE" >&2; exit 2; fi
 echo "caught, as it should"
 
-echo "== result: PHP answers $([ "$status" = 0 ] && echo match || echo DIFFER)$([ "$NATIVE" != 0 ] && echo ", hte-console answers $([ "$rust_status" = 0 ] && echo match || echo DIFFER), databases $([ "$db_status" = 0 ] && echo identical || echo DIFFER)")"
-[ "$status" = 0 ] && [ "$rust_status" = 0 ] && [ "$db_status" = 0 ] || exit 1
+echo "== result: PHP answers $([ "$status" = 0 ] && echo match || echo DIFFER)$([ "$NATIVE" != 0 ] && echo ", hte-console answers $([ "$rust_status" = 0 ] && echo match || echo DIFFER), databases $([ "$db_status" = 0 ] && echo identical || echo DIFFER), policies $([ "${policy_status:-0}" = 0 ] && echo identical || echo DIFFER)$([ -n "$SWEEPS_DIR" ] && echo ", sweeps $([ "${sweep_status:-0}" = 0 ] && echo identical || echo DIFFER)")")"
+[ "$status" = 0 ] && [ "$rust_status" = 0 ] && [ "$db_status" = 0 ] && [ "${policy_status:-0}" = 0 ] && [ "${sweep_status:-0}" = 0 ] || exit 1
 exit 0

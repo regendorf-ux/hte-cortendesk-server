@@ -1,0 +1,25 @@
+# Phase 3, SYNTHETIC: the scheduled jobs against PHP's own commands. replay.sh runs this after the HTTP replay, on
+# PHP's database and on hte-console's copy (the two compared identical just before), then compares them again.
+# One step a line: `sql <file>` applies the file to both databases (@@ENCRYPT(..)@@ filled in with the throwaway app
+# key); `sweep <job>...` runs `php artisan <command>` on one side and `hte-console sweep <job>` on the other.
+# Jobs: reach (hte:reach-sweep), passwords (hte:passwords), stale (cortendesk:close-stale-sessions),
+# diagnostics (cortendesk:diagnostics-heartbeat). The world is fixtures/serverlink's seed (ReachTest's hteFixture).
+sql 00-close-replayed-sessions.sql
+sql 01-sessions-and-passwords.sql
+sweep reach passwords stale diagnostics
+sql 02-only-the-group-member-on-the-mac.sql
+sweep reach
+sql 03-the-member-leaves-the-user-group.sql
+sweep reach passwords
+sql 04-the-owner-signs-in-on-the-front-desk.sql
+sweep reach
+sql 05-the-owner-is-disabled.sql
+sweep reach passwords
+sql 06-group-access-and-confirmed-passwords.sql
+sweep passwords
+sql 07-the-server-leaves-the-group.sql
+sweep reach passwords
+sql 08-only-on-access-loss.sql
+sweep passwords stale diagnostics
+sql 09-enforcement-off.sql
+sweep reach

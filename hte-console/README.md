@@ -16,6 +16,13 @@ HTE Remote's console, step by step in Rust (plan: `PHPLESS-PLAN.md` in HTE's pri
   `ClientOidcController`, `OidcService` (with firebase/php-jwt 7.1.0's checks and messages), `OidcUserResolver`,
   `TwoFactor` and `DeviceEnrollment::signedIn` (a pending device is approved and owned on sign-in). Section
   "Phase 2" below has the rules and the deliberate differences.
+- **Phase 3, the server link and the sweeps** (0.3.0). The endpoints the ID server (hbbs) calls,
+  `GET /api/server/policy` (with HTE's per-person `scope`), `POST /api/server/local-addrs` and
+  `POST /api/server/refusals` (alarm 102), and the scheduled jobs `hte:reach-sweep` (alarm 103, 15 s),
+  `hte:passwords` (rotation and the "HTE Remote" books), `cortendesk:close-stale-sessions` and
+  `cortendesk:diagnostics-heartbeat`, ported from `ServerLinkController`, `ServerLink`, `VerifyServerSecret`,
+  `App\Hte\{Reach,ReachSweep,RefusalsController,Passwords}` and `AuditConnection::closeStaleSessions`. Section
+  "Phase 3" below.
 
 ```
 hte-console serve                       # serve; with HTE_CONSOLE_DATABASE the device endpoints are native
@@ -27,6 +34,10 @@ hte-console seed-expand <sql> <idp>     # a phase 2 seed made concrete (fake pro
 hte-console fake-idp                    # a fake OpenID provider for the replay (TEST ONLY: src/fake_idp.rs)
 replay/replay.sh <dir>                  # all of that against throwaway PHP and hte-console containers
 replay/make-signin-fixtures.py          # writes fixtures/signin/ (the synthetic sign-in fixtures)
+hte-console sweep <job>...|all          # phase 3: run reach, passwords, stale, diagnostics once (under PHP's lock)
+hte-console schedule-locks              # phase 3: the cache_locks key of each job PHP's scheduler would take
+hte-console sql-apply <sqlite> <sql>    # phase 3, replay only: a scenario step on a throwaway database
+replay/make-serverlink-fixtures.py      # writes fixtures/serverlink/ (the synthetic server-link fixtures)
 ```
 
 Environment (nothing HTE-specific is in this repository):
@@ -57,6 +68,10 @@ Environment (nothing HTE-specific is in this repository):
 | `BCRYPT_ROUNDS` | cost of new bcrypt hashes (provisioned accounts), as Laravel (default 12) |
 | `HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES` | default 65536 |
 | `HTE_CONSOLE_OIDC_ALLOW_HTTP` | `1` lets the identity provider be plain http: the replay's fake provider only, never on the server |
+| **Phase 3** | |
+| `CORTENDESK_SERVER_SECRET` | the server link secret, as PHP gets it; else the file `HTE_CONSOLE_SERVER_SECRET_FILE` (default `/data/.server_secret`, which the PHP image writes root-only: the deploy passes the variable). Empty: `/api/server/*` answer 404, as an unlinked PHP |
+| `HTE_CONSOLE_CACHE_PREFIX` | PHP's `cache.prefix` (else `CACHE_PREFIX`, else `Str::slug(APP_NAME)-cache-`); the deploy passes PHP's own value |
+| `HTE_CONSOLE_SWEEPS` | which scheduled jobs run here: `reach,passwords,stale,diagnostics` or `all`; default none |
 
 Run it as the user that owns the database file (compose `user:`), or as root: SQLite creates its `-wal`/`-shm`
 files with the creating process's owner, and files PHP cannot write would break PHP. `serve` refuses to start
@@ -101,6 +116,48 @@ Known differences that depend on configuration HTE does not use:
 - The older offline marker in PHP's file cache (`apprise:device-offline:<sha1 of id>`, from before the
   `device_presence_notification_states` table) is not consulted when a device comes back; only the table row is.
   It only matters for Apprise offline alerts, which HTE does not send.
+
+## Phase 3: the server link and the sweeps
+
+The ID server runs inside the PHP container and reaches the console at `CORTENDESK_CONSOLE_URL` (loopback by
+default), so it moves here when that URL points at hte-console, not through Caddy. Answers as PHP's: the policy
+byte for byte (`mode`, `allow` and `incoming_only` by device id, `tokens` and `scope.token_users` as sha256 of each
+live token, ksorted, `ip_match`, and `scope` = `{enforce, users: {id: {name, all, devices}}, token_users}`, empty
+while `hte_scope_enforce` is off; `{}` where PHP casts to an object), its ETag (sha256 of the body, quoted; 304 for a
+matching `If-None-Match`, weakly compared), `VerifyServerSecret` (404 unlinked, 401 for a wrong bearer, `hash_equals`,
+before the limiter), `throttle:600,1,server-link` with Laravel's headers, Laravel's validator for the two POST bodies
+(the same 422 texts, keys and order: `src/validate.rs`), and the same writes: `devices.lan_ip`/`lan_ip_seen_at`
+(never rolled back, never in the future, dirty-only), `alarm_logs` 102 (both device names, "nobody signed in").
+Every pull is recorded where PHP records it (`ServerLink::recordPull`), in Laravel's cache.
+
+The sweeps write what PHP's commands write: `audit_connections.disconnect_requested_at` (the console's own
+disconnect, delivered by the heartbeat), `alarm_logs` 103 and a "system" line in `console_audits`; new passwords
+(`hte_device_passwords`, the reasons PHP gives, `Str::limit` 60) and the automatic books (`address_books` "HTE
+Remote", one rule, `address_book_entries` in step with `Device::visibleTo` and the confirmed passwords, a disabled
+person's emptied; `hte_auto_books`); stale sessions closed after five silent minutes; the scheduler heartbeat.
+
+**Laravel's cache and scheduler.** The pull marker and the scheduler heartbeat are read by PHP's Settings and Fleet
+Diagnostics pages through `Cache::get`, so they are written into Laravel's **database** store (`cache` table, PHP's
+prefix, PHP's `serialize`, ten-year expiry); the PHP container must run `CACHE_STORE=database` (its image defaults to
+`file` inside the container). PHP's scheduler stays on for everything else; for each job taken over, hte-console
+takes and keeps the very lock `withoutOverlapping` takes (`cache_locks`, `Event::mutexName()`, PHP's expiry: 1, 5,
+30, 10 minutes), so PHP's `schedule:run` skips the job as it skips one still running. hte-console skips a tick while
+PHP holds the lock, gives the locks back on a clean stop (PHP resumes at its next tick) and, if it dies, they expire.
+
+Proven by `tests/server_link.rs` (26 end-to-end tests: ReachTest's and PasswordsTest's assertions for these paths
+by their names, the exact policy body, ETag/304/HEAD/405, 404/401, the 600 limit across the three routes, the local
+address rules, 422s, 300 random bodies, the scheduler lock against a PHP-held one, the sweeps scenario), by the 31
+synthetic fixtures in `fixtures/serverlink/` and by `fixtures/sweeps/`, which `replay.sh` runs against PHP and
+hte-console: answers, both policies against each other, and the databases after the sweeps' steps.
+
+### Known differences, not visible to the ID server at HTE
+
+- The security-alarm notification per refusal is not sent (Apprise; off at HTE, a no-op in PHP then).
+- The validator is the subset these routes use; `mb_strwidth` (for `Str::limit` of log lines) knows the main wide
+  blocks only, and `FILTER_VALIDATE_IP` is Rust's IPv6 parser with PHP's IPv4 rule. Text only HTE could send.
+- A token whose sha256 is all digits would be an integer key in PHP and sort differently (1 in 10^13).
+- The sweeps read every open session at once (PHP's `each()` reads in chunks of 1000; with more open sessions PHP
+  could skip some in one run that the next run catches). HTE has a handful.
 
 ## Phase 2: client sign-in
 

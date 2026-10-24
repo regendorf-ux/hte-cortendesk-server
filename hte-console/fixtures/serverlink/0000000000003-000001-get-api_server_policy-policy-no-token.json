@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 1,
+  "synthetic": true,
+  "source": "VerifyServerSecret: hash_equals(secret, (string) bearerToken()) fails -> 401",
+  "method": "GET",
+  "path": "/api/server/policy",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Invalid server secret."
+      }
+    }
+  }
+}

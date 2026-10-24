@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "seq": 11,
+  "synthetic": true,
+  "source": "localAddrs: an unknown id is skipped; a pending device is not trashed, so it is updated",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "addrs": [
+          {
+            "id": "990003999",
+            "ip": "198.18.3.30"
+          },
+          {
+            "id": "990003003",
+            "ip": "198.18.3.31"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "updated": 1
+      }
+    }
+  }
+}

@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 18,
+  "synthetic": true,
+  "source": "validate: an empty array fails required",
+  "method": "POST",
+  "path": "/api/server/local-addrs",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003c0de"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "addrs": []
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The addrs field is required.",
+        "errors": {
+          "addrs": [
+            "The addrs field is required."
+          ]
+        }
+      }
+    }
+  }
+}

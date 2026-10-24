@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 31,
+  "synthetic": true,
+  "source": "VerifyServerSecret: 401",
+  "method": "POST",
+  "path": "/api/server/refusals",
+  "query": {},
+  "request": {
+    "headers": {
+      "x-forwarded-for": "198.18.3.1",
+      "user-agent": "cortendesk-server/1.1.1-hte.2",
+      "authorization": "Bearer tok-5eed00000003bad0"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "refusals": [
+          {
+            "to": "990003001"
+          }
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "error": "Invalid server secret."
+      }
+    }
+  }
+}
