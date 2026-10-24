@@ -11,7 +11,9 @@
 # Several directories are merged (captured first or synthetic first: files replay in name order, and
 # synthetic ones are named to sort before captured ones). After the real runs it replays a copy with one
 # expected answer changed and insists that this run FAILS: a replay that cannot see a difference is worthless.
-# HTE_REPLAY_NATIVE=0 skips the hte-console half (phase 0 behaviour: PHP only).
+# HTE_REPLAY_NATIVE=0 skips the hte-console half (phase 0 behaviour: PHP only). The replay is paced below the
+# console's rate limit (110 a minute per address and device; HTE_CONSOLE_REPLAY_PER_MINUTE), so hours of captured
+# heartbeats take a few minutes per side.
 # Exit 0 = no differences anywhere and the check caught the change, 1 = differences (printed), 2 = could not run.
 # Every docker command reads </dev/null so the script can also be piped through `ssh host 'bash -s'`.
 set -euo pipefail
@@ -171,8 +173,10 @@ if [ "$NATIVE" != 0 ]; then
 fi
 
 echo "== proving the replay notices a change (this run must report a difference)"
-cp -a "$FIXTURES" "$WORK/tampered" </dev/null
-victim="$(ls "$WORK/tampered" </dev/null | grep -m1 'api_sysinfo-new-device' || ls "$WORK/tampered" </dev/null | head -1)"
+# Only the changed fixture is replayed: enough to prove a difference is seen, without another paced full run.
+mkdir -p "$WORK/tampered"
+victim="$(ls "$FIXTURES" </dev/null | grep -m1 'api_sysinfo-new-device' || ls "$FIXTURES" </dev/null | head -1)"
+cp -p "$FIXTURES/$victim" "$WORK/tampered/" </dev/null
 sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": 200/"status": 418/' "$WORK/tampered/$victim" </dev/null
 saved="$FIXTURES"; FIXTURES="$WORK/tampered"
 set +e

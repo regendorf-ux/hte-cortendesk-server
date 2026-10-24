@@ -1,5 +1,6 @@
 //! Replay recorded fixtures against a base URL and report differences.
 //! Compared: status, content type, body. Ignored: timestamps, database ids, freshly minted tokens.
+//! Paced below the console's rate limit per address and device (see `Pace`).
 
 use crate::fixture::{body_value, list, query_string};
 use crate::sanitise::Sanitiser;
@@ -63,6 +64,55 @@ fn request_body(b: &Value) -> Option<(String, Vec<u8>)> {
     }
 }
 
+/// Recorded traffic is hours of heartbeats; replayed in one burst it would trip the console's own `device-sync`
+/// limit (120 a minute per address and device) on both sides and compare 429s. So the replay sends at most
+/// `HTE_CONSOLE_REPLAY_PER_MINUTE` (default 110) requests a minute per address and device id, waiting when needed.
+struct Pace {
+    per_minute: usize,
+    window: std::time::Duration,
+    sent: std::collections::HashMap<String, std::collections::VecDeque<std::time::Instant>>,
+}
+
+impl Pace {
+    fn from_env() -> Pace {
+        let per_minute = std::env::var("HTE_CONSOLE_REPLAY_PER_MINUTE").ok().and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(110);
+        Pace::new(per_minute, std::time::Duration::from_secs(61))
+    }
+
+    fn new(per_minute: usize, window: std::time::Duration) -> Pace {
+        Pace { per_minute, window, sent: Default::default() }
+    }
+
+    /// The limiter's key as PHP builds it: the client address (the fixture's X-Forwarded-For) and the device id.
+    fn key(fx: &Value) -> String {
+        let xff = fx["request"]["headers"]["x-forwarded-for"].as_str().unwrap_or("");
+        let id = |v: &Value| match v {
+            Value::String(s) => s.clone(),
+            Value::Null => String::new(),
+            other => other.to_string(),
+        };
+        let body_id = &fx["request"]["body"]["value"]["id"];
+        let id = if body_id.is_null() { id(&fx["query"]["id"]) } else { id(body_id) };
+        format!("{xff}|{id}")
+    }
+
+    async fn wait(&mut self, fx: &Value) {
+        let (per_minute, window) = (self.per_minute, self.window);
+        let q = self.sent.entry(Self::key(fx)).or_default();
+        while q.front().map_or(false, |t| t.elapsed() >= window) {
+            q.pop_front();
+        }
+        if q.len() >= per_minute {
+            if let Some(oldest) = q.front() {
+                let left = window.saturating_sub(oldest.elapsed());
+                tokio::time::sleep(left).await;
+            }
+            q.pop_front();
+        }
+        q.push_back(std::time::Instant::now());
+    }
+}
+
 pub struct Report {
     pub total: usize,
     pub skipped: usize,
@@ -76,6 +126,7 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
         .build()
         .map_err(|e| e.to_string())?;
     let mut report = Report { total: 0, skipped: 0, differences: vec![] };
+    let mut pace = Pace::from_env();
     for p in list(dir).map_err(|e| format!("{}: {e}", dir.display()))? {
         let name = p.file_name().unwrap().to_string_lossy().into_owned();
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).map_err(|e| e.to_string())?).map_err(|e| format!("{name}: {e}"))?;
@@ -96,6 +147,7 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
             report.skipped += 1;
             continue;
         }
+        pace.wait(&fx).await;
         let resp = match rq.send().await {
             Ok(r) => r,
             Err(e) => {
@@ -127,6 +179,20 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[tokio::test]
+    async fn pace_waits_per_address_and_device_only() {
+        let mut p = Pace::new(2, std::time::Duration::from_millis(300));
+        let a = json!({"request": {"headers": {"x-forwarded-for": "198.18.0.1"}, "body": {"value": {"id": "990000001"}}}});
+        let b = json!({"request": {"headers": {"x-forwarded-for": "198.18.0.1"}, "body": {"value": {"id": "990000002"}}}});
+        let t = std::time::Instant::now();
+        p.wait(&a).await;
+        p.wait(&a).await;
+        p.wait(&b).await;
+        assert!(t.elapsed() < std::time::Duration::from_millis(100), "under the limit nothing waits");
+        p.wait(&a).await;
+        assert!(t.elapsed() >= std::time::Duration::from_millis(290), "the third request of one key waits for the window");
+    }
 
     #[test]
     fn normalise_ignores_timestamps_ids_and_tokens_only() {

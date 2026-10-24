@@ -2,6 +2,14 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.1.1 (2026-10-24): the replay paces itself
+
+The first VPS replay with 0.1.0 (725 fixtures) compared 429s: 700 captured heartbeats from a few devices, sent in one
+burst, tripped the console's own limit of 120 a minute per address and device, on PHP and on hte-console alike (the
+databases came out identical, every other answer matched). `hte-console replay` now sends at most 110 a minute per
+address and device id (`HTE_CONSOLE_REPLAY_PER_MINUTE`), waiting when needed; `replay.sh`'s tamper check replays only
+the changed fixture. No change to the endpoints. A racy test of the 413 path now sends only the headers.
+
 ## 0.1.0 (2026-10-24): phase 1, the device endpoints
 
 - `serve` with `HTE_CONSOLE_DATABASE` answers `POST /api/heartbeat`, `/api/sysinfo`, `/api/audit/conn`,
