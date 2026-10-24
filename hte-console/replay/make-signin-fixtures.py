@@ -118,7 +118,8 @@ add("current-user", "currentUser(): the guard finds the token, stamps last_used_
 add("current-user-no-token", "auth:client without a bearer: 401 Unauthenticated.", "POST", "/api/currentUser", xff="198.18.2.12",
     status=401, resp={"message": "Unauthenticated."})
 add("current-user-unknown-token", "auth:client with a token nobody holds: 401", "POST", "/api/currentUser", xff="198.18.2.12",
-    auth="Bearer tok-5eed00000000dead", status=401, resp={"message": "Unauthenticated."})
+    # an unfilled template, sent as it is: `seed-sql` seeds every other bearer token a fixture shows as valid
+    auth="Bearer {{nobody}}", status=401, resp={"message": "Unauthenticated."})
 add("logout", "logout(): the token row is deleted, {}", "POST", "/api/logout", xff="198.18.2.12", auth="Bearer {{t1}}", resp={})
 add("current-user-after-logout", "the deleted token no longer authenticates", "POST", "/api/currentUser", xff="198.18.2.12",
     auth="Bearer {{t1}}", status=401, resp={"message": "Unauthenticated."})
