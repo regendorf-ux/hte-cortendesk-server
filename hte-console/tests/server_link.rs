@@ -850,9 +850,15 @@ async fn a_full_batch_of_the_longest_refusals_is_taken_and_a_larger_body_is_413(
     // 501 entries: Laravel's max:500
     let r = h.post("/api/server/refusals", json!({"refusals": vec![json!({"to": "990003001"}); 501]})).await;
     assert_eq!(r.json()["errors"]["refusals"], json!(["The refusals field must not have more than 500 items."]));
-    let big = format!(r#"{{"refusals":[{{"to":"{}"}}]}}"#, "x".repeat(4 * 1024 * 1024));
-    let r = h.client.post(format!("{}/api/server/refusals", h.url)).header("authorization", format!("Bearer {SECRET}")).header("content-type", "application/json").body(big).send().await.unwrap();
-    assert_eq!(r.status().as_u16(), 413);
+    // a declared length over 4 MiB is answered before the body is read (a client still writing it would see the
+    // connection close): headers only, over a raw socket
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let mut sock = tokio::net::TcpStream::connect(h.url.trim_start_matches("http://")).await.unwrap();
+    let head = format!("POST /api/server/refusals HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer {SECRET}\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n", 4 * 1024 * 1024 + 1);
+    sock.write_all(head.as_bytes()).await.unwrap();
+    let mut buf = vec![0u8; 512];
+    let n = sock.read(&mut buf).await.unwrap();
+    assert!(String::from_utf8_lossy(&buf[..n]).starts_with("HTTP/1.1 413"), "{}", String::from_utf8_lossy(&buf[..n]));
 }
 
 #[tokio::test]
