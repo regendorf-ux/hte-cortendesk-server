@@ -8,6 +8,19 @@ file is the statement of modifications the AGPL asks for (section 5(a)), kept ap
 
 **What this repository may hold (owner, 2026-10-16):** HTE's code and placeholders, nothing else. HTE's server addresses, keys, e-mail domain, device IDs and host names live in `/opt/hte-remote/.env` on the server, the Mac's gitignored files, the private apps repository and GitHub secrets. The history was rewritten on 2026-10-16 to take out what had been committed.
 
+## hte-console 0.1.0 (2026-10-24), phase 1: the device endpoints without PHP
+
+`hte-console` now answers the unauthenticated device endpoints itself when `HTE_CONSOLE_DATABASE` is set:
+`POST /api/heartbeat`, `/api/sysinfo`, `/api/audit/conn`, `/api/audit/file`, `/api/audit/alarm` and `GET /api/version`,
+ported line by line from the PHP console (v1.15.0-hte.1, incl. HTE's per-computer password hook) onto the same SQLite
+file, with no schema change. Everything else is still forwarded to PHP. Details, environment and the answers bad
+input gets: `hte-console/README.md`; the list of changes: `hte-console/CHANGES.md`. `replay/replay.sh` now replays
+the fixtures against PHP and hte-console and compares the databases both leave.
+
+Upstream files touched: `Cargo.lock` gains rusqlite 0.27 and four small crates (rusqlite links the
+libsqlite3-sys 0.24 hbbs's sqlx already uses; sodiumoxide, aes, cbc, chrono and libc were already locked); hbbs and
+hbbr are unchanged. `.github/workflows/hte-console.yml` builds with `cross`, as `hte-image.yml` does.
+
 ## hte-console 0.0.1 (2026-10-24), a new crate beside hbbs
 
 **`hte-console/`** is new HTE code, not a change to upstream: the first step of replacing the PHP console with Rust
