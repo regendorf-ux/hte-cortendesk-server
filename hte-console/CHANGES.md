@@ -2,6 +2,26 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.1.2 (2026-10-24): review fixes
+
+From a code review of 0.1.1 against PHP 1.15.0-hte.1, Laravel 13.35 and Symfony http-foundation 8.1:
+
+- `TRUSTED_PROXIES` is read as `TrustConfiguredProxies` and Symfony read it: `*` alone trusts every peer,
+  `REMOTE_ADDR` the request's own peer, `PRIVATE_SUBNETS`/`private_ranges` Symfony's list. 0.1.1 dropped such entries
+  silently, so `*` would have recorded Caddy's address for every device. Entries that are no address are still
+  ignored, as in PHP, and now named in a warning at start. Not HTE's configuration (it uses the default).
+- The uuid pin is compared in constant time (`hash_equals`, as PHP).
+- Rate-limit and nonce memory expire in two generations instead of scanning the whole map once full: a flood of
+  new addresses or nonces costs nothing per request; memory stays bounded.
+- `json_encode` leaves DEL (0x7f) as it is, like PHP (reachable only through a strategy value containing it).
+- Checked and kept: 404/405/413 answers carry `Access-Control-Allow-Origin: *`, because Laravel renders those
+  exceptions inside the middleware pipeline and HandleCors adds the header on the way out.
+- README: the known differences that depend on configuration HTE does not use (empty `TRUSTED_PROXIES`,
+  `APP_PREVIOUS_KEYS`, the older Apprise offline marker).
+- Tests: trusted-proxy keywords and two `X-Forwarded-For` headers, form and `charset` bodies over HTTP, stored
+  timestamps Carbon cannot read (500), the password hook on a pending device and with no or unreadable ciphertext,
+  a soft-deleted strategy reached through a link, the CORS header on 405 and 413.
+
 ## 0.1.1 (2026-10-24): the replay paces itself
 
 The first VPS replay with 0.1.0 (725 fixtures) compared 429s: 700 captured heartbeats from a few devices, sent in one

@@ -15,7 +15,8 @@ file is the statement of modifications the AGPL asks for (section 5(a)), kept ap
 ported line by line from the PHP console (v1.15.0-hte.1, incl. HTE's per-computer password hook) onto the same SQLite
 file, with no schema change. Everything else is still forwarded to PHP. Details, environment and the answers bad
 input gets: `hte-console/README.md`; the list of changes: `hte-console/CHANGES.md`. `replay/replay.sh` now replays
-the fixtures against PHP and hte-console and compares the databases both leave.
+the fixtures against PHP and hte-console and compares the databases both leave. 0.1.2 (same day) applies a code
+review: trusted-proxy keywords as PHP reads them, a constant-time uuid compare, flood-proof rate-limit memory.
 
 Upstream files touched: `Cargo.lock` gains rusqlite 0.27 and four small crates (rusqlite links the
 libsqlite3-sys 0.24 hbbs's sqlx already uses; sodiumoxide, aes, cbc, chrono and libc were already locked); hbbs and
