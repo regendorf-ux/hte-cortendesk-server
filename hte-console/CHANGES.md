@@ -15,6 +15,10 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
   pages, and masks what sign-in mints at random (tokens, codes, state, nonce, verifier, bcrypt hashes, the TOTP step).
 - `fixtures/signin/`: 151 synthetic sign-in fixtures and their seed, written by `replay/make-signin-fixtures.py`.
 - The shadow never records sign-in paths. A replay template (`{{name}}`) counts as a placeholder in the leftover scan.
+- From the independent review before release: the callback's token exchange and writes run in their own task with a
+  guard, so a browser that disconnects mid-exchange no longer leaves the state marked in use (the retry read as
+  expired until a restart); tests for that, a concurrent duplicate, `iat` ahead without `nbf`, the global 2FA switch,
+  forwarded port/prefix and an IPv6 Host, and the `email_verified` forms.
 
 ## 0.1.2 (2026-10-24): review fixes
 

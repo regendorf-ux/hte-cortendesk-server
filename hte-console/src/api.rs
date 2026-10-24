@@ -673,12 +673,28 @@ async fn client_callback(n: Arc<Native>, input: Arc<Input>, ip: String, root: Op
     if !n.signin.inflight.lock().unwrap_or_else(|e| e.into_inner()).insert(state.clone()) {
         return show(Page { status: 400, ok: false, message: "This sign-in request has expired. Start again from HTE Remote.".into() });
     }
+    // The exchange and the writes run in their own task: a browser that goes away mid-exchange (hyper then drops
+    // this handler) neither leaves the state marked in flight nor stops the sign-in half way. The guard releases
+    // the state however the task ends.
+    struct Release(Arc<Native>, String);
+    impl Drop for Release {
+        fn drop(&mut self) {
+            self.0.signin.inflight.lock().unwrap_or_else(|e| e.into_inner()).remove(&self.1);
+        }
+    }
+    let release = Release(n.clone(), state);
     let redirect = format!("{root}/login/oidc/client-callback");
     let verifier = String::from_utf8_lossy(&row.val("verifier").to_php_string().unwrap_or_default()).into_owned();
     let nonce = String::from_utf8_lossy(&row.val("nonce").to_php_string().unwrap_or_default()).into_owned();
-    let claims = n.signin.oidc.exchange_code(&settings, &code, &redirect, &verifier, &nonce, now).await;
-    let done = blocking(&n, move |_, c| crate::signin::callback_finish(c, &row, claims, &ip, now)).await;
-    n.signin.inflight.lock().unwrap_or_else(|e| e.into_inner()).remove(&state);
+    let n2 = n.clone();
+    let done = tokio::spawn(async move {
+        let _release = release;
+        let claims = n2.signin.oidc.exchange_code(&settings, &code, &redirect, &verifier, &nonce, now).await;
+        blocking(&n2, move |_, c| crate::signin::callback_finish(c, &row, claims, &ip, now)).await
+    })
+    .await
+    .ok()
+    .flatten();
     match done {
         Some(Ok(p)) => show(p),
         Some(Err(f)) => server_error("oidc client-callback", &f),

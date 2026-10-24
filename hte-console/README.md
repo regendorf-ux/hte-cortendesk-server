@@ -116,7 +116,7 @@ Break-glass sign-in is PHP's: `$2y$` bcrypt through PHP's own rules (a hash PHP 
 password ends at a NUL byte and after 72 bytes), the same refusals in the same order, the same throttles; the
 TOTP step is otphp's (SHA-1, 6 digits, 30 s, one step either way, the highest match, a step used once).
 
-Proven by `tests/signin_api.rs` (21 end-to-end tests with the fake identity provider of `src/fake_idp.rs`, which
+Proven by `tests/signin_api.rs` (22 end-to-end tests with the fake identity provider of `src/fake_idp.rs`, which
 makes valid tokens and every broken kind: wrong issuer, audience or nonce, alg none and HS256, expired, nbf ahead,
 bad signature, unknown or missing kid, a short key, a key for another algorithm, no exp, several audiences, no
 subject, a refusing provider, a failing token endpoint, no or a malformed ID token), and by the 151 synthetic
@@ -136,7 +136,7 @@ paths whatever its prefixes say).
 | Microsoft issuer | issuer string compared | also `tid` must be the issuer's tenant |
 | unknown `kid` | fails until the 5-minute cache expires | the key set is fetched again, at most once a minute (key rotation) |
 | the provider's endpoints | any scheme, redirects followed, any size | https only, no redirects, answers read to at most 1 MiB, the same timeouts |
-| a second callback with a used state | exchanges again and overwrites the result (a reload after success turned it into a failure; a second code could replace the token before the client collected it) | refused as expired (400); a concurrent duplicate too |
+| a second callback with a used state | exchanges again and overwrites the result (a reload after success turned it into a failure; a second code could replace the token before the client collected it) | refused as expired (400); a concurrent duplicate too. The exchange runs in its own task: a browser that leaves mid-exchange neither stops the sign-in half way nor leaves the state marked in use |
 | redirect URI and page links | from the request's Host header | from `HTE_CONSOLE_PUBLIC_URL` when set |
 | request bodies | PHP's limit | 64 KiB on these routes (413) |
 | lookups by token, code, state | SQL equality | SQL equality, then compared again in constant time |
@@ -155,6 +155,10 @@ paths whatever its prefixes say).
   some of those inside the token check into a message. php-jwt's rarer JSON error texts (depth, control characters)
   read "Syntax error, malformed JSON" here. Keys of types other than RSA in the provider's key set are skipped (PHP
   parses EC and OKP keys and fails the whole set on a malformed one). No identity provider or client sends these.
+- Inherited from PHP, not changeable without a client change: the `state` binds the sign-in to the client's
+  pending row, not to a browser, so someone who learns a pending state (it is in the authorize URL) could complete it
+  with their own account. Single use, 300 seconds and `Referrer-Policy: no-referrer` narrow it. Two wrong TOTP codes
+  sent at the same instant can both count as the same try (also PHP's); the 5-a-minute limiter still caps them.
 - A signed-in console session in the same browser does not pass through PHP's web middleware on this page
   (`RequireTwoFactor` and friends); the page reads no session.
 - The phase 2 routes add Laravel's rate-limit headers to a 500 too (as Laravel does); phase 1's device routes do not

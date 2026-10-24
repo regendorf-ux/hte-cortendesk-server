@@ -267,6 +267,24 @@ mod tests {
     }
 
     #[test]
+    fn email_verified_forms_like_php() {
+        let c = db();
+        let v = |j: &str| email_verification(&c, &claims(j)).unwrap();
+        // not enforced: always verified
+        assert!(v(r#"{"email_verified":false}"#) == Verification::Verified);
+        c.execute_batch("insert into settings (key, value) values ('oidc_require_verified_email', '1')").unwrap();
+        for yes in [r#"true"#, r#""true""#, r#""TRUE""#, "1", r#""1""#] {
+            assert!(v(&format!(r#"{{"email_verified":{yes}}}"#)) == Verification::Verified, "{yes}");
+        }
+        for no in ["false", "0", r#""yes""#, "1.0", "2"] {
+            assert!(v(&format!(r#"{{"email_verified":{no}}}"#)) == Verification::Unverified, "{no}");
+        }
+        assert!(v(r#"{"email_verified":null}"#) == Verification::Unknown);
+        assert!(v(r#"{}"#) == Verification::Unknown);
+        assert!(verification_refusal(&Verification::Unverified).starts_with("Your identity provider reports this email address as unverified"));
+    }
+
+    #[test]
     fn deny_policy_and_link_rules() {
         let c = db();
         let iss = "https://idp.example";

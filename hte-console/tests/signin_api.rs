@@ -726,3 +726,44 @@ async fn the_replay_notices_a_changed_sign_in_page() {
     assert_eq!(r.differences.len(), 1, "{:?}", r.differences);
     assert!(r.differences[0].contains("page does not contain"), "{:?}", r.differences);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_browser_that_goes_away_mid_exchange_releases_the_state() {
+    let h = harness().await;
+    // the browser gives up while the token endpoint is slow: the sign-in still completes, the state is released
+    let (code, url) = h.oidc_start("990000280").await;
+    let cb = h.authorize(&url, "slow-token", "anna").await;
+    let impatient = reqwest::Client::builder().timeout(std::time::Duration::from_millis(300)).build().unwrap();
+    assert!(impatient.get(format!("{}{cb}", h.url)).header("x-forwarded-for", "198.18.9.1").send().await.is_err());
+    // the slow token endpoint, then provisioning (a bcrypt hash, slow in a debug build)
+    let t = std::time::Instant::now();
+    while !h.native.signin.inflight.lock().unwrap().is_empty() && t.elapsed() < std::time::Duration::from_secs(15) {
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(h.native.signin.inflight.lock().unwrap().is_empty());
+    assert_eq!(h.poll(&code, "990000280").await.json()["user"]["name"], "990005001");
+    // two callbacks for one state at once: one completes, the other reads as expired
+    let (code, url) = h.oidc_start("990000281").await;
+    let cb = h.authorize(&url, "slow-token", "anna").await;
+    let (a, b) = tokio::join!(h.callback(&cb), async {
+        tokio::time::sleep(std::time::Duration::from_millis(300)).await;
+        h.callback(&cb).await
+    });
+    assert_eq!((a.status, b.status), (200, 400));
+    assert!(h.poll(&code, "990000281").await.json()["access_token"].is_string());
+    assert!(h.native.signin.inflight.lock().unwrap().is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn more_rules_iat_global_2fa_forwarded_root() {
+    let h = harness().await;
+    let (_, poll) = h.sso("990000290", "iat-future", "anna").await;
+    assert!(poll.json()["error"].as_str().unwrap().starts_with("The ID token failed verification: Cannot handle token with iat prior to 2027-01-15T08:10:00+00:00"));
+    h.sql("insert into settings (key, value) values ('two_factor_required', '1')");
+    assert_eq!(h.login("user-5eed0008", PW, "990000201").await.json()["error"], "Two-factor authentication is required. Set it up in the web console, then sign in again.");
+    // from a trusted proxy: X-Forwarded-Port and -Prefix count; a bracketed IPv6 Host keeps its port
+    let r = h.req("POST", "/api/oidc/auth", Some(json!({"id": "990000291"})), &[("host", "remote.example.test"), ("x-forwarded-proto", "https"), ("x-forwarded-port", "8443"), ("x-forwarded-prefix", "/c/")]).await;
+    assert!(r.json()["url"].as_str().unwrap().contains("redirect_uri=https%3A%2F%2Fremote.example.test%3A8443%2Fc%2Flogin%2Foidc%2Fclient-callback"), "{}", r.body);
+    let r = h.req("POST", "/api/oidc/auth", Some(json!({"id": "990000292"})), &[("host", "[::1]:9000")]).await;
+    assert!(r.json()["url"].as_str().unwrap().contains("redirect_uri=http%3A%2F%2F%5B%3A%3A1%5D%3A9000%2Flogin"), "{}", r.body);
+}

@@ -31,7 +31,7 @@ const SHORT_N_HEX: &str = "EEFBB525E0DCDD09DFD6FBC008AC74493AFFA82A78A516C2D67D0
 pub const MODES: &[&str] = &[
     "ok", "wrong-iss", "wrong-aud", "wrong-nonce", "alg-none", "alg-hs256", "expired", "nbf-future", "bad-signature",
     "unknown-kid", "no-kid", "short-key", "wrong-alg-key", "no-exp", "multi-aud", "multi-aud-azp", "no-sub", "deny",
-    "token-500", "no-id-token", "malformed", "wrong-tid",
+    "token-500", "no-id-token", "malformed", "wrong-tid", "iat-future", "slow-token",
 ];
 
 /// The people this provider knows. Names, addresses and usernames are placeholder-shaped, so fixtures that show
@@ -138,7 +138,11 @@ impl FakeIdp {
             c.insert("azp".into(), json!(self.cfg.client_id));
         }
         c.insert("nonce".into(), json!(if mode == "wrong-nonce" { "not-the-nonce" } else { nonce }));
-        c.insert("iat".into(), json!(if mode == "expired" { now - 7200 } else { now }));
+        c.insert("iat".into(), json!(match mode {
+            "expired" => now - 7200,
+            "iat-future" => now + 600,
+            _ => now,
+        }));
         if mode != "no-exp" {
             c.insert("exp".into(), json!(if mode == "expired" { now - 3600 } else { now + 3600 }));
         }
@@ -246,6 +250,9 @@ async fn token(State(s): State<Arc<FakeIdp>>, Form(f): Form<HashMap<String, Stri
         (g.mode.clone(), g.user.clone(), g.nonce.clone())
     };
     let access = format!("at-{}", crate::laravel::str_random(24));
+    if mode == "slow-token" {
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+    }
     match mode.as_str() {
         "token-500" => (StatusCode::INTERNAL_SERVER_ERROR, Json(json!({"error": "server_error"}))).into_response(),
         "no-id-token" => Json(json!({"access_token": access, "token_type": "Bearer"})).into_response(),
