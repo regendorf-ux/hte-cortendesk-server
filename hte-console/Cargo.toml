@@ -1,9 +1,9 @@
 [package]
 name = "hte-console"
-version = "0.0.2"
+version = "0.1.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy in front of the PHP console that records sanitised fixtures."
+description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database."
 publish = false
 
 [dependencies]
