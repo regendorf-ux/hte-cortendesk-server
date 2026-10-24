@@ -122,3 +122,22 @@ async fn replay_finds_no_difference_against_the_same_answers_and_one_against_cha
     let diff = hte_console::replay::run(dir.path(), &format!("http://{addr}"), &s).await.unwrap();
     assert_eq!(diff.differences.len(), 2, "{:?}", diff.differences); // status 200 vs 201, and the body
 }
+
+#[test]
+fn sign_in_paths_are_never_recorded() {
+    let cfg = Config {
+        upstream: String::new(),
+        listen: String::new(),
+        fixtures: Some(std::path::PathBuf::from("/tmp/x")),
+        capture_prefixes: vec!["/".into()],
+        capture_max_bytes: 1,
+        connect_timeout: Duration::from_secs(1),
+        request_timeout: Duration::from_secs(1),
+        max_body: 1,
+        native: None,
+    };
+    for p in ["/api/login", "/api/login-options", "/api/logout", "/api/currentUser", "/api/oidc/auth", "/api/oidc/auth-query", "/login/oidc/client-callback", "/login"] {
+        assert!(!hte_console::proxy::captured(&cfg, p), "{p}");
+    }
+    assert!(hte_console::proxy::captured(&cfg, "/api/heartbeat"));
+}

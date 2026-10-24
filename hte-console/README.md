@@ -10,6 +10,12 @@ HTE Remote's console, step by step in Rust (plan: `PHPLESS-PLAN.md` in HTE's pri
   PHP. The device endpoints are unauthenticated: bodies are capped (1 MiB), input is parsed with PHP's own rules
   and bad input gets PHP's own answer (see "What a bad request gets" below), nothing panics on input, SQL is never
   built from input, and no secret (app key, passwords, tokens) is logged.
+- **Phase 2, the RustDesk client's sign-in answered here** (0.2.0). `GET /api/login-options`, `POST /api/login`
+  (password, then the TOTP step), `POST /api/logout`, `POST /api/currentUser`, `POST /api/oidc/auth`,
+  `GET /api/oidc/auth-query` and the browser's `GET /login/oidc/client-callback`, ported from `ClientAuthController`,
+  `ClientOidcController`, `OidcService` (with firebase/php-jwt 7.1.0's checks and messages), `OidcUserResolver`,
+  `TwoFactor` and `DeviceEnrollment::signedIn` (a pending device is approved and owned on sign-in). Section
+  "Phase 2" below has the rules and the deliberate differences.
 
 ```
 hte-console serve                       # serve; with HTE_CONSOLE_DATABASE the device endpoints are native
@@ -17,7 +23,10 @@ hte-console scan <dir>                  # fail if a fixture holds anything real
 hte-console seed-sql <dir>              # SQL (placeholders only) for a replay database
 hte-console replay <dir> <base-url>     # replay and report differences (exit 1 when any)
 hte-console snapshot <sqlite>           # the database as comparable text (PHP's state vs ours)
+hte-console seed-expand <sql> <idp>     # a phase 2 seed made concrete (fake provider URL, app-key ciphertexts)
+hte-console fake-idp                    # a fake OpenID provider for the replay (TEST ONLY: src/fake_idp.rs)
 replay/replay.sh <dir>                  # all of that against throwaway PHP and hte-console containers
+replay/make-signin-fixtures.py          # writes fixtures/signin/ (the synthetic sign-in fixtures)
 ```
 
 Environment (nothing HTE-specific is in this repository):
@@ -41,6 +50,13 @@ Environment (nothing HTE-specific is in this repository):
 | `HTE_CONSOLE_DEVICE_MAX_BODY_BYTES` | default 1048576 |
 | `HTE_CONSOLE_DB_BUSY_MS` | how long a write waits for PHP's lock, default 10000 |
 | `HTE_CONSOLE_DB_WAL` | default 1: switch the file to WAL once (persistent; PHP needs no change) |
+| **Phase 2** | |
+| `HTE_CONSOLE_PUBLIC_URL` | the console's origin as browsers and the identity provider know it (`https://rustdesk.<domain>`). Set, the OIDC redirect URI and the page's links come from it and never from the Host header; unset, they are built from the request as Laravel does, and `serve` warns when SSO is on |
+| `APP_NAME` | page titles, as the PHP image has it (default `CortenDesk`) |
+| `CORTENDESK_OIDC_DISABLED` | PHP's kill switch for SSO, read the same way (`true`/`1`/`on`/`yes`) |
+| `BCRYPT_ROUNDS` | cost of new bcrypt hashes (provisioned accounts), as Laravel (default 12) |
+| `HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES` | default 65536 |
+| `HTE_CONSOLE_OIDC_ALLOW_HTTP` | `1` lets the identity provider be plain http: the replay's fake provider only, never on the server |
 
 Run it as the user that owns the database file (compose `user:`), or as root: SQLite creates its `-wal`/`-shm`
 files with the creating process's owner, and files PHP cannot write would break PHP. `serve` refuses to start
@@ -85,3 +101,61 @@ Known differences that depend on configuration HTE does not use:
 - The older offline marker in PHP's file cache (`apprise:device-offline:<sha1 of id>`, from before the
   `device_presence_notification_states` table) is not consulted when a device comes back; only the table row is.
   It only matters for Apprise offline alerts, which HTE does not send.
+
+## Phase 2: client sign-in
+
+Answers as PHP's for every valid client: the same JSON (PHP's `json_encode`, slashes escaped, `info` an object),
+the same `{"error": ...}` texts on HTTP 200 (the client reads only bodies), the same 401/405/413/429/500 bodies, the
+same throttles (`client-auth` 240 a minute per address around all four tokenless routes, `client-login` 20,
+`client-oidc` 20, `client-oidc-poll` 400; nested as Laravel nests them, with its headers), the same writes:
+`client_tokens` (48 random characters, 30 days, `last_used_at` on each use), `oidc_auth_requests` (code, state and
+nonce 40 characters, verifier 96, 300 seconds), `login_logs`, `users` (linking by email once, then by (iss, sub);
+provisioning under `oidc_new_user_policy`, `oidc_default_group_id`, `oidc_default_admin`; a random bcrypt password),
+`alarm_logs` (brute force on the code step, once per 5 minutes), `devices` (registered, or approved and owned).
+Break-glass sign-in is PHP's: `$2y$` bcrypt through PHP's own rules (a hash PHP does not call bcrypt is a 500, a
+password ends at a NUL byte and after 72 bytes), the same refusals in the same order, the same throttles; the
+TOTP step is otphp's (SHA-1, 6 digits, 30 s, one step either way, the highest match, a step used once).
+
+Proven by `tests/signin_api.rs` (21 end-to-end tests with the fake identity provider of `src/fake_idp.rs`, which
+makes valid tokens and every broken kind: wrong issuer, audience or nonce, alg none and HS256, expired, nbf ahead,
+bad signature, unknown or missing kid, a short key, a key for another algorithm, no exp, several audiences, no
+subject, a refusing provider, a failing token endpoint, no or a malformed ID token), and by the 151 synthetic
+fixtures in `fixtures/signin/`, which `replay.sh` replays against PHP and hte-console with the fake provider beside
+them and compares, answers and database. Sign-in traffic is never captured (the shadow refuses to record these
+paths whatever its prefixes say).
+
+### Deliberate differences (harder than PHP, invisible to a valid client)
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| unknown user, disabled user, empty password | answered at once (the answer's timing tells which names exist) | one bcrypt check against a dummy hash, as long as a wrong password |
+| ID token algorithm | any the provider advertises (HS* checked with the client secret) | RS256 only |
+| `exp` | checked only when present | required |
+| nonce | checked when one was sent (always, in the client flow) | always required |
+| several audiences | any list holding the client id | `azp` must be the client id too |
+| Microsoft issuer | issuer string compared | also `tid` must be the issuer's tenant |
+| unknown `kid` | fails until the 5-minute cache expires | the key set is fetched again, at most once a minute (key rotation) |
+| the provider's endpoints | any scheme, redirects followed, any size | https only, no redirects, answers read to at most 1 MiB, the same timeouts |
+| a second callback with a used state | exchanges again and overwrites the result (a reload after success turned it into a failure; a second code could replace the token before the client collected it) | refused as expired (400); a concurrent duplicate too |
+| redirect URI and page links | from the request's Host header | from `HTE_CONSOLE_PUBLIC_URL` when set |
+| request bodies | PHP's limit | 64 KiB on these routes (413) |
+| lookups by token, code, state | SQL equality | SQL equality, then compared again in constant time |
+| the callback page | Laravel's web group: session and XSRF cookies | no cookies (nothing on the page uses them); `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer` |
+
+### Known differences, not visible to a RustDesk client at HTE
+
+- Emailed sign-in codes are not ported (they need the mail relay): with `email_login_verification` on and mail
+  configured, a password sign-in that would get a code is answered with PHP's own "cannot send verification codes"
+  refusal. `serve` warns at start; the phase 2 deploy stops when it is on. HTE has it off.
+- Apprise's failed-sign-in and pending-device notifications are not sent (Apprise is off at HTE).
+- TOTP prompts, limiter counts, alarm cooldowns and the discovery/JWKS cache live in this process: a restart forgets
+  them (a person mid-way through a TOTP prompt signs in again). PHP keeps them in its file cache.
+- Laravel's error pages (500, 405, 413 on the callback page) are a short copy of its default page; the status is the same.
+- Inputs that are type errors in PHP (an array where `?string` is declared, an array `kid`) are 500s here; PHP turns
+  some of those inside the token check into a message. php-jwt's rarer JSON error texts (depth, control characters)
+  read "Syntax error, malformed JSON" here. Keys of types other than RSA in the provider's key set are skipped (PHP
+  parses EC and OKP keys and fails the whole set on a malformed one). No identity provider or client sends these.
+- A signed-in console session in the same browser does not pass through PHP's web middleware on this page
+  (`RequireTwoFactor` and friends); the page reads no session.
+- The phase 2 routes add Laravel's rate-limit headers to a 500 too (as Laravel does); phase 1's device routes do not
+  (a header-only difference, kept as it is).

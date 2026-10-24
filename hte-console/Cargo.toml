@@ -3,7 +3,7 @@ name = "hte-console"
 version = "0.2.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database."
+description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database. Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC)."
 publish = false
 
 [dependencies]

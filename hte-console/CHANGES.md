@@ -2,6 +2,20 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.2.0 (2026-10-24): phase 2, the client sign-in
+
+- Native: `GET /api/login-options`, `POST /api/login` (password, the TOTP step), `POST /api/logout`,
+  `POST /api/currentUser`, `POST /api/oidc/auth`, `GET /api/oidc/auth-query`, `GET /login/oidc/client-callback`,
+  ported from 1.15.0-hte.1 with what they write (tokens, OIDC requests, login logs, accounts, alarms, devices).
+  README section "Phase 2" has the rules and the deliberate differences (RS256 only, exp required, azp with several
+  audiences, Entra tenant, JWKS refetch, https-only provider, single-use state, redirect URI from
+  `HTE_CONSOLE_PUBLIC_URL`, equal timing for unknown users, 64 KiB bodies).
+- New: `hte-console fake-idp` (a fake OpenID provider, test only) and `hte-console seed-expand`; the replay learns
+  run-time templates (`{{name}}`, captures, `{{totp}}`), a browser step through the fake provider, HTML checks for
+  pages, and masks what sign-in mints at random (tokens, codes, state, nonce, verifier, bcrypt hashes, the TOTP step).
+- `fixtures/signin/`: 151 synthetic sign-in fixtures and their seed, written by `replay/make-signin-fixtures.py`.
+- The shadow never records sign-in paths. A replay template (`{{name}}`) counts as a placeholder in the leftover scan.
+
 ## 0.1.2 (2026-10-24): review fixes
 
 From a code review of 0.1.1 against PHP 1.15.0-hte.1, Laravel 13.35 and Symfony http-foundation 8.1:

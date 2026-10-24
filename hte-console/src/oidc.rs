@@ -369,7 +369,9 @@ impl Oidc {
         }
         let mut jwks = self.jwks(s, d, false).await?;
 
-        // JWT::decode($jwt, JWK::parseKeySet($jwks, $alg)), step by step with php-jwt's messages.
+        // JWT::decode($jwt, JWK::parseKeySet($jwks, $alg)), step by step with php-jwt's messages; the key set is
+        // parsed first (it is the call's argument).
+        let mut keys = parse_key_set(&jwks, &alg).map_err(|m| fail(&m))?;
         let payload_raw = laravel::base64_decode_lenient(&b64url_to_b64(parts[1]));
         let payload = match php::json_decode(&payload_raw, &php::JsonOpts { bigint_as_string: true, depth: 512 }) {
             Some(Val::Arr(a)) => a,
@@ -385,16 +387,11 @@ impl Oidc {
                 }
             }
         }
+        // `empty($kid) && $kid !== '0'`: absent, null, "", 0 and false fail; the string "0" is a kid
         let kid = match get(&header, "kid") {
-            None | Some(Val::Null) => None,
-            Some(v) => Some(v.to_php_string()?),
-        };
-        // `empty($kid) && $kid !== '0'`: absent or "" fails, "0" is a kid
-        let kid = match kid {
-            Some(k) if !k.is_empty() => k,
+            Some(v) if !empty(Some(v)) || *v == Val::str("0") => v.to_php_string()?,
             _ => return Err(fail("\"kid\" empty, unable to lookup correct key")),
         };
-        let mut keys = parse_key_set(&jwks, &alg).map_err(|m| fail(&m))?;
         if !keys.contains_key(&kid) {
             // Hardened: the provider may have rotated its keys since the cache was filled.
             jwks = self.jwks(s, d, true).await?;

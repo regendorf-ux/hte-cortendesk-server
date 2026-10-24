@@ -108,6 +108,11 @@ fn warn_unported(c: &Connection) {
             tracing::warn!("apprise_enabled is 1: hte-console does not send device/alarm notifications (phase 1 ports none)");
         }
     }
+    if let Ok(v) = crate::sqlite::setting(c, "oidc_enabled", "0") {
+        if v == b"1" && std::env::var("HTE_CONSOLE_PUBLIC_URL").map_or(true, |u| u.trim().is_empty()) {
+            tracing::warn!("SSO is on and HTE_CONSOLE_PUBLIC_URL is not set: the OIDC redirect URI is built from each request's Host header (as PHP does); set it to the console's https origin");
+        }
+    }
     if let Ok(v) = crate::sqlite::setting(c, "email_login_verification", "0") {
         if v == b"1" {
             tracing::warn!("email_login_verification is 1: hte-console sends no mail, so a password sign-in that would get an emailed code is refused (PHP's own answer when mail fails)");

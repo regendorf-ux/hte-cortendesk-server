@@ -11,7 +11,10 @@
 # Several directories are merged (captured first or synthetic first: files replay in name order, and
 # synthetic ones are named to sort before captured ones). After the real runs it replays a copy with one
 # expected answer changed and insists that this run FAILS: a replay that cannot see a difference is worthless.
-# HTE_REPLAY_NATIVE=0 skips the hte-console half (phase 0 behaviour: PHP only). The replay is paced below the
+# HTE_REPLAY_NATIVE=0 skips the hte-console half (phase 0 behaviour: PHP only). Phase 2: a fake identity provider
+# (`hte-console fake-idp`, TEST ONLY) runs beside them on the same throwaway network, and a seed file may carry
+# @@IDP@@ and @@ENCRYPT(...)@@ markers (filled in with that provider's URL and the throwaway database's app key);
+# fixtures/signin holds the synthetic sign-in fixtures (nothing of sign-in is ever captured). The replay is paced below the
 # console's rate limit (110 a minute per address and device; HTE_CONSOLE_REPLAY_PER_MINUTE), so hours of captured
 # heartbeats take a few minutes per side.
 # Exit 0 = no differences anywhere and the check caught the change, 1 = differences (printed), 2 = could not run.
@@ -38,8 +41,10 @@ for d in "$@"; do
   find "$d" -maxdepth 1 -name '*.sql' -exec cp -p {} "$WORK/sql"/ \; </dev/null   # extra seed, applied in name order
 done
 
+IDP_SECRET="tok-5eed00000000c11e"   # the seed's oidc_client_secret (a placeholder, for the fake provider only)
+
 cleanup() {
-  docker rm -f "$TAG-php" "$TAG-rust" </dev/null >/dev/null 2>&1 || true
+  docker rm -f "$TAG-php" "$TAG-rust" "$TAG-idp" </dev/null >/dev/null 2>&1 || true
   docker network rm "$TAG" </dev/null >/dev/null 2>&1 || true
   rm -rf "$WORK"
 }
@@ -58,11 +63,14 @@ snapshot() { # snapshot <data-dir> > file: the database in that directory as com
 summary() { # one line per endpoint and kind: how many fixtures, how many matched, how many differ
   echo "== per kind ($2)"
   printf '%-10s %-10s %6s %6s %6s\n' endpoint kind total match differ
-  for ep in heartbeat sysinfo audit version; do
+  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback; do
     for kind in captured synthetic; do
-      if [ "$kind" = synthetic ]; then pat='^0000000000000-'; else pat='^[1-9]'; fi
-      total="$(ls "$FIXTURES" | grep -E "$pat" | grep -c "api_${ep}" || true)"
-      differ="$(grep -E '^[0-9]{13}-[0-9]{6}-.*\.json: ' "$1" | cut -d: -f1 | sort -u | grep -E "$pat" | grep -c "api_${ep}" || true)"
+      if [ "$kind" = synthetic ]; then pat='^000000000000[0-9]-'; else pat='^[1-9]'; fi
+      # file names end the path slug with "-" (synthetic) or ".json" (captured); audit/* share one line
+      slug="$(echo "$ep" | tr '-' '_')"
+      case "$slug" in client_callback) m="-login_oidc_client_callback[-.]";; audit) m="-api_audit_";; *) m="-api_${slug}[-.]";; esac
+      total="$(ls "$FIXTURES" | grep -E "$pat" | grep -c -- "$m" || true)"
+      differ="$(grep -E '^[0-9]{13}-[0-9]{6}-.*\.json: ' "$1" | cut -d: -f1 | sort -u | grep -E "$pat" | grep -c -- "$m" || true)"
       [ "$total" -gt 0 ] || continue
       printf '%-10s %-10s %6s %6s %6s\n' "$ep" "$kind" "$total" "$((total - differ))" "$differ"
     done
@@ -96,6 +104,12 @@ docker run -d --name "$TAG-php" --network "$TAG" -v "$WORK/data:/data" -v "$WORK
   "$PHP_IMAGE" </dev/null >/dev/null
 wait_for "$TAG-php" http://127.0.0.1:8080/health/live || exit 2
 
+echo "== starting the fake identity provider (TEST ONLY) for the sign-in fixtures"
+docker run -d --name "$TAG-idp" --network "$TAG" \
+  -e HTE_FAKE_IDP_ISSUER="http://$TAG-idp:8080" -e HTE_FAKE_IDP_CLIENT_SECRET="$IDP_SECRET" \
+  "$CONSOLE_IMAGE" fake-idp </dev/null >/dev/null
+wait_for "$TAG-idp" http://127.0.0.1:8080/__fake-idp/health || exit 2
+
 echo "== seeding the database with placeholders"
 console seed-sql /fixtures > "$WORK/seed.sql"
 docker cp "$WORK/seed.sql" "$TAG-php:/tmp/seed.sql" </dev/null
@@ -119,8 +133,16 @@ if opts:
     print("UPDATE devices SET strategy_id_resolved = (SELECT id FROM strategies WHERE name = 'text-seed0001');")
 PY
 
+# the throwaway database's app key, for @@ENCRYPT(...)@@ (through docker: mode 600 for the PHP user)
+docker cp "$TAG-php:/data/.app_key" "$WORK/app_key" </dev/null
+chmod 644 "$WORK/app_key" </dev/null
 for f in "$WORK"/sql/*.sql; do
   [ -s "$f" ] || continue
+  if grep -q '@@' "$f" </dev/null; then
+    docker run --rm --network none -v "$WORK/sql:/sql:ro" -v "$WORK/app_key:/app_key:ro" -e HTE_CONSOLE_APP_KEY_FILE=/app_key \
+      "$CONSOLE_IMAGE" seed-expand "/sql/$(basename "$f")" "http://$TAG-idp:8080" </dev/null > "$f.expanded"
+    mv "$f.expanded" "$f"
+  fi
   docker cp "$f" "$TAG-php:/tmp/extra.sql" </dev/null
   docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/extra.sql")); echo "extra seed ok\n";' </dev/null
 done
@@ -145,8 +167,10 @@ if [ "$NATIVE" != 0 ]; then
   docker cp "$TAG-php:/data/seeded.sqlite" "$WORK/rdata/cortendesk.sqlite" </dev/null
   docker cp "$TAG-php:/data/.app_key" "$WORK/rdata/.app_key" </dev/null
   chmod 777 "$WORK/rdata" </dev/null
+  # HTE_CONSOLE_OIDC_ALLOW_HTTP: the fake provider speaks plain HTTP inside this throwaway network (never set it
+  # on the server); no HTE_CONSOLE_PUBLIC_URL here, so the redirect URI is built from the Host header as PHP does
   docker run -d --name "$TAG-rust" --network "$TAG" -v "$WORK/rdata:/data" \
-    -e HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite -e HTE_CONSOLE_LISTEN=0.0.0.0:8080 \
+    -e HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite -e HTE_CONSOLE_LISTEN=0.0.0.0:8080 -e HTE_CONSOLE_OIDC_ALLOW_HTTP=1 \
     "$CONSOLE_IMAGE" serve </dev/null >/dev/null
   wait_for "$TAG-rust" http://127.0.0.1:8080/__hte-console/health || exit 2
 

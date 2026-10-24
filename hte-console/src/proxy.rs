@@ -39,8 +39,14 @@ fn plain(status: StatusCode, text: &'static str) -> Response<Body> {
     Response::builder().status(status).header(header::CONTENT_TYPE, "text/plain").body(Body::from(text)).unwrap()
 }
 
-fn captured(cfg: &Config, path: &str) -> bool {
-    cfg.fixtures.is_some() && cfg.capture_prefixes.iter().any(|p| path.starts_with(p.as_str()))
+/// Sign-in traffic carries passwords, codes and tokens: it is never recorded, whatever the capture prefixes say
+/// (phase 2 answers these paths itself; this holds when they are forwarded too, e.g. after a rollback).
+pub const NEVER_RECORDED: &[&str] = &["/api/login", "/api/logout", "/api/currentUser", "/api/oidc/", "/login"];
+
+pub fn captured(cfg: &Config, path: &str) -> bool {
+    cfg.fixtures.is_some()
+        && cfg.capture_prefixes.iter().any(|p| path.starts_with(p.as_str()))
+        && !NEVER_RECORDED.iter().any(|p| path.starts_with(p))
 }
 
 fn pairs(h: &HeaderMap) -> Vec<(String, String)> {

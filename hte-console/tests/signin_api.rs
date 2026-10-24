@@ -706,3 +706,23 @@ async fn bad_input_never_panics() {
     // still serving
     assert_eq!(h.req("GET", "/api/login-options", None, &[]).await.status, 200);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_replay_notices_a_changed_sign_in_page() {
+    // a replay that cannot see a difference is worthless: one expected page text changed must be reported
+    let h = harness_with(Opts { real_time: true, ..Default::default() }).await;
+    let src = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("fixtures/signin");
+    let tmp = tempfile::tempdir().unwrap();
+    for f in std::fs::read_dir(&src).unwrap().map(|e| e.unwrap().path()) {
+        let name = f.file_name().unwrap().to_string_lossy().into_owned();
+        if name.contains("-oidc-auth-c1.json") || name.contains("-oidc-callback-ok.json") || name.contains("-oidc-poll-ok.json") {
+            let text = std::fs::read_to_string(&f).unwrap().replace("You are signed in as text-5eed0a01.", "You are signed in as text-5eed0a02.");
+            std::fs::write(tmp.path().join(&name), text).unwrap();
+        }
+    }
+    let s = hte_console::sanitise::Sanitiser::new(Some("test"), &[]);
+    let r = hte_console::replay::run(tmp.path(), &h.url, &s).await.unwrap();
+    assert_eq!(r.total, 3);
+    assert_eq!(r.differences.len(), 1, "{:?}", r.differences);
+    assert!(r.differences[0].contains("page does not contain"), "{:?}", r.differences);
+}
