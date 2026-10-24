@@ -1,0 +1,89 @@
+# HTE (2026-10-24): build the hte-console image (phase 0 of the console without PHP: a shadow proxy).
+# Separate from hte-image.yml on purpose: its own tag (`hte-console-v<version>`, which that workflow's
+# `v*-hte.*` filter does not match) and its own image. The server image (hbbs, hbbr) is not touched.
+name: hte-console
+
+permissions:
+  contents: read
+  packages: write
+
+on:
+  workflow_dispatch:
+  push:
+    tags: ["hte-console-v*"]
+
+env:
+  CARGO_TERM_COLOR: always
+  IMAGE: ghcr.io/regendorf-ux/hte-console
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test -p hte-console
+
+  build:
+    name: Build amd64
+    needs: test
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-musl
+      - uses: Swatinem/rust-cache@v2
+      - name: Install musl tools
+        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      - name: Build
+        run: cargo build --release -p hte-console --target x86_64-unknown-linux-musl
+      - name: Collect binary
+        run: |
+          mkdir -p hte-console/bin/amd64
+          cp target/x86_64-unknown-linux-musl/release/hte-console hte-console/bin/amd64/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: bin-amd64
+          path: hte-console/bin/amd64
+          if-no-files-found: error
+
+  image:
+    name: Image
+    needs: build
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: bin-amd64
+          path: hte-console/bin/amd64
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Work out the tag
+        id: tag
+        run: |
+          ref="${GITHUB_REF_NAME}"
+          case "$ref" in hte-console-v*) version="${ref#hte-console-v}" ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          echo "tags=${IMAGE}:${version}" >> "$GITHUB_OUTPUT"
+      - uses: docker/build-push-action@v6
+        with:
+          context: hte-console
+          platforms: linux/amd64
+          push: true
+          tags: ${{ steps.tag.outputs.tags }}
+          labels: |
+            org.opencontainers.image.title=HTE Console
+            org.opencontainers.image.description=HTE Remote console in Rust (phase 0, shadow proxy). AGPL-3.0.
+            org.opencontainers.image.licenses=AGPL-3.0-only
+            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server

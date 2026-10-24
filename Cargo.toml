@@ -79,7 +79,7 @@ hbb_common = { path = "libs/hbb_common" }
 openssl = { version = "0.10", features = ["vendored"] }
 
 [workspace]
-members = ["libs/hbb_common"]
+members = ["libs/hbb_common", "hte-console"]  # HTE: hte-console is built on its own; hbbs does not depend on it
 exclude = ["ui"]
 
 #https://github.com/johnthagen/min-sized-rust
