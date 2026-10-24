@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 5,
+  "synthetic": true,
+  "source": "AuditController",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "content-type": "application/json",
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "action": "new",
+        "id": "990000001",
+        "conn_id": 7001,
+        "ip": "198.18.0.9",
+        "session_id": 0,
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "nonce": "text-00000001"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

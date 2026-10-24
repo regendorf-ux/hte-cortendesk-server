@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "seq": 6,
+  "synthetic": true,
+  "source": "AuditController",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "content-type": "application/json",
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

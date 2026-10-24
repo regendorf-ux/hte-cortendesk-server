@@ -4,19 +4,27 @@
 # Runs on the server (docker only, no Rust) or in CI.
 #
 #   HTE_CONSOLE_IMAGE=<hte-console image>  HTE_CONSOLE_SANITISE_SALT=<same salt as the capture> \
-#     replay.sh <fixtures-dir>
+#     replay.sh <fixtures-dir> [<more-fixtures-dir> ...]
 #
-# Exit 0 = no differences, 1 = differences (printed), 2 = could not run.
+# Several directories are merged (captured first or synthetic first: files replay in name order, and
+# synthetic ones are named to sort before captured ones). After the real run it replays a copy with one
+# expected answer changed and insists that this run FAILS: a replay that cannot see a difference is worthless.
+# Exit 0 = no differences and the check caught the change, 1 = differences (printed), 2 = could not run.
 # Every docker command reads </dev/null so the script can also be piped through `ssh host 'bash -s'`.
 set -euo pipefail
 
-FIXTURES="$(cd "${1:?usage: replay.sh <fixtures-dir>}" && pwd)"
+[ "$#" -ge 1 ] || { echo "usage: replay.sh <fixtures-dir> [...]" >&2; exit 2; }
 CONSOLE_IMAGE="${HTE_CONSOLE_IMAGE:?set HTE_CONSOLE_IMAGE}"
 PHP_IMAGE="${HTE_PHP_IMAGE:-ghcr.io/regendorf-ux/hte-cortendesk:1.15.0-hte.1}"
 SALT="${HTE_CONSOLE_SANITISE_SALT:-}"
 LITERALS="${HTE_CONSOLE_SANITISE_LITERALS:-}"
 TAG="hte-replay-$$"
 WORK="$(mktemp -d)"
+FIXTURES="$WORK/fixtures"
+mkdir -p "$FIXTURES"
+for d in "$@"; do
+  cp -p "$d"/*.json "$FIXTURES"/ </dev/null
+done
 
 cleanup() {
   docker rm -f "$TAG-php" </dev/null >/dev/null 2>&1 || true
@@ -25,7 +33,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-console() { # run one hte-console subcommand with the fixtures mounted read-only
+console() { # run one hte-console subcommand with $FIXTURES mounted read-only
   docker run --rm --network "$TAG" -v "$FIXTURES:/fixtures:ro" \
     -e HTE_CONSOLE_SANITISE_SALT="$SALT" -e HTE_CONSOLE_SANITISE_LITERALS="$LITERALS" \
     "$CONSOLE_IMAGE" "$@" </dev/null
@@ -58,4 +66,17 @@ set +e
 console replay /fixtures "http://$TAG-php:8080"
 status=$?
 set -e
+
+echo "== proving the replay notices a change (this run must report a difference)"
+cp -a "$FIXTURES" "$WORK/tampered" </dev/null
+victim="$(ls "$WORK/tampered" </dev/null | grep -m1 'api_sysinfo-new-device' || ls "$WORK/tampered" </dev/null | head -1)"
+sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": 200/"status": 418/' "$WORK/tampered/$victim" </dev/null
+saved="$FIXTURES"; FIXTURES="$WORK/tampered"
+set +e
+console replay /fixtures "http://$TAG-php:8080" | head -5
+caught=${PIPESTATUS[0]}
+set -e
+FIXTURES="$saved"
+if [ "$caught" -ne 1 ]; then echo "THE REPLAY DID NOT NOTICE A CHANGED FIXTURE" >&2; exit 2; fi
+echo "caught, as it should"
 exit "$status"

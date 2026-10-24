@@ -1,7 +1,8 @@
 //! Replay recorded fixtures against a base URL and report differences.
 //! Compared: status, content type, body. Ignored: timestamps, database ids, freshly minted tokens.
 
-use crate::fixture::{list, query_string};
+use crate::fixture::{body_value, list, query_string};
+use crate::sanitise::Sanitiser;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde_json::Value;
@@ -66,7 +67,7 @@ pub struct Report {
     pub differences: Vec<String>,
 }
 
-pub async fn run(dir: &Path, base: &str, sanitise: impl Fn(&mut Value)) -> Result<Report, String> {
+pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String> {
     let client = reqwest::Client::builder()
         .redirect(reqwest::redirect::Policy::none())
         .timeout(std::time::Duration::from_secs(30))
@@ -103,19 +104,13 @@ pub async fn run(dir: &Path, base: &str, sanitise: impl Fn(&mut Value)) -> Resul
         let status = resp.status().as_u16();
         let ct = resp.headers().get("content-type").and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
         let bytes = resp.bytes().await.map_err(|e| e.to_string())?;
-        let got_body = match serde_json::from_slice::<Value>(&bytes) {
-            Ok(mut v) => {
-                sanitise(&mut v);
-                serde_json::json!({"kind": "json", "value": v})
-            }
-            Err(_) => serde_json::json!({"kind": "omitted", "len": bytes.len()}),
-        };
+        let got_body = body_value(s, &ct.to_ascii_lowercase(), &bytes);
         let want = &fx["response"];
         if want["status"].as_u64() != Some(status as u64) {
             report.differences.push(format!("{name}: status {} expected {}", status, want["status"]));
         }
         let want_ct = want["headers"]["content-type"].as_str().unwrap_or("");
-        if want_ct.split(';').next() != ct.split(';').next() {
+        if !want_ct.is_empty() && want_ct.split(';').next() != ct.split(';').next() {
             report.differences.push(format!("{name}: content-type {ct:?} expected {want_ct:?}"));
         }
         let (a, b) = (body_json(want.get("body").unwrap_or(&Value::Null)), body_json(&got_body));

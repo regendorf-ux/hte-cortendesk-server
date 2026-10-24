@@ -1,6 +1,6 @@
 [package]
 name = "hte-console"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy in front of the PHP console that records sanitised fixtures."

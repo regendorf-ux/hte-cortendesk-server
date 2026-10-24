@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 7,
+  "synthetic": true,
+  "source": "AuditController",
+  "method": "POST",
+  "path": "/api/audit/alarm",
+  "query": {},
+  "request": {
+    "headers": {
+      "content-type": "application/json",
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "typ": 0,
+        "info": "text-00000002",
+        "nonce": "text-00000003"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

@@ -18,6 +18,11 @@ addresses and user names become stable placeholders before anything is written),
 answers nothing itself. Its own image (`ghcr.io/regendorf-ux/hte-console`) is built by
 `.github/workflows/hte-console.yml` on a tag `hte-console-v<version>`.
 
+0.0.2 (same day): plain status tokens (`SYSINFO_UPDATED`, `ID_NOT_FOUND`) are recorded and compared as text; replay classifies
+a reply by the capture's own rules (an empty 200 matches an empty 200); the replay database's user has a high id
+(the image's first start already creates user 1); `replay.sh` takes several fixture directories and checks that a
+deliberately changed fixture is caught; `fixtures/synthetic/` holds eight fixtures written from the PHP source.
+
 Touches upstream files in one place: `Cargo.toml` lists `hte-console` as a workspace member (hbbs and hbbr do not
 depend on it and build as before; `Cargo.lock` gains the new crate's dependencies). `hte-image.yml` is unchanged
 and its `cargo test --workspace` now also runs this crate's tests.

@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 1,
+  "synthetic": true,
+  "source": "SyncController::sysinfo",
+  "method": "POST",
+  "path": "/api/sysinfo",
+  "query": {},
+  "request": {
+    "headers": {
+      "content-type": "application/json",
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "cpu": "Placeholder CPU",
+        "memory": "16.0GB",
+        "os": "windows / Windows 11",
+        "hostname": "host-00000001",
+        "username": "user-00000001",
+        "version": "1.5.0"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "text",
+      "text": "SYSINFO_UPDATED"
+    }
+  }
+}
