@@ -444,6 +444,19 @@ async fn methods_bodies_and_rate_limits() {
     assert_eq!(r.headers["allow"], "POST");
     let r = h.send("OPTIONS", "/api/heartbeat", None, vec![], "203.0.113.9").await;
     assert_eq!((r.status, r.headers["allow"].to_str().unwrap()), (200, "POST"));
+    // a CORS preflight is answered by HandleCors before routing
+    let r = h
+        .client
+        .request(reqwest::Method::OPTIONS, format!("{}/api/heartbeat", h.url))
+        .header("access-control-request-method", "post")
+        .header("access-control-request-headers", "content-type")
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(r.status().as_u16(), 204);
+    assert_eq!(r.headers()["access-control-allow-methods"], "POST");
+    assert_eq!(r.headers()["access-control-allow-headers"], "content-type");
+    assert_eq!(r.headers()["access-control-allow-origin"], "*");
     let r = h.send("GET", "/api/version", None, vec![], "203.0.113.9").await;
     assert_eq!((r.status, r.body.as_str(), r.ct.as_str()), (200, "1.15.0-hte.1", "text/html; charset=UTF-8"));
     assert_eq!(h.send("POST", "/api/version", None, vec![], "203.0.113.9").await.status, 405);

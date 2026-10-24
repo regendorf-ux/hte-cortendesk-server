@@ -291,8 +291,9 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
     let method = parts.method.clone();
     let head = method == Method::HEAD;
 
-    // HandleCors: a preflight never reaches the route.
-    if method == Method::OPTIONS && parts.headers.contains_key("origin") && parts.headers.contains_key("access-control-request-method") {
+    // HandleCors: a preflight (OPTIONS with Access-Control-Request-Method; fruitcake does not ask for Origin)
+    // never reaches the route.
+    if method == Method::OPTIONS && parts.headers.contains_key("access-control-request-method") {
         let mut extra = vec![
             ("access-control-allow-methods", header_str(&parts.headers, "access-control-request-method").unwrap_or("").to_ascii_uppercase()),
             ("access-control-max-age", "0".to_string()),
