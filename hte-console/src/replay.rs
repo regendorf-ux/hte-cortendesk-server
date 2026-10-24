@@ -57,6 +57,8 @@ fn request_body(b: &Value) -> Option<(String, Vec<u8>)> {
     match b["kind"].as_str() {
         Some("json") => Some(("application/json".into(), serde_json::to_vec(&b["value"]).ok()?)),
         Some("form") => Some(("application/x-www-form-urlencoded".into(), query_string(&b["fields"]).into_bytes())),
+        // synthetic fixtures only: a body as given, to test what malformed input gets (never recorded by capture)
+        Some("raw") => Some((b["content_type"].as_str()?.to_string(), b["text"].as_str()?.as_bytes().to_vec())),
         _ => None,
     }
 }
