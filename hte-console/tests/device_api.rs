@@ -43,6 +43,10 @@ fn keypair() -> (sign::PublicKey, sign::SecretKey) {
 }
 
 async fn harness() -> H {
+    harness_with(laravel::DEFAULT_TRUSTED).await
+}
+
+async fn harness_with(trusted: &str) -> H {
     sodiumoxide::init().unwrap();
     let dir = tempfile::tempdir().unwrap();
     let db_path = dir.path().join("cortendesk.sqlite");
@@ -61,7 +65,7 @@ async fn harness() -> H {
         db: Mutex::new(hte_console::sqlite::open(&db_path, std::time::Duration::from_secs(5), true).unwrap()),
         crypt: Encrypter::from_app_key(APP_KEY).unwrap(),
         hbbs_db: hbbs,
-        trusted: laravel::parse_trusted(laravel::DEFAULT_TRUSTED),
+        trusted: laravel::parse_trusted(trusted),
         api_version: "1.15.0-hte.1".into(),
         max_body: 1 << 20,
         limiter: Mutex::new(Limiter::default()),
@@ -404,6 +408,102 @@ async fn audit_file_and_alarm() {
 // ------------------------------------------------------------------------------------------- bad input ---
 
 #[tokio::test]
+async fn form_and_charset_bodies_are_read_as_php_reads_them() {
+    let h = harness().await;
+    h.device("990000001", UUID, Some("host-a"));
+    // a form body (what parse_str reads), with the uuid's padding percent-encoded
+    let form = b"id=990000001&uuid=UExBQ0VIT0xERVIhAAAAAA%3D%3D".to_vec();
+    let r = h.send("POST", "/api/heartbeat", Some("application/x-www-form-urlencoded"), form, "203.0.113.9").await;
+    assert_eq!((r.status, r.body.as_str()), (200, "{}"));
+    assert_eq!(h.one::<String>("select last_online_at from devices"), h.ts());
+    // sysinfo from a form: trimmed like any input, the empty string becomes null
+    let form = b"id=990000001&uuid=UExBQ0VIT0xERVIhAAAAAA%3D%3D&hostname=+host-f+&cpu=".to_vec();
+    let r = h.send("POST", "/api/sysinfo", Some("application/x-www-form-urlencoded; charset=UTF-8"), form, "203.0.113.9").await;
+    assert_eq!(r.body, "SYSINFO_UPDATED");
+    assert_eq!(h.one::<String>("select hostname from devices"), "host-f");
+    assert_eq!(h.one::<String>("select cpu from devices"), "");
+    // JSON with a charset parameter is still JSON
+    h.advance(10);
+    let body = serde_json::to_vec(&json!({"id": "990000001", "uuid": UUID})).unwrap();
+    let r = h.send("POST", "/api/heartbeat", Some("application/json; charset=utf-8"), body, "198.51.100.7").await;
+    assert_eq!(r.body, "{}");
+    assert_eq!(h.one::<String>("select last_online_ip from devices"), "198.51.100.7");
+}
+
+#[tokio::test]
+async fn client_address_follows_the_trusted_proxies() {
+    let body = || serde_json::to_vec(&json!({"id": "990000001", "uuid": UUID})).unwrap();
+    // the test client is 127.0.0.1: trusted by default, by `*` and as REMOTE_ADDR
+    for trusted in [laravel::DEFAULT_TRUSTED, "*", "REMOTE_ADDR"] {
+        let h = harness_with(trusted).await;
+        h.device("990000001", UUID, None);
+        // two X-Forwarded-For headers are one list; the right-most untrusted address is the client
+        let r = h
+            .client
+            .post(format!("{}/api/heartbeat", h.url))
+            .header("content-type", "application/json")
+            .header("x-forwarded-for", "192.0.2.1")
+            .header("x-forwarded-for", "203.0.113.9, 10.1.2.3")
+            .body(body())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(r.status().as_u16(), 200);
+        // `*`: every hop is trusted, so the left-most; REMOTE_ADDR trusts only the peer, so 10.1.2.3 is the client
+        let want = match trusted {
+            "*" => "192.0.2.1",
+            "REMOTE_ADDR" => "10.1.2.3",
+            _ => "203.0.113.9",
+        };
+        assert_eq!(h.one::<String>("select last_online_ip from devices"), want, "{trusted}");
+    }
+    // trusting nobody (or only a name, which PHP cannot match either): the peer is the client
+    for trusted in ["", "proxy.example"] {
+        let h = harness_with(trusted).await;
+        h.device("990000001", UUID, None);
+        h.send("POST", "/api/heartbeat", Some("application/json"), body(), "203.0.113.9").await;
+        assert_eq!(h.one::<String>("select last_online_ip from devices"), "127.0.0.1", "{trusted:?}");
+    }
+}
+
+#[tokio::test]
+async fn unreadable_stored_timestamps_answer_500_as_carbon_throws() {
+    let h = harness().await;
+    h.device("990000001", UUID, Some("host-a"));
+    strategy(&h, false, r#"{"direct-server":"N"}"#);
+    let token = h.post("/api/heartbeat", json!({"id": "990000001", "uuid": UUID})).await.json()["modified_at"].as_i64().unwrap();
+    h.sql("update devices set strategy_acked_at = 'not a date'");
+    let r = h.post("/api/heartbeat", json!({"id": "990000001", "uuid": UUID, "modified_at": token})).await;
+    assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
+    // a client token that expires at nonsense: the new device is stored (no transaction), then the 500
+    h.sql(
+        "insert into settings (key, value) values ('require_device_approval', '1'), ('auto_approve_signed_in', '1');
+         insert into users (id, username, password, is_active) values (5, 'u', 'x', 1);
+         insert into client_tokens (user_id, token, device_id, expires_at) values (5, 'tok', '990000002', 'soon');",
+    );
+    let r = h.post("/api/sysinfo", json!({"id": "990000002", "uuid": UUID, "hostname": "b"})).await;
+    assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
+    assert_eq!(h.one::<String>("select status from devices where rustdesk_id = '990000002'"), "pending");
+}
+
+#[tokio::test]
+async fn a_soft_deleted_strategy_still_resolves_through_a_link_but_delivers_nothing() {
+    // Strategy::resolve joins the link tables without the soft-delete scope; deliveryFor's find() has it
+    let h = harness().await;
+    h.sql(
+        "insert into settings (key, value) values ('require_device_approval', '1'), ('auto_approve_signed_in', '1');
+         insert into users (id, username, password, is_active) values (5, 'u', 'x', 1);
+         insert into strategies (name, enabled, is_default, options) values ('d', 1, 1, '{\"direct-server\":\"Y\"}');
+         insert into strategies (name, enabled, is_default, options, deleted_at) values ('gone', 1, 0, '{\"direct-server\":\"N\"}', '2026-01-01 00:00:00');
+         insert into strategy_user (user_id, strategy_id) values (5, 2);
+         insert into client_tokens (user_id, token, device_id) values (5, 'tok', '990000001');",
+    );
+    h.post("/api/sysinfo", json!({"id": "990000001", "uuid": UUID, "hostname": "a"})).await;
+    assert_eq!(h.one::<i64>("select strategy_id_resolved from devices"), 2);
+    assert_eq!(h.post("/api/heartbeat", json!({"id": "990000001", "uuid": UUID})).await.body, "{}");
+}
+
+#[tokio::test]
 async fn bad_input_gets_what_php_gives() {
     let h = harness().await;
     h.device("990000001", UUID, Some("host-a"));
@@ -442,6 +542,8 @@ async fn methods_bodies_and_rate_limits() {
     assert_eq!(r.status, 405);
     assert_eq!(r.json(), json!({"message": "The GET method is not supported for route api/heartbeat. Supported methods: POST."}));
     assert_eq!(r.headers["allow"], "POST");
+    // the exception is rendered inside the pipeline, so HandleCors still adds its header (as on 404 and 413)
+    assert_eq!(r.headers["access-control-allow-origin"], "*");
     let r = h.send("OPTIONS", "/api/heartbeat", None, vec![], "203.0.113.9").await;
     assert_eq!((r.status, r.headers["allow"].to_str().unwrap()), (200, "POST"));
     // a CORS preflight is answered by HandleCors before routing
@@ -471,6 +573,7 @@ async fn methods_bodies_and_rate_limits() {
         let text = String::from_utf8_lossy(&buf[..n]);
         assert!(text.starts_with("HTTP/1.1 413"), "{text}");
         assert!(text.contains(r#"{"message":"The POST data is too large."}"#), "{text}");
+        assert!(text.contains("access-control-allow-origin: *"), "{text}");
     }
     // 120 a minute per device and address, then 429 until the window ends
     for _ in 0..120 {
@@ -549,6 +652,26 @@ async fn sealed_password_needs_a_known_usable_key() {
     h.sql("update settings set value = '0'; delete from hte_device_passwords");
     assert_eq!(h.post("/api/heartbeat", json!({"id": "990000888", "uuid": UUID, "hte_pw": 0})).await.body, "{}");
     assert_eq!(h.one::<i64>("select current_version from hte_device_passwords"), 0);
+}
+
+#[tokio::test]
+async fn sealed_password_pending_devices_and_missing_ciphertext() {
+    let h = harness().await;
+    h.device("990000777", UUID, Some("host-a"));
+    h.sql("insert into settings (key, value) values ('hte_pw_enabled', '1'); update devices set status = 'pending'");
+    // pending: recorded as capable, nothing issued or sent
+    assert_eq!(h.post("/api/heartbeat", json!({"id": "990000777", "uuid": UUID, "hte_pw": 0})).await.body, "{}");
+    assert_eq!(h.one::<i64>("select current_version from hte_device_passwords"), 0);
+    assert_eq!(h.one::<String>("select capable_at from hte_device_passwords"), h.ts());
+    // a version without its ciphertext: nothing to seal, nothing sent, nothing reissued
+    h.sql("update devices set status = 'active'; update hte_device_passwords set current_version = 1, current_enc = null");
+    h.advance(15);
+    assert_eq!(h.post("/api/heartbeat", json!({"id": "990000777", "uuid": UUID, "hte_pw": 0})).await.body, "{}");
+    assert_eq!(h.one::<i64>("select current_version from hte_device_passwords"), 1);
+    // a ciphertext the app key cannot open: Crypt's DecryptException, a 500
+    h.sql("update hte_device_passwords set current_enc = 'eyJpdiI6IiJ9'");
+    let r = h.post("/api/heartbeat", json!({"id": "990000777", "uuid": UUID, "hte_pw": 0})).await;
+    assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
 }
 
 // --------------------------------------------------------------------------------------------- no panic ---

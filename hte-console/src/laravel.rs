@@ -147,14 +147,65 @@ impl Cidr {
 /// The PHP console's default `TRUSTED_PROXIES` (config/trustedproxy.php).
 pub const DEFAULT_TRUSTED: &str = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
 
-pub fn parse_trusted(list: &str) -> Vec<Cidr> {
-    list.split(',').filter_map(|s| Cidr::parse(s.trim())).collect()
+/// Symfony's `IpUtils::PRIVATE_SUBNETS` (http-foundation 8.1), what `PRIVATE_SUBNETS`/`private_ranges` stand for.
+const SYMFONY_PRIVATE_SUBNETS: &[&str] = &[
+    "127.0.0.0/8", "10.0.0.0/8", "192.168.0.0/16", "192.0.2.0/24", "198.51.100.0/24", "203.0.113.0/24", "172.16.0.0/12",
+    "169.254.0.0/16", "198.18.0.0/15", "0.0.0.0/8", "240.0.0.0/4", "100.64.0.0/10", "::1/128", "fc00::/7", "fe80::/10",
+    "::ffff:0:0/96", "::/128", "::/96", "2002::/16", "2001::/32", "2001:db8::/32", "2001:0002::/48", "64:ff9b::/96",
+    "64:ff9b:1::/48",
+];
+
+/// The trusted proxies as `TrustConfiguredProxies` and Symfony resolve them.
+#[derive(Clone, Debug, Default)]
+pub struct Trusted {
+    cidrs: Vec<Cidr>,
+    /// `REMOTE_ADDR`: the peer of each request.
+    peer: bool,
+    /// Entries that match no address (PHP ignores them the same way).
+    pub ignored: Vec<String>,
+}
+
+impl Trusted {
+    /// config/trustedproxy.php (split on commas, trimmed, empty entries dropped), then `TrustProxies`: the list
+    /// `*` alone trusts every peer; `REMOTE_ADDR` is the request's own peer; Symfony expands `PRIVATE_SUBNETS`
+    /// (or `private_ranges`). Anything else that is not an address or range trusts nothing.
+    pub fn parse(list: &str) -> Trusted {
+        let entries: Vec<&str> = list.split(',').map(str::trim).filter(|s| !s.is_empty() && *s != "0").collect();
+        let mut t = Trusted::default();
+        if entries == ["*"] {
+            t.cidrs = vec![Cidr::parse("0.0.0.0/0"), Cidr::parse("::/0")].into_iter().flatten().collect();
+            return t;
+        }
+        for e in entries {
+            match e {
+                "REMOTE_ADDR" => t.peer = true,
+                "PRIVATE_SUBNETS" | "private_ranges" => t.cidrs.extend(SYMFONY_PRIVATE_SUBNETS.iter().filter_map(|s| Cidr::parse(s))),
+                _ => match Cidr::parse(e) {
+                    Some(c) => t.cidrs.push(c),
+                    None => t.ignored.push(e.to_string()),
+                },
+            }
+        }
+        t
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.cidrs.is_empty() && !self.peer
+    }
+
+    fn contains(&self, ip: &IpAddr, peer: &IpAddr) -> bool {
+        (self.peer && ip == peer) || self.cidrs.iter().any(|c| c.contains(ip))
+    }
+}
+
+pub fn parse_trusted(list: &str) -> Trusted {
+    Trusted::parse(list)
 }
 
 /// `$request->ip()`: Symfony's `getClientIps()[0]` with only X-Forwarded-For trusted, and only from a trusted peer.
-pub fn client_ip(peer: IpAddr, xff: &[&str], trusted: &[Cidr]) -> String {
+pub fn client_ip(peer: IpAddr, xff: &[&str], trusted: &Trusted) -> String {
     let peer_s = peer.to_string();
-    if !trusted.iter().any(|c| c.contains(&peer)) || xff.is_empty() {
+    if !trusted.contains(&peer, &peer) || xff.is_empty() {
         return peer_s;
     }
     let mut chain: Vec<String> = xff.iter().flat_map(|v| v.split(',').map(|s| s.trim().to_string())).collect();
@@ -174,7 +225,7 @@ pub fn client_ip(peer: IpAddr, xff: &[&str], trusted: &[Cidr]) -> String {
             };
         }
         let Ok(parsed) = ip.parse::<IpAddr>() else { continue };
-        if trusted.iter().any(|c| c.contains(&parsed)) {
+        if trusted.contains(&parsed, &peer) {
             if first_trusted.is_none() {
                 first_trusted = Some(ip);
             }
@@ -436,6 +487,36 @@ mod tests {
         assert_eq!(client_ip(caddy, &["[2001:db8::1]:80"], &t), "2001:db8::1");
         let public: IpAddr = "198.51.100.1".parse().unwrap();
         assert_eq!(client_ip(public, &["203.0.113.9"], &t), "198.51.100.1");
+        // two X-Forwarded-For headers read as one list
+        assert_eq!(client_ip(caddy, &["1.1.1.1", "203.0.113.9, 10.0.0.2"], &t), "203.0.113.9");
+    }
+
+    #[test]
+    fn trusted_proxies_like_laravel() {
+        let public: IpAddr = "198.51.100.1".parse().unwrap();
+        // `*` alone: every peer, v4 and v6
+        let all = Trusted::parse(" * ");
+        assert_eq!(client_ip(public, &["203.0.113.9"], &all), "203.0.113.9");
+        assert_eq!(client_ip("2001:db8::7".parse().unwrap(), &["203.0.113.9"], &all), "203.0.113.9");
+        // `*` among others trusts nothing (Symfony cannot read it as an address)
+        let mixed = Trusted::parse("*,10.0.0.0/8");
+        assert_eq!(client_ip(public, &["203.0.113.9"], &mixed), "198.51.100.1");
+        assert_eq!(mixed.ignored, vec!["*".to_string()]);
+        // REMOTE_ADDR: whatever peer this request came from, and only that address
+        let remote = Trusted::parse("REMOTE_ADDR");
+        assert_eq!(client_ip(public, &["203.0.113.9"], &remote), "203.0.113.9");
+        assert_eq!(client_ip(public, &["203.0.113.9, 198.51.100.1"], &remote), "203.0.113.9");
+        assert_eq!(client_ip(public, &["203.0.113.9, 198.51.100.2"], &remote), "198.51.100.2");
+        // PRIVATE_SUBNETS: Symfony's list, wider than the console's default (CGNAT here)
+        let private = Trusted::parse("PRIVATE_SUBNETS");
+        assert_eq!(client_ip("100.64.0.9".parse().unwrap(), &["8.8.8.8"], &private), "8.8.8.8");
+        assert_eq!(client_ip("8.8.4.4".parse().unwrap(), &["8.8.8.8"], &private), "8.8.4.4");
+        // empty, commas only, garbage: nobody
+        for l in ["", ",,", "proxy.example"] {
+            let t = Trusted::parse(l);
+            assert!(t.is_empty(), "{l:?}");
+            assert_eq!(client_ip(public, &["203.0.113.9"], &t), "198.51.100.1");
+        }
     }
 
     #[test]

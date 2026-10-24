@@ -9,7 +9,7 @@
 //! rate limiter with its headers, and the JSON error bodies Laravel renders for `api/*` with APP_DEBUG off.
 //! Everything else is forwarded to PHP by the phase 0 proxy (or answered 404 when no upstream is configured).
 
-use crate::laravel::{self, Cidr, Encrypter, Input};
+use crate::laravel::{self, Encrypter, Input, Trusted};
 use crate::php::Fault;
 use axum::body::Body;
 use axum::extract::{ConnectInfo, State};
@@ -29,7 +29,7 @@ pub struct Native {
     pub crypt: Encrypter,
     /// hbbs's database (`/data/rustdesk/db_v2.sqlite3`), read only, for the device keys.
     pub hbbs_db: PathBuf,
-    pub trusted: Vec<Cidr>,
+    pub trusted: Trusted,
     /// What `GET /api/version` answers (the PHP console's `VERSION`).
     pub api_version: String,
     /// Largest request body accepted on these endpoints.
@@ -58,6 +58,10 @@ impl Native {
         warn_unported(&conn);
         sodiumoxide::init().map_err(|_| "libsodium did not initialise".to_string())?;
         let trusted = laravel::parse_trusted(&cfg.trusted_proxies);
+        if !trusted.ignored.is_empty() {
+            // as PHP: such an entry trusts nothing (names only, never a secret)
+            tracing::warn!(entries = ?trusted.ignored, "trusted proxies: entries that are no address or range are ignored");
+        }
         if trusted.is_empty() {
             tracing::warn!("no trusted proxies: every client address is the TCP peer");
         }
@@ -163,31 +167,73 @@ fn json_message(status: u16, msg: &str) -> Reply {
 
 // ---------------------------------------------------------------------------------------- rate limiting ---
 
-/// Laravel's RateLimiter over its cache: a fixed window opened by the first hit, `decay` seconds long.
-#[derive(Default)]
-pub struct Limiter {
-    buckets: HashMap<[u8; 32], (u64, i64)>,
+/// Entries that each expire at most `window` seconds after they are written, kept in two generations: the older
+/// one is dropped whole once everything in it has expired, so nothing is ever scanned, whatever a flood sends.
+/// A generation that reaches `cap` entries starts the next one early (memory stays at two generations; under such
+/// a flood some live entries are forgotten early, never kept beyond their time).
+struct Generations<V> {
+    cur: HashMap<[u8; 32], (V, i64)>,
+    prev: HashMap<[u8; 32], (V, i64)>,
+    started: i64,
+    window: i64,
+    cap: usize,
 }
 
-const LIMITER_CAP: usize = 200_000;
+impl<V: Copy> Generations<V> {
+    fn new(window: i64, cap: usize) -> Self {
+        Generations { cur: HashMap::new(), prev: HashMap::new(), started: i64::MIN, window, cap }
+    }
+    /// The unexpired value and its expiry.
+    fn get(&self, k: &[u8; 32], now: i64) -> Option<(V, i64)> {
+        self.cur.get(k).or_else(|| self.prev.get(k)).copied().filter(|(_, exp)| now < *exp)
+    }
+    /// `exp` is capped at `now + window`.
+    fn put(&mut self, k: [u8; 32], v: V, exp: i64, now: i64) {
+        if now >= self.started.saturating_add(self.window) || self.cur.len() >= self.cap {
+            self.prev = std::mem::take(&mut self.cur);
+            self.started = now;
+        }
+        self.cur.insert(k, (v, exp.min(now.saturating_add(self.window))));
+    }
+    fn remove(&mut self, k: &[u8; 32]) {
+        self.cur.remove(k);
+        self.prev.remove(k);
+    }
+    #[cfg(test)]
+    fn len(&self) -> usize {
+        self.cur.len() + self.prev.len()
+    }
+}
+
+/// Laravel's RateLimiter over its cache: a fixed window opened by the first hit, `decay` seconds long.
+pub struct Limiter {
+    buckets: Generations<u64>,
+}
+
+/// The longest decay any limit here uses (`device-sync`: a minute).
+const LIMITER_WINDOW: i64 = 60;
+const LIMITER_CAP: usize = 100_000;
+
+impl Default for Limiter {
+    fn default() -> Self {
+        Limiter { buckets: Generations::new(LIMITER_WINDOW, LIMITER_CAP) }
+    }
+}
 
 impl Limiter {
     fn key(k: &[u8]) -> [u8; 32] {
         Sha256::digest(k).into()
     }
     fn live(&self, k: &[u8; 32], now: i64) -> Option<(u64, i64)> {
-        self.buckets.get(k).copied().filter(|(_, exp)| now < *exp)
+        self.buckets.get(k, now)
     }
     pub fn too_many(&self, k: &[u8], max: u64, now: i64) -> bool {
         self.live(&Self::key(k), now).map_or(false, |(n, _)| n >= max)
     }
     pub fn hit(&mut self, k: &[u8], decay: i64, now: i64) {
         let key = Self::key(k);
-        if self.buckets.len() >= LIMITER_CAP {
-            self.buckets.retain(|_, (_, exp)| now < *exp);
-        }
         let (n, exp) = self.live(&key, now).unwrap_or((0, now + decay));
-        self.buckets.insert(key, (n + 1, exp));
+        self.buckets.put(key, n + 1, exp, now);
     }
     pub fn remaining(&self, k: &[u8], max: u64, now: i64) -> u64 {
         max.saturating_sub(self.live(&Self::key(k), now).map_or(0, |(n, _)| n))
@@ -207,23 +253,25 @@ fn device_sync_limits(ip: &str, id: &[u8]) -> [(Vec<u8>, u64); 2] {
 // ------------------------------------------------------------------------------------------------ nonces ---
 
 /// The audit endpoints' "seen this nonce" memory (Laravel: `Cache::add(key, true, 300)` in the file cache).
-#[derive(Default)]
 pub struct Nonces {
-    seen: HashMap<[u8; 32], i64>,
+    seen: Generations<()>,
 }
 
-const NONCE_CAP: usize = 500_000;
+const NONCE_CAP: usize = 250_000;
+
+impl Default for Nonces {
+    fn default() -> Self {
+        Nonces { seen: Generations::new(crate::audit::NONCE_TTL_SECONDS, NONCE_CAP) }
+    }
+}
 
 impl Nonces {
     /// `Cache::add`: false when the key is already there and unexpired.
     pub fn add(&mut self, key: [u8; 32], ttl: i64, now: i64) -> bool {
-        if self.seen.get(&key).map_or(false, |&exp| now < exp) {
+        if self.seen.get(&key, now).is_some() {
             return false;
         }
-        if self.seen.len() >= NONCE_CAP {
-            self.seen.retain(|_, exp| now < *exp);
-        }
-        self.seen.insert(key, now + ttl);
+        self.seen.put(key, (), now + ttl, now);
         true
     }
     pub fn forget(&mut self, key: &[u8; 32]) {
@@ -390,4 +438,65 @@ fn throttled(n: &Native, ep: Endpoint, input: &Input, ip: &str) -> (Reply, Vec<(
     }
     let headers = shown.map_or(vec![], |(m, r)| vec![("x-ratelimit-limit", m.to_string()), ("x-ratelimit-remaining", r.to_string())]);
     (reply, headers)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn k(i: u32) -> [u8; 32] {
+        Sha256::digest(i.to_be_bytes()).into()
+    }
+
+    #[test]
+    fn generations_keep_live_entries_and_drop_expired_ones_whole() {
+        let mut g: Generations<u32> = Generations::new(60, 1_000);
+        g.put(k(1), 1, 60, 0);
+        g.put(k(2), 2, 90, 30);
+        g.put(k(3), 3, 120, 60); // starts the second generation: the first is still read
+        assert_eq!(g.get(&k(2), 80), Some((2, 90)));
+        assert_eq!(g.get(&k(1), 60), None);
+        g.put(k(4), 4, 180, 120); // third generation: the first, all expired by now, is gone
+        assert_eq!(g.len(), 2);
+        assert_eq!(g.get(&k(3), 119), Some((3, 120)));
+        g.remove(&k(3));
+        assert_eq!(g.get(&k(3), 119), None);
+        // an expiry past the window is cut to it
+        g.put(k(5), 5, 1_000, 130);
+        assert_eq!(g.get(&k(5), 130), Some((5, 190)));
+    }
+
+    #[test]
+    fn a_flood_never_grows_past_two_generations() {
+        let mut g: Generations<()> = Generations::new(300, 100);
+        for i in 0..10_000 {
+            g.put(k(i), (), 300, 0);
+        }
+        assert!(g.len() <= 200, "{}", g.len());
+        assert!(g.get(&k(9_999), 0).is_some());
+    }
+
+    #[test]
+    fn limiter_counts_across_a_generation_change() {
+        let mut l = Limiter::default();
+        for _ in 0..3 {
+            l.hit(b"a", 60, 50);
+        }
+        l.hit(b"b", 60, 70); // new generation
+        l.hit(b"a", 60, 80);
+        assert_eq!(l.remaining(b"a", 5, 80), 1);
+        assert_eq!(l.available_in(b"a", 80), 30);
+        assert!(!l.too_many(b"a", 5, 109));
+        assert_eq!(l.remaining(b"a", 5, 110), 5);
+    }
+
+    #[test]
+    fn nonces_once_then_again_after_ttl_or_forget() {
+        let mut n = Nonces::default();
+        assert!(n.add(k(1), 300, 0));
+        assert!(!n.add(k(1), 300, 299));
+        assert!(n.add(k(1), 300, 300));
+        n.forget(&k(1));
+        assert!(n.add(k(1), 300, 301));
+    }
 }
