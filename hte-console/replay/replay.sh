@@ -175,7 +175,12 @@ fi
 echo "== proving the replay notices a change (this run must report a difference)"
 # Only the changed fixture is replayed: enough to prove a difference is seen, without another paced full run.
 mkdir -p "$WORK/tampered"
-victim="$(ls "$FIXTURES" </dev/null | grep -m1 'api_sysinfo-new-device' || ls "$FIXTURES" </dev/null | head -1)"
+# a glob, not ls | grep -m1: under pipefail grep's early exit fails ls and the fallback ran too (two names)
+victim=""
+for f in "$FIXTURES"/*api_sysinfo-new-device*.json "$FIXTURES"/*.json; do
+  if [ -f "$f" ]; then victim="$(basename "$f")"; break; fi
+done
+[ -n "$victim" ] || { echo "no fixture to tamper with" >&2; exit 2; }
 cp -p "$FIXTURES/$victim" "$WORK/tampered/" </dev/null
 sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": 200/"status": 418/' "$WORK/tampered/$victim" </dev/null
 saved="$FIXTURES"; FIXTURES="$WORK/tampered"

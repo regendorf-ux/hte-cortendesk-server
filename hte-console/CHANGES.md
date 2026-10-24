@@ -18,6 +18,8 @@ From a code review of 0.1.1 against PHP 1.15.0-hte.1, Laravel 13.35 and Symfony 
   exceptions inside the middleware pipeline and HandleCors adds the header on the way out.
 - README: the known differences that depend on configuration HTE does not use (empty `TRUSTED_PROXIES`,
   `APP_PREVIOUS_KEYS`, the older Apprise offline marker).
+- `replay.sh`: the tamper check picks its fixture with a glob (under `pipefail`, `ls | grep -m1` with 900+ fixtures
+  also ran the fallback and named two files). The replay itself is unchanged; the image does not contain it.
 - Tests: trusted-proxy keywords and two `X-Forwarded-For` headers, form and `charset` bodies over HTTP, stored
   timestamps Carbon cannot read (500), the password hook on a pending device and with no or unreadable ciphertext,
   a soft-deleted strategy reached through a link, the CORS header on 405 and 413.
