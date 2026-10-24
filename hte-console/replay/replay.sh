@@ -4,7 +4,7 @@
 # Runs on the VPS (docker only, no Rust) or in CI.
 #
 #   HTE_CONSOLE_IMAGE=<hte-console image>  HTE_CONSOLE_SANITISE_SALT=<same salt as the capture> \
-#     replay.sh <fixtures-dir> [<more-fixtures-dir> ...]
+#     replay.sh <fixtures-dir> [<more-fixtures-dir> ...]   (a directory may also hold *.sql: extra seed)
 #
 # Several directories are merged (captured first or synthetic first: files replay in name order, and
 # synthetic ones are named to sort before captured ones). After the real run it replays a copy with one
@@ -22,8 +22,10 @@ TAG="hte-replay-$$"
 WORK="$(mktemp -d)"
 FIXTURES="$WORK/fixtures"
 mkdir -p "$FIXTURES"
+mkdir -p "$WORK/sql"
 for d in "$@"; do
-  cp -p "$d"/*.json "$FIXTURES"/ </dev/null
+  find "$d" -maxdepth 1 -name '*.json' -exec cp -p {} "$FIXTURES"/ \; </dev/null
+  find "$d" -maxdepth 1 -name '*.sql' -exec cp -p {} "$WORK/sql"/ \; </dev/null   # extra seed, applied in name order
 done
 
 cleanup() {
@@ -46,6 +48,7 @@ console scan /fixtures || { echo "scan found leftovers: not replaying" >&2; exit
 
 echo "== starting a throwaway PHP console ($PHP_IMAGE), empty /data, no ID server"
 mkdir -p "$WORK/data"
+chmod 777 "$WORK" "$WORK/data" </dev/null   # throwaway: the PHP user must be able to write beside the database
 docker run -d --name "$TAG-php" --network "$TAG" -v "$WORK/data:/data" \
   -e CORTENDESK_EMBEDDED_SERVER=false -e APP_ENV=production -e APP_DEBUG=false \
   "$PHP_IMAGE" </dev/null >/dev/null
@@ -60,6 +63,12 @@ echo "== seeding the database with placeholders"
 console seed-sql /fixtures > "$WORK/seed.sql"
 docker cp "$WORK/seed.sql" "$TAG-php:/tmp/seed.sql" </dev/null
 docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/seed.sql")); echo "seeded\n";' </dev/null
+
+for f in "$WORK"/sql/*.sql; do
+  [ -e "$f" ] || continue
+  docker cp "$f" "$TAG-php:/tmp/extra.sql" </dev/null
+  docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/extra.sql")); echo "extra seed ok\n";' </dev/null
+done
 
 echo "== replaying"
 set +e
