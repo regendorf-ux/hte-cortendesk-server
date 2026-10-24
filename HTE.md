@@ -21,7 +21,7 @@ answers nothing itself. Its own image (`ghcr.io/regendorf-ux/hte-console`) is bu
 0.0.2 (same day): plain status tokens (`SYSINFO_UPDATED`, `ID_NOT_FOUND`) are recorded and compared as text; replay classifies
 a reply by the capture's own rules (an empty 200 matches an empty 200); the replay database's user has a high id
 (the image's first start already creates user 1); `replay.sh` takes several fixture directories and checks that a
-deliberately changed fixture is caught; `fixtures/synthetic/` holds eight fixtures written from the PHP source. `replay.sh` also applies `*.sql` found in the directories it is given (`fixtures/seed/strategy.sql`: the default strategy the live console delivers).
+deliberately changed fixture is caught; `fixtures/synthetic/` holds eight fixtures written from the PHP source. `replay.sh` also applies `*.sql` found in the directories it is given and derives the default strategy from the captured answers.
 
 Touches upstream files in one place: `Cargo.toml` lists `hte-console` as a workspace member (hbbs and hbbr do not
 depend on it and build as before; `Cargo.lock` gains the new crate's dependencies). `hte-image.yml` is unchanged

@@ -41,6 +41,20 @@ console() { # run one hte-console subcommand with $FIXTURES mounted read-only
     "$CONSOLE_IMAGE" "$@" </dev/null
 }
 
+summary() { # one line per endpoint and kind: how many fixtures, how many matched, how many differ
+  echo "== per kind"
+  printf '%-10s %-10s %6s %6s %6s\n' endpoint kind total match differ
+  for ep in heartbeat sysinfo audit; do
+    for kind in captured synthetic; do
+      if [ "$kind" = synthetic ]; then pat='^0000000000000-'; else pat='^[1-9]'; fi
+      total="$(ls "$FIXTURES" | grep -E "$pat" | grep -c "api_${ep}" || true)"
+      differ="$(grep -E '^[0-9]{13}-[0-9]{6}-.*\.json: ' "$1" | cut -d: -f1 | sort -u | grep -E "$pat" | grep -c "api_${ep}" || true)"
+      [ "$total" -gt 0 ] || continue
+      printf '%-10s %-10s %6s %6s %6s\n' "$ep" "$kind" "$total" "$((total - differ))" "$differ"
+    done
+  done
+}
+
 docker network create "$TAG" </dev/null >/dev/null
 
 echo "== fixtures are clean?"
@@ -64,17 +78,37 @@ console seed-sql /fixtures > "$WORK/seed.sql"
 docker cp "$WORK/seed.sql" "$TAG-php:/tmp/seed.sql" </dev/null
 docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/seed.sql")); echo "seeded\n";' </dev/null
 
+# The strategy the captured answers imply: any heartbeat answer that carries strategy.config_options means
+# the device was under a policy. Seed one default, enforcing strategy with exactly those options.
+python3 - "$FIXTURES" > "$WORK/sql/00-strategy-from-fixtures.sql" <<'PY'
+import glob, json, sys
+opts = None
+for f in sorted(glob.glob(sys.argv[1] + "/*.json")):
+    fx = json.load(open(f))
+    v = fx.get("response", {}).get("body", {}).get("value")
+    if isinstance(v, dict) and isinstance(v.get("strategy"), dict) and v["strategy"].get("config_options"):
+        opts = v["strategy"]["config_options"]
+        break
+if opts:
+    o = json.dumps(opts).replace("'", "''")
+    print("INSERT INTO strategies (name, enabled, is_default, enforce, options, created_at, updated_at) "
+          f"VALUES ('text-seed0001', 1, 1, 1, '{o}', datetime('now'), datetime('now'));")
+    print("UPDATE devices SET strategy_id_resolved = (SELECT id FROM strategies WHERE name = 'text-seed0001');")
+PY
+
 for f in "$WORK"/sql/*.sql; do
-  [ -e "$f" ] || continue
+  [ -s "$f" ] || continue
   docker cp "$f" "$TAG-php:/tmp/extra.sql" </dev/null
   docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec(file_get_contents("/tmp/extra.sql")); echo "extra seed ok\n";' </dev/null
 done
 
 echo "== replaying"
 set +e
-console replay /fixtures "http://$TAG-php:8080"
+console replay /fixtures "http://$TAG-php:8080" > "$WORK/replay.out"
 status=$?
 set -e
+cat "$WORK/replay.out"
+summary "$WORK/replay.out"
 
 echo "== proving the replay notices a change (this run must report a difference)"
 cp -a "$FIXTURES" "$WORK/tampered" </dev/null
@@ -82,9 +116,10 @@ victim="$(ls "$WORK/tampered" </dev/null | grep -m1 'api_sysinfo-new-device' || 
 sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": 200/"status": 418/' "$WORK/tampered/$victim" </dev/null
 saved="$FIXTURES"; FIXTURES="$WORK/tampered"
 set +e
-console replay /fixtures "http://$TAG-php:8080" | head -5
-caught=${PIPESTATUS[0]}
+console replay /fixtures "http://$TAG-php:8080" > "$WORK/tamper.out"
+caught=$?
 set -e
+head -5 "$WORK/tamper.out"
 FIXTURES="$saved"
 if [ "$caught" -ne 1 ]; then echo "THE REPLAY DID NOT NOTICE A CHANGED FIXTURE" >&2; exit 2; fi
 echo "caught, as it should"
