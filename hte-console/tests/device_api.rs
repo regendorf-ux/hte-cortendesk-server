@@ -460,10 +460,18 @@ async fn methods_bodies_and_rate_limits() {
     let r = h.send("GET", "/api/version", None, vec![], "203.0.113.9").await;
     assert_eq!((r.status, r.body.as_str(), r.ct.as_str()), (200, "1.15.0-hte.1", "text/html; charset=UTF-8"));
     assert_eq!(h.send("POST", "/api/version", None, vec![], "203.0.113.9").await.status, 405);
-    // bodies are bounded
-    let big = format!("{{\"id\":\"1\",\"x\":\"{}\"}}", "a".repeat(2 << 20));
-    let r = h.post_raw("/api/heartbeat", &big).await;
-    assert_eq!((r.status, r.json()), (413, json!({"message": "The POST data is too large."})));
+    // bodies are bounded: answered from the declared length, before any of the body is read (raw socket: a client
+    // still uploading 2 MiB may see the connection close under it, which would make this test racy)
+    {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+        let mut s = tokio::net::TcpStream::connect(h.url.trim_start_matches("http://")).await.unwrap();
+        s.write_all(b"POST /api/heartbeat HTTP/1.1\r\nhost: x\r\ncontent-type: application/json\r\ncontent-length: 2097152\r\n\r\n").await.unwrap();
+        let mut buf = vec![0u8; 4096];
+        let n = s.read(&mut buf).await.unwrap();
+        let text = String::from_utf8_lossy(&buf[..n]);
+        assert!(text.starts_with("HTTP/1.1 413"), "{text}");
+        assert!(text.contains(r#"{"message":"The POST data is too large."}"#), "{text}");
+    }
     // 120 a minute per device and address, then 429 until the window ends
     for _ in 0..120 {
         assert_eq!(h.post("/api/heartbeat", json!({"id": "990000001"})).await.status, 200);
