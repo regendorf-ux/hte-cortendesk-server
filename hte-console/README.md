@@ -36,7 +36,7 @@ Environment (nothing HTE-specific is in this repository):
 | `HTE_CONSOLE_DATABASE` | the PHP console's SQLite file (`/data/cortendesk.sqlite`); setting it turns the device endpoints on |
 | `APP_KEY` or `HTE_CONSOLE_APP_KEY_FILE` | Laravel's app key, as the PHP image reads it (env first, else `/data/.app_key`) |
 | `HTE_CONSOLE_HBBS_DB` | hbbs's database for device keys, read only; default `/data/rustdesk/db_v2.sqlite3` |
-| `HTE_CONSOLE_TRUSTED_PROXIES` | else `TRUSTED_PROXIES`, else PHP's default `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16` |
+| `HTE_CONSOLE_TRUSTED_PROXIES` | else `TRUSTED_PROXIES`, else PHP's default `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`. Read as PHP reads it: addresses and ranges, `*` alone (every peer), `REMOTE_ADDR` (the request's own peer), `PRIVATE_SUBNETS` (Symfony's list); other entries trust nothing and are named in a warning at start |
 | `HTE_CONSOLE_API_VERSION` | what `/api/version` says; else `CORTENDESK_API_VERSION`, else `1.15.0-hte.1` |
 | `HTE_CONSOLE_DEVICE_MAX_BODY_BYTES` | default 1048576 |
 | `HTE_CONSOLE_DB_BUSY_MS` | how long a write waits for PHP's lock, default 10000 |
@@ -72,4 +72,16 @@ what PHP would.
 Known differences, none visible to a RustDesk client: multipart bodies are not parsed (PHP would read their fields);
 Apprise notifications (device online, pending approval, alarms) are not sent (HTE has Apprise off; `serve` warns at
 start when `apprise_enabled` is 1); rate limits and audit nonces live in this process's memory (PHP keeps them in its
-file cache), so a restart forgets them, as a PHP container restart does.
+file cache), so a restart forgets them, as a PHP container restart does, and under a flood of more than 100 000
+limiter keys (250 000 nonces) in one window the oldest are forgotten early instead of memory growing.
+
+Known differences that depend on configuration HTE does not use:
+
+- An empty `TRUSTED_PROXIES` (set, but to nothing) means PHP's default list here; PHP itself would then trust no
+  proxy and record every device at Caddy's address. Leave it unset, or set it to the list wanted.
+- Laravel's `APP_PREVIOUS_KEYS` is not read: after an `APP_KEY` rotation that keeps the old key there, PHP still opens
+  passwords encrypted with the old key, hte-console answers those heartbeats with a 500. Rotate the key with PHP
+  answering the device endpoints (phase 1 rollback), or re-encrypt first.
+- The older offline marker in PHP's file cache (`apprise:device-offline:<sha1 of id>`, from before the
+  `device_presence_notification_states` table) is not consulted when a device comes back; only the table row is.
+  It only matters for Apprise offline alerts, which HTE does not send.
