@@ -590,3 +590,26 @@ async fn random_input_never_panics() {
         }
     }
 }
+
+// ----------------------------------------------------------------------------------------------- replay ---
+
+/// The replay runner against this service, with the synthetic fixtures (the PHP half of the comparison runs in
+/// replay/replay.sh against a throwaway PHP console).
+#[tokio::test]
+async fn synthetic_fixtures_replay_clean_against_the_native_service() {
+    let h = harness().await;
+    let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/synthetic");
+    let s = hte_console::sanitise::Sanitiser::new(Some("any salt"), &[]);
+    let report = hte_console::replay::run(&dir, &h.url, &s).await.unwrap();
+    assert_eq!(report.skipped, 0);
+    assert!(report.total >= 24, "{} fixtures", report.total);
+    assert!(report.differences.is_empty(), "{:#?}", report.differences);
+    // and the writes the fixtures imply
+    assert_eq!(h.one::<String>("select hostname from devices where rustdesk_id = '990000001'"), "host-00000002");
+    assert_eq!(h.count("devices where rustdesk_id = '990000005'"), 0);
+    let row: (String, String, String) =
+        h.db().query_row("select action, session_id, note from audit_connections where conn_id = 7001", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
+    assert_eq!(row, ("close".into(), "18446744073709551615".into(), "text-00000008".into()));
+    assert_eq!(h.count("audit_connections where conn_id = 7002"), 0, "the reused nonce wrote nothing");
+    assert_eq!(h.count("audit_connections where conn_id = 7003"), 1, "the retry after the failed write did");
+}

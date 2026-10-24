@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 9,
+  "synthetic": true,
+  "source": "SyncController heartbeat. The device-sync limiter casts the id to a string; an array throws (Array to string conversion), Laravel answers 500",
+  "method": "POST",
+  "path": "/api/heartbeat",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": [
+          "990000001"
+        ],
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA=="
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

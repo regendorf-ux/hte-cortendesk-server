@@ -1,0 +1,39 @@
+{
+  "format": 1,
+  "seq": 20,
+  "synthetic": true,
+  "source": "AuditController file: an array info throws outside once(): 500",
+  "method": "POST",
+  "path": "/api/audit/file",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001",
+        "info": [
+          "x"
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

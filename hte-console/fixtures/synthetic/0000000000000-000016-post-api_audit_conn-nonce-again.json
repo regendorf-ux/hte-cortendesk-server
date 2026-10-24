@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 16,
+  "synthetic": true,
+  "source": "AuditController once(): a nonce seen in the last 5 minutes (the one of 005) is answered as stored and not written",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "action": "new",
+        "id": "990000001",
+        "conn_id": 7002,
+        "session_id": 0,
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "nonce": "text-00000001"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

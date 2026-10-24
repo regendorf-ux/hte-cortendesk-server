@@ -1,0 +1,30 @@
+{
+  "format": 1,
+  "seq": 24,
+  "synthetic": true,
+  "source": "routes/api.php version: the console version as text (the body is not compared, it is not a status token)",
+  "method": "GET",
+  "path": "/api/version",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "omitted",
+      "len": 12
+    }
+  }
+}

@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 13,
+  "synthetic": true,
+  "source": "SyncController sysinfo. Casting an array hostname to a string throws before the device is created: 500, nothing stored",
+  "method": "POST",
+  "path": "/api/sysinfo",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000005",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "hostname": {
+          "a": 1
+        }
+      }
+    }
+  },
+  "response": {
+    "status": 500,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Server Error"
+      }
+    }
+  }
+}

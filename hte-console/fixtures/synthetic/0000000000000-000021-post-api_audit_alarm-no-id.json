@@ -1,0 +1,32 @@
+{
+  "format": 1,
+  "seq": 21,
+  "synthetic": true,
+  "source": "AuditController alarm without an id: stored, nothing written",
+  "method": "POST",
+  "path": "/api/audit/alarm",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "typ": 1,
+        "info": "text-0000000b"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

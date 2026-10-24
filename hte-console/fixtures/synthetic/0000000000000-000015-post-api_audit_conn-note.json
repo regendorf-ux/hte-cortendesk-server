@@ -1,0 +1,33 @@
+{
+  "format": 1,
+  "seq": 15,
+  "synthetic": true,
+  "source": "AuditController legacyNote: a note and no conn_id, tokenless, written to the remote-control row with this session_id",
+  "method": "POST",
+  "path": "/api/audit/conn",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001",
+        "session_id": 18446744073709551615,
+        "note": "text-00000008"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

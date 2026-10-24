@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 22,
+  "synthetic": true,
+  "source": "SyncController sysinfo for the known device of 001 with the same uuid: changed fields updated, registered_ip kept",
+  "method": "POST",
+  "path": "/api/sysinfo",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "*/*",
+      "x-forwarded-for": "198.18.0.7",
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000001",
+        "uuid": "UExBQ0VIT0xERVIhAAAAAA==",
+        "cpu": "Placeholder CPU",
+        "memory": "32.0GB",
+        "os": "windows / Windows 11",
+        "hostname": "host-00000002",
+        "username": "user-00000001",
+        "version": "1.5.0"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "text/html; charset=UTF-8"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "text",
+      "text": "SYSINFO_UPDATED"
+    }
+  }
+}
