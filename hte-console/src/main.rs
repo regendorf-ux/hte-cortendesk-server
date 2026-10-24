@@ -6,7 +6,7 @@
 //!   hte-console seed-sql <dir>            SQL (placeholders only) for the replay database
 
 use hte_console::config::Config;
-use hte_console::{fixture, proxy, replay, sanitise, seed};
+use hte_console::{api, fixture, proxy, replay, sanitise, seed};
 use std::path::PathBuf;
 use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
@@ -60,18 +60,34 @@ async fn serve() -> i32 {
         Ok(l) => l,
         Err(e) => return fail(&format!("cannot listen on {}: {e}", cfg.listen)),
     };
+    let native = match &cfg.native {
+        None => None,
+        Some(n) => match api::Native::open(n) {
+            Ok(x) => Some(Arc::new(x)),
+            Err(e) => return fail(&e),
+        },
+    };
     tracing::info!(
-        "hte-console shadow listening on {}; recording {}",
+        "hte-console listening on {}; device endpoints {}; other paths {}; recording {}",
         cfg.listen,
+        if native.is_some() { "answered here" } else { "forwarded" },
+        if cfg.upstream.is_empty() { "404" } else { "forwarded" },
         if cfg.fixtures.is_some() { "on" } else { "off" }
     );
-    let app = Arc::new(proxy::App {
-        client: proxy::build_client(&cfg),
-        sanitiser: sanitiser_from_env(),
-        seq: AtomicU64::new(0),
-        cfg,
+    let shadow = (!cfg.upstream.is_empty()).then(|| {
+        proxy::router(Arc::new(proxy::App {
+            client: proxy::build_client(&cfg),
+            sanitiser: sanitiser_from_env(),
+            seq: AtomicU64::new(0),
+            cfg: cfg.clone(),
+        }))
     });
-    let svc = proxy::router(app).into_make_service_with_connect_info::<std::net::SocketAddr>();
+    let app = match (native, shadow) {
+        (Some(n), fallback) => api::router(n, fallback),
+        (None, Some(s)) => s,
+        (None, None) => return fail("nothing to serve: set HTE_CONSOLE_UPSTREAM or HTE_CONSOLE_DATABASE"),
+    };
+    let svc = app.into_make_service_with_connect_info::<std::net::SocketAddr>();
     let shutdown = async {
         let _ = tokio::signal::ctrl_c().await;
     };

@@ -42,6 +42,7 @@ async fn shadow(upstream: String, dir: Option<std::path::PathBuf>, timeout: u64)
         connect_timeout: Duration::from_secs(1),
         request_timeout: Duration::from_secs(timeout),
         max_body: 1 << 20,
+        native: None,
     };
     let app = Arc::new(App {
         client: build_client(&cfg),
