@@ -124,9 +124,10 @@ fn rawurldecode(s: &[u8]) -> Vec<u8> {
 /// Laravel's `UriValidator`: `rtrim($path, '/') ?: '/'`, decoded, against each route's pattern; the first route that
 /// matches the URI and the method wins; with none for the method, the methods of the routes that match the URI.
 fn lookup(method: &str, raw_path: &[u8]) -> Lookup {
-    let decoded = rawurldecode(raw_path);
-    let end = decoded.iter().rposition(|&c| c != b'/').map_or(0, |i| i + 1);
-    let path: &[u8] = if end == 0 { b"/" } else { &decoded[..end] };
+    // rtrim on the raw path first, rawurldecode after (a trailing %2F is a segment character, not a slash to trim)
+    let end = raw_path.iter().rposition(|&c| c != b'/').map_or(0, |i| i + 1);
+    let decoded = rawurldecode(if end == 0 { b"/" } else { &raw_path[..end] });
+    let path: &[u8] = &decoded;
     let segs: Vec<&[u8]> = path.split(|&c| c == b'/').collect();
     let mut allowed: Vec<&'static str> = vec![];
     for (m, pattern, r) in ROUTES {
@@ -179,10 +180,10 @@ pub fn mount(r: Router<Arc<Native>>) -> Router<Arc<Native>> {
     r
 }
 
-/// The largest body a client endpoint reads (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, default 8 MiB: a whole legacy
+/// The largest body a client endpoint reads (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, default 2 MiB: a whole legacy
 /// address book is pushed at once).
 fn max_body() -> usize {
-    std::env::var("HTE_CONSOLE_CLIENT_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(8 * 1024 * 1024)
+    std::env::var("HTE_CONSOLE_CLIENT_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(2 * 1024 * 1024)
 }
 
 fn page(status: u16, html: String, head: bool) -> Response<Body> {
@@ -389,7 +390,12 @@ fn tag_ids_of(r: &Row) -> Result<Arr, Fault> {
     match laravel::from_json(&r.val("tag_ids")) {
         Val::Null => Ok(Arr::new()),
         Val::Arr(a) => Ok(a),
-        _ => Err(Fault::Other("tag_ids is not an array".into())),
+        // `whereIn('id', $scalar)` and friends cast with (array)
+        v => {
+            let mut a = Arr::new();
+            a.push(v);
+            Ok(a)
+        }
     }
 }
 
@@ -399,8 +405,9 @@ fn key_of(v: &Val) -> Result<Key, Fault> {
         Val::Null => Key::Str(vec![]),
         Val::Bool(b) => Key::Int(*b as i64),
         Val::Int(i) => Key::Int(*i),
-        Val::Float(f) if f.fract() == 0.0 && f.is_finite() => Key::Int(*f as i64),
-        Val::Float(_) => return Err(Fault::Other("float offset with a fraction".into())),
+        // PHP 8.1+: a fractional float offset is truncated (E_DEPRECATED only, which Laravel logs and does not throw)
+        Val::Float(f) if f.is_finite() => Key::Int(f.trunc() as i64),
+        Val::Float(_) => return Err(Fault::Other("non-finite float offset".into())),
         Val::Str(s) => Key::from_bytes(s),
         Val::Arr(_) => return Err(Fault::Other("illegal offset type".into())),
     })
@@ -1261,6 +1268,12 @@ impl Cx<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_trailing_encoded_slash_is_not_trimmed() {
+        assert_eq!(lookup("POST", b"/api/ab/tags/x%2F"), Lookup::NoRoute);
+        assert!(matches!(lookup("POST", b"/api/ab/tags/x/"), Lookup::Found(R::AbTags, _)));
+    }
 
     #[test]
     fn lookup_follows_laravel() {

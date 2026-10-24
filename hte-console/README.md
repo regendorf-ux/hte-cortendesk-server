@@ -56,7 +56,7 @@ Environment (nothing HTE-specific is in this repository):
 | `CORTENDESK_OIDC_DISABLED` | PHP's kill switch for SSO, read the same way (`true`/`1`/`on`/`yes`) |
 | `BCRYPT_ROUNDS` | cost of new bcrypt hashes (provisioned accounts), as Laravel (default 12) |
 | `HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES` | default 65536 |
-| `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES` | phase 4: default 8388608 (the legacy address book is pushed whole) |
+| `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES` | phase 4: default 2097152 (the legacy address book is pushed whole) |
 | `HTE_CONSOLE_ID_SERVER`, `HTE_CONSOLE_PUBLIC_KEY` | phase 4: what `/api/server-config` says when the settings table has no `id_server`/`public_key` (else `CORTENDESK_ID_SERVER`, `CORTENDESK_PUBLIC_KEY`) |
 | `HTE_CONSOLE_OIDC_ALLOW_HTTP` | `1` lets the identity provider be plain http: the replay's fake provider only, never on the server |
 
@@ -208,7 +208,7 @@ window, a form-encoded PUT, the non-transactional push, the note length, the log
 
 | | PHP 1.15.0-hte.1 | hte-console |
 |---|---|---|
-| request bodies | PHP's limit | 8 MiB on these routes (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`: a whole legacy book is pushed at once), 413 over it |
+| request bodies | PHP's limit | 2 MiB on these routes (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`: a whole legacy book is pushed at once), 413 over it |
 | `GET /webclient-config/index.js` | Laravel's web group: session and XSRF cookies | no cookies (the script uses none); the origin is `HTE_CONSOLE_PUBLIC_URL` when set, else built from the request as the sign-in pages are |
 | `tm` in `/api/server-config` peers | `now()->subDay()` precise timestamp, whole seconds | whole seconds as well; the replay masks it |
 | a form-encoded `PUT`/`DELETE` body | read by Laravel | read the same way (clients send JSON) |

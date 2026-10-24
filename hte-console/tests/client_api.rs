@@ -201,8 +201,11 @@ async fn options_and_preflight_are_answered_as_laravel_does() {
 #[tokio::test(flavor = "multi_thread")]
 async fn a_body_over_the_cap_is_413_and_nothing_is_written() {
     let h = harness().await;
-    let big = vec![b'x'; 9 * 1024 * 1024];
-    // the refusal comes from the declared length, before the body is read: the sender may see 413 or a closed socket
+    // a valid push that would replace the book if it were read, over the 2 MiB default cap
+    let peers: Vec<Value> = (0..30_000).map(|i| json!({"id": format!("97{i:07}"), "alias": "x".repeat(60)})).collect();
+    let big = json!({"data": json!({"tags": [], "peers": peers, "tag_colors": ""}).to_string()}).to_string().into_bytes();
+    assert!(big.len() > 2 * 1024 * 1024);
+    // the refusal comes from the declared length, before the body is read: the sender sees 413 or a closed socket
     let sent = h
         .client
         .post(format!("{}/api/ab", h.url))
