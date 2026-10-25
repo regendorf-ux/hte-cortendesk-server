@@ -970,6 +970,11 @@ async fn the_replay_writes_run_on_hte_console() {
     assert_eq!(h.text("select value from settings where key = 'backup_keep_daily'"), "3");
     assert_eq!(h.text("select value from settings where key = 'log_retention_days'"), "30");
     assert_eq!(h.text("select note from devices where id = 1"), "Reception desk, left monitor");
+    // 7c: roles
+    assert_eq!(h.text("select permissions from roles where name = 'Helpdesk'"), r#"{"device":"r","user":"none","group":"none","address_book":"rw","audit":"r","strategy":"none","setting":"rw","token":"none"}"#);
+    assert_eq!(h.count("roles where id = 1"), 0);
+    assert_eq!(h.count("users where id = 3 and role_id is null"), 1);
+    assert_eq!(h.count("console_audits where action like 'role.%'"), 3);
 }
 
 /// Every dialog the replay opens (`pagereplay::dialogs`) answers 200 and shows its dialog.
@@ -986,7 +991,7 @@ async fn the_dialogs_the_replay_opens() {
     for q in [
         "/strategies?create=1", "/strategies?edit=1", "/strategies?assign=1", "/strategies?history=1", "/strategies?compliance=1", "/strategies?delete=1",
         "/users?create=1", "/users?edit=2", "/users?assign=2", "/groups?tab=devices&create=1", "/groups?tab=users&create=1", "/groups?tab=devices&edit=2",
-        "/devices?create=1", "/devices?delete=1", "/devices/1?edit=1", "/devices/1?delete=1",
+        "/devices?create=1", "/devices?delete=1", "/devices/1?edit=1", "/devices/1?delete=1", "/roles?create=1", "/roles?edit=1",
     ] {
         let r = h.get(q, &cookie).await;
         assert_eq!(r.status, 200, "{q}: {}", &r.body[..r.body.len().min(400)]);

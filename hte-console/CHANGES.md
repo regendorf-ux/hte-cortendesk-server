@@ -2,7 +2,23 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## Next (not yet tagged)
+## 0.7.19 (2026-10-25): phase 7c, the console pages that still ran on PHP
+- **Fleet diagnostics** (`/diagnostics`, `/diagnostics/export`): PHP's `FleetDiagnostics` report and page, the same queries, text and
+  classes; the sanitised JSON download with PHP's pretty print. The scheduler card reads the heartbeat hte-console's own
+  `diagnostics` sweep writes; the ID server link card reads the pull marker hte-console's policy endpoint leaves; the ID and
+  relay TCP probes (one second each) run side by side, so the page holds the database lock for at most about a second.
+- **Roles** (`/roles`, `/roles/save`, `/roles/delete`): list, create, edit, delete as `RoleList`: super-admin only (a redirect
+  with "That section is restricted to administrators." for the page, 403 for a write), the same validation and messages, the
+  matrix normalised and stored as Eloquent's `array` cast stores it, `role.create`/`role.update`/`role.delete` audit rows with
+  PHP's summaries; a deleted role's holders fall back to the standard-user baseline. The pages 7b ported already read the
+  same column the same way (`Ctx::allows`). The dialog's desktop radios and phone selects send only the set on screen.
+- **Health**: `/health/live`, `/health/ready` (database, ID server, every relay; 503 when not ready), `/up` (Laravel's page
+  without its external font and script).
+- Not used at HTE and not ported: `/downloads`, `/downloads/{id}`, `/storage/*` answer 404; `/client-downloads` and `/setup`
+  keep the "not available yet" page. PHP's own backup link `/settings/backups/{name}` leads to `/settings/backups/download?name=`.
+- Replay: Diagnostics, its JSON (clock and probe latency masked), Roles and the health JSON for every person; the New/Edit
+  Role dialogs; writes: create a role, a taken name, edit, delete a role someone holds. The seed adds an ID and a relay
+  server that refuse at once on both sides.
 - `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.
 
 ## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP
