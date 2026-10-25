@@ -33,7 +33,7 @@ impl St {
             book: qint(req, "selectedBookId"),
             none: q(req, "selectedBookId") == "0",
             search: q(req, "search"),
-            page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).unwrap_or(1),
+            page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).map_or(1, |n| n.min(1_000_000_000)),
         }
     }
 

@@ -30,7 +30,7 @@ impl St {
             let v = q(req, k);
             if ok.contains(&v.as_str()) { v } else { "all".into() }
         };
-        St { search: q(req, "search"), role: pick("role", &["admin", "user"]), status: pick("status", &["active", "disabled"]), page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).unwrap_or(1) }
+        St { search: q(req, "search"), role: pick("role", &["admin", "user"]), status: pick("status", &["active", "disabled"]), page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).map_or(1, |n| n.min(1_000_000_000)) }
     }
 
     fn query(&self) -> String {

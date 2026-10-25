@@ -271,6 +271,8 @@ pub fn act(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         db::exec(c, r#"update "devices" set "device_group_id" = ?, "updated_at" = ? where "device_group_id" = ? and "devices"."deleted_at" is null"#, &[P(Val::Null), P(Val::str(&crate::laravel::ts(ctx.now))), P(Val::Int(id))])?;
         purge_for(c, "device_group", id)?;
         db::exec(c, r#"delete from "device_groups" where "id" = ?"#, &[P(Val::Int(id))])?;
+        // DeviceGroup::booted(): deleted => Strategy::recomputeAll()
+        recompute_all(c, ctx.now)?;
     } else {
         db::exec(c, r#"delete from "user_group_user" where "user_group_id" = ?"#, &[P(Val::Int(id))])?;
         db::exec(c, r#"delete from "device_group_user_group" where "user_group_id" = ?"#, &[P(Val::Int(id))])?;

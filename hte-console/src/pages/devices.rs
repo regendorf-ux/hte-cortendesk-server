@@ -71,7 +71,7 @@ impl St {
             owner: qint(req, "owner"),
             trashed: flag("trashed"),
             pending: flag("pending"),
-            page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).unwrap_or(1),
+            page: q(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).map_or(1, |n| n.min(1_000_000_000)),
         }
     }
 

@@ -568,7 +568,7 @@ fn reply_to_response(ctx: &Ctx, r: Reply, head: bool) -> Response<Body> {
         Reply::Json(status, body) => Response::builder()
             .status(StatusCode::from_u16(status).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR))
             .header(header::CONTENT_TYPE, "application/json")
-            .header(header::CACHE_CONTROL, "no-cache, private")
+            .header(header::CACHE_CONTROL, "no-store, private")
             .body(if head { Body::empty() } else { Body::from(body) })
             .unwrap(),
         Reply::Csv { filename, body } => Response::builder()

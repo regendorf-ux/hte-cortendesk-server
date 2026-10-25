@@ -762,7 +762,7 @@ async fn the_web_client() {
     let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", "1001")]).await;
     assert_eq!(r.status, 200, "{}", r.body);
     assert_eq!(serde_json::from_str::<serde_json::Value>(&r.body).unwrap()["password"], "Zq7-managed-PASSWORD");
-    assert!(r.headers.get("cache-control").unwrap().to_str().unwrap().contains("no-cache"));
+    assert!(r.headers.get("cache-control").unwrap().to_str().unwrap().contains("no-store"));
     for id in ["1002", "1004", "1003", "9999", ""] {
         let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", id)]).await;
         assert_eq!(r.status, 404, "{id}: {}", r.body);
