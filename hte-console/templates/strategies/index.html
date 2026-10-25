@@ -1,0 +1,271 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+<div class="card">
+    <div class="rd-toolbar">
+        <div>
+            <h4 class="header-title">Strategies</h4>
+            <p class="rd-card-sub mb-0">Named sets of client options, delivered to the devices they are assigned to. A device takes the first enabled strategy from: its own assignment, its owner, its device group, then the default.</p>
+        </div>
+        {% if can_manage %}<div class="rd-toolbar-actions"><a href="/strategies?create=1" class="btn btn-primary"><i class="ri-add-line"></i>Add Strategy</a></div>{% endif %}
+    </div>
+    {% if no_default %}
+    <div class="alert alert-warning mx-3"><i class="ri-error-warning-line me-1"></i>No strategy is the default, so a device with no assignment receives no managed options.</div>
+    {% endif %}
+    <div class="table-responsive">
+        <table class="table table-hover table-centered mb-0">
+            <thead><tr><th>Name</th><th>Options</th><th>Assigned to</th><th>In force on</th><th>Enabled</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+            {% for s in strategies %}
+                <tr>
+                    <td>
+                        <span class="fw-semibold">{{ s.name }}</span>
+                        {% if s.is_default %}<span class="badge bg-primary-subtle text-primary ms-1">Default</span>{% endif %}
+                        {% if s.enforce %}<span class="badge bg-warning-subtle text-warning ms-1">Enforced</span>{% endif %}
+                        {% if s.note %}<div class="text-muted small">{{ s.note }}</div>{% endif %}
+                    </td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ s.options }}</span></td>
+                    <td class="small">{{ s.devices }} device{{ '' if s.devices == 1 else 's' }}, {{ s.users }} user{{ '' if s.users == 1 else 's' }}, {{ s.groups }} group{{ '' if s.groups == 1 else 's' }}</td>
+                    <td><span class="badge bg-info-subtle text-info">{{ s.resolved }}</span></td>
+                    <td>
+                        {% if can_manage %}
+                        <form method="post" action="/strategies/toggle" class="d-inline">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ s.id }}">
+                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" aria-label="Enabled"{{ ' checked' if s.enabled else '' }} data-rd-autosubmit-box></div>
+                        </form>
+                        {% else %}{{ 'Yes' if s.enabled else 'No' }}{% endif %}
+                    </td>
+                    <td class="text-end rd-rowact">
+                        {% if can_manage %}<a href="/strategies?edit={{ s.id }}" class="rd-act me-2">Edit</a><a href="/strategies?assign={{ s.id }}" class="rd-act me-2">Assign</a>{% endif %}
+                        <a href="/strategies?history={{ s.id }}" class="rd-act me-2">History</a>
+                        {% if is_admin %}<a href="/strategies?compliance={{ s.id }}" class="rd-act me-2">Compliance</a>{% endif %}
+                        {% if can_manage %}<a href="/strategies?delete={{ s.id }}" class="rd-act text-danger">Delete</a>{% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr><td colspan="6" class="text-center text-muted py-4">No strategies yet.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+{% set d = dialog %}
+{% if d.kind == "editor" %}
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div class="modal-content">
+            <form method="post" action="/strategies/preview">
+                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ d.form.id }}">
+                <div class="modal-header"><h5 class="modal-title">{{ d.title }}</h5><a href="/strategies" class="btn-close" aria-label="Close"></a></div>
+                <div class="modal-body">
+                    <div class="row g-3 mb-3">
+                        <div class="col-md-6">
+                            <label class="form-label" for="st-name">Name</label>
+                            <input type="text" id="st-name" name="name" value="{{ d.form.name }}" class="form-control{{ ' is-invalid' if d.errors.name else '' }}" autocomplete="off">
+                            {% if d.errors.name %}<div class="invalid-feedback">{{ d.errors.name }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label" for="st-note">Note</label>
+                            <input type="text" id="st-note" name="note" value="{{ d.form.note }}" class="form-control{{ ' is-invalid' if d.errors.note else '' }}" autocomplete="off">
+                            {% if d.errors.note %}<div class="invalid-feedback">{{ d.errors.note }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="st-enabled" name="enabled" value="1"{{ ' checked' if d.form.enabled else '' }}><label class="form-check-label" for="st-enabled">Enabled</label></div></div>
+                        <div class="col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="st-default" name="is_default" value="1"{{ ' checked' if d.form.is_default else '' }}><label class="form-check-label" for="st-default">Default strategy</label></div></div>
+                        <div class="col-md-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="st-enforce" name="enforce" value="1"{{ ' checked' if d.form.enforce else '' }}><label class="form-check-label" for="st-enforce">Enforce</label></div></div>
+                        <div class="col-md-3">
+                            <label class="form-label" for="st-timeout">Form confirmation timeout (minutes)</label>
+                            <input type="number" id="st-timeout" name="timeout" value="{{ d.form.timeout }}" class="form-control{{ ' is-invalid' if d.errors.timeout else '' }}">
+                            {% if d.errors.timeout %}<div class="invalid-feedback">{{ d.errors.timeout }}</div>{% endif %}
+                        </div>
+                    </div>
+                    {% for g in catalog %}
+                    <h6 class="mt-4"><i class="{{ g.icon }} me-1"></i>{{ g.title }}</h6>
+                    <p class="text-muted small">{{ g.help }}</p>
+                    <div class="row g-3">
+                        {% for opt in g.options %}
+                        <div class="col-md-6">
+                            <label class="form-label" for="st-opt-{{ opt.key }}">{{ opt.label }}</label>
+                            {% if opt.choices %}
+                            <select id="st-opt-{{ opt.key }}" name="opt_{{ opt.key }}" class="form-select{{ ' is-invalid' if d.opt_errors[opt.key] else '' }}">
+                                <option value=""{{ ' selected' if d.form.options[opt.key] == '' else '' }}>Not managed</option>
+                                {% for ch in opt.choices %}<option value="{{ ch.v }}"{{ ' selected' if d.form.options[opt.key] == ch.v else '' }}>{{ ch.l }}</option>{% endfor %}
+                            </select>
+                            {% else %}
+                            <input type="{{ 'number' if opt.key == 'auto-disconnect-timeout' else 'text' }}" id="st-opt-{{ opt.key }}" name="opt_{{ opt.key }}" value="{{ d.form.options[opt.key] }}" class="form-control{{ ' is-invalid' if d.opt_errors[opt.key] else '' }}" autocomplete="off">
+                            {% endif %}
+                            {% if d.opt_errors[opt.key] %}<div class="invalid-feedback d-block">{{ d.opt_errors[opt.key] }}</div>{% endif %}
+                            {% if opt.help %}<div class="form-text">{{ opt.help }}</div>{% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="mt-4">
+                        <label class="form-label" for="st-rnote">Revision note</label>
+                        <input type="text" id="st-rnote" name="revision_note" value="{{ d.form.revision_note }}" class="form-control{{ ' is-invalid' if d.errors.revision_note else '' }}" autocomplete="off">
+                        {% if d.errors.revision_note %}<div class="invalid-feedback">{{ d.errors.revision_note }}</div>{% endif %}
+                    </div>
+                </div>
+                <div class="modal-footer"><a href="/strategies" class="btn btn-light">Cancel</a><button type="submit" class="btn btn-primary">Review impact</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+{% endif %}
+
+{% if d.kind == "review" %}
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <form method="post" action="/strategies/confirm">
+                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                <input type="hidden" name="id" value="{{ d.form.id }}"><input type="hidden" name="delete_id" value="{{ d.form.delete_id }}"><input type="hidden" name="restore_id" value="{{ d.form.restore_id }}">
+                <input type="hidden" name="name" value="{{ d.form.name }}"><input type="hidden" name="note" value="{{ d.form.note }}">
+                {% if d.form.enabled %}<input type="hidden" name="enabled" value="1">{% endif %}
+                {% if d.form.is_default %}<input type="hidden" name="is_default" value="1">{% endif %}
+                {% if d.form.enforce %}<input type="hidden" name="enforce" value="1">{% endif %}
+                <input type="hidden" name="timeout" value="{{ d.form.timeout }}"><input type="hidden" name="revision_note" value="{{ d.form.revision_note }}">
+                {% for g in catalog %}{% for opt in g.options %}<input type="hidden" name="opt_{{ opt.key }}" value="{{ d.form.options[opt.key] }}">{% endfor %}{% endfor %}
+                <input type="hidden" name="fingerprint" value="{{ d.impact.fingerprint }}">
+                <div class="modal-header"><h5 class="modal-title">{{ d.title }}</h5><a href="/strategies" class="btn-close" aria-label="Close"></a></div>
+                <div class="modal-body">
+                    {% if d.error %}<div class="alert alert-danger">{{ d.error }}</div>{% endif %}
+                    <p><strong>{{ d.impact.count }}</strong> device{{ '' if d.impact.count == 1 else 's' }} would receive a different set of options.</p>
+                    {% if d.impact.dangerous %}
+                    <div class="alert alert-warning"><strong>Check these carefully:</strong>
+                        <ul class="mb-0">{% for x in d.impact.dangerous %}<li><code>{{ x.key }}</code> becomes <code>{{ x.after }}</code></li>{% endfor %}</ul>
+                    </div>
+                    {% endif %}
+                    {% if d.impact.resets %}<p class="small text-muted">Reset to the client's own setting: {{ d.impact.resets_line }}</p>{% endif %}
+                    {% if d.impact.metadata %}
+                    <h6>Details</h6>
+                    <table class="table table-sm"><tbody>{% for m in d.impact.metadata %}<tr><td>{{ m.label }}</td><td>{{ m.before }}</td><td>→</td><td>{{ m.after }}</td></tr>{% endfor %}</tbody></table>
+                    {% endif %}
+                    {% if d.impact.changes %}
+                    <h6>Options</h6>
+                    <table class="table table-sm"><tbody>{% for x in d.impact.changes %}<tr><td><code>{{ x.key }}</code></td><td>{{ x.before }}</td><td>→</td><td>{{ x.after }}</td></tr>{% endfor %}</tbody></table>
+                    {% endif %}
+                    {% if d.impact.sample %}
+                    <h6>Affected devices{% if d.impact.count > 50 %} (first 50){% endif %}</h6>
+                    <ul class="small mb-0">{% for x in d.impact.sample %}<li>{{ x.rustdesk_id }} — {{ x.label }} <span class="text-muted">({{ x.winning_level }})</span></li>{% endfor %}</ul>
+                    {% endif %}
+                </div>
+                <div class="modal-footer">
+                    {% if d.deleting or d.restoring %}<a href="/strategies" class="btn btn-light">Cancel</a>
+                    {% else %}<button type="submit" formaction="/strategies/preview" name="step" value="edit" class="btn btn-light">Back</button>{% endif %}
+                    <button type="submit" class="btn {{ 'btn-danger' if d.deleting else 'btn-primary' }}">{{ d.button }}</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+{% endif %}
+
+{% if d.kind == "assign" %}
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <form method="post" action="/strategies/assign">
+                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ d.id }}">
+                <div class="modal-header"><h5 class="modal-title">Assign {{ d.name }}</h5><a href="/strategies" class="btn-close" aria-label="Close"></a></div>
+                <div class="modal-body">
+                    <ul class="nav nav-pills mb-3">
+                        <li class="nav-item"><a class="nav-link {{ 'active' if d.tab == 'devices' else '' }}" href="/strategies?assign={{ d.id }}&tab=devices">Devices ({{ d.counts.devices }})</a></li>
+                        <li class="nav-item"><a class="nav-link {{ 'active' if d.tab == 'users' else '' }}" href="/strategies?assign={{ d.id }}&tab=users">Users ({{ d.counts.users }})</a></li>
+                        <li class="nav-item"><a class="nav-link {{ 'active' if d.tab == 'groups' else '' }}" href="/strategies?assign={{ d.id }}&tab=groups">Device groups ({{ d.counts.groups }})</a></li>
+                    </ul>
+                    {% for i in d.hidden_devices %}<input type="hidden" name="device_ids[]" value="{{ i }}">{% endfor %}
+                    {% if d.tab == "devices" %}
+                    <div class="mb-2"><input type="search" class="form-control" name="search" form="st-assign-search" value="{{ d.search }}" placeholder="Search ID, alias or hostname"></div>
+                    {% if d.capped %}<div class="small text-muted mb-2">Showing the first 200 matches; refine the search to see others.</div>{% endif %}
+                    {% for x in d.devices %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-d-{{ x.id }}" name="device_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-d-{{ x.id }}">{{ x.rustdesk_id }}{% if x.label %} — {{ x.label }}{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
+                    {% else %}<div class="text-muted">No devices.</div>{% endfor %}
+                    {% else %}{% for x in d.devices %}{% if x.checked %}<input type="hidden" name="device_ids[]" value="{{ x.id }}">{% endif %}{% endfor %}{% endif %}
+                    {% if d.tab == "users" %}
+                    {% for x in d.users %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-u-{{ x.id }}" name="user_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-u-{{ x.id }}">{{ x.username }}{% if x.name %} — {{ x.name }}{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
+                    {% endfor %}
+                    {% else %}{% for x in d.users %}{% if x.checked %}<input type="hidden" name="user_ids[]" value="{{ x.id }}">{% endif %}{% endfor %}{% endif %}
+                    {% if d.tab == "groups" %}
+                    {% for x in d.groups %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-g-{{ x.id }}" name="group_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-g-{{ x.id }}">{{ x.name }}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
+                    {% endfor %}
+                    {% else %}{% for x in d.groups %}{% if x.checked %}<input type="hidden" name="group_ids[]" value="{{ x.id }}">{% endif %}{% endfor %}{% endif %}
+                </div>
+                <div class="modal-footer"><a href="/strategies" class="btn btn-light">Cancel</a><button type="submit" class="btn btn-primary">Save Assignment</button></div>
+            </form>
+            <form id="st-assign-search" method="get" action="/strategies"><input type="hidden" name="assign" value="{{ d.id }}"><input type="hidden" name="tab" value="devices"></form>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+{% endif %}
+
+{% if d.kind == "history" %}
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">History — {{ d.name }}</h5><a href="/strategies" class="btn-close" aria-label="Close"></a></div>
+            <div class="modal-body">
+                {% if d.has_revisions %}
+                <form method="get" action="/strategies" class="row g-2 mb-3">
+                    <input type="hidden" name="history" value="{{ d.id }}">
+                    <div class="col"><select name="from" class="form-select" data-rd-autosubmit-select>{% for r in d.choices %}<option value="{{ r.id }}"{{ ' selected' if r.id == d.from else '' }}>Revision {{ r.n }}</option>{% endfor %}</select></div>
+                    <div class="col"><select name="to" class="form-select" data-rd-autosubmit-select>{% for r in d.choices %}<option value="{{ r.id }}"{{ ' selected' if r.id == d.to else '' }}>Revision {{ r.n }}</option>{% endfor %}</select></div>
+                    <div class="col-auto"><button class="btn btn-light" type="submit">Compare</button></div>
+                </form>
+                {% if d.comparison %}
+                <table class="table table-sm"><tbody>{% for x in d.comparison %}<tr><td><code>{{ x.key }}</code></td><td>{{ x.before }}</td><td>→</td><td>{{ x.after }}</td></tr>{% else %}<tr><td class="text-muted">No differences.</td></tr>{% endfor %}</tbody></table>
+                {% endif %}
+                <table class="table table-sm">
+                    <thead><tr><th>#</th><th>By</th><th>When</th><th>Devices</th><th>Note</th><th></th></tr></thead>
+                    <tbody>
+                    {% for r in d.revisions %}
+                    <tr>
+                        <td>{{ r.n }}{% if r.active %} <span class="badge bg-success-subtle text-success">Active</span>{% endif %}</td>
+                        <td>{{ r.by }}</td><td>{{ r.when }}</td><td>{{ r.affected }}</td><td>{{ r.note }}</td>
+                        <td class="text-end">{% if can_manage and not r.active %}
+                            <form method="post" action="/strategies/restore" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ r.id }}"><button type="submit" class="btn btn-link p-0 align-baseline">Restore as new revision</button></form>
+                        {% endif %}</td>
+                    </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}<div class="text-muted">No revisions yet.</div>{% endif %}
+            </div>
+            <div class="modal-footer"><a href="/strategies" class="btn btn-light">Close</a></div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+{% endif %}
+
+{% if d.kind == "compliance" %}
+<div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-xl">
+        <div class="modal-content">
+            <div class="modal-header"><h5 class="modal-title">Compliance — {{ d.name }}</h5><a href="/strategies" class="btn-close" aria-label="Close"></a></div>
+            <div class="modal-body">
+                <ul class="nav nav-pills mb-3">
+                    <li class="nav-item"><a class="nav-link {{ 'active' if d.state == 'all' else '' }}" href="/strategies?compliance={{ d.id }}&state=all">All</a></li>
+                    {% for c in d.counts %}<li class="nav-item"><a class="nav-link {{ 'active' if d.state == c.state else '' }}" href="/strategies?compliance={{ d.id }}&state={{ c.state }}">{{ c.state | capitalize }} ({{ c.n }})</a></li>{% endfor %}
+                </ul>
+                {% if d.total > d.shown %}<div class="small text-muted mb-2">Showing {{ d.shown }} of {{ d.total }}.</div>{% endif %}
+                <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead><tr><th>Device</th><th>State</th><th>Last online</th><th>Sent</th><th>Confirmed</th></tr></thead>
+                    <tbody>{% for x in d.devices %}<tr><td>{{ x.rustdesk_id }} — {{ x.label }}</td><td>{{ x.state }}</td><td>{{ x.last_online }}</td><td>{{ x.sent }}</td><td>{{ x.confirmed }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">No devices.</td></tr>{% endfor %}</tbody>
+                </table>
+                </div>
+            </div>
+            <div class="modal-footer"><a href="/strategies" class="btn btn-light">Close</a></div>
+        </div>
+    </div>
+</div>
+<div class="modal-backdrop fade show"></div>
+{% endif %}
+</div>
+{% endblock %}

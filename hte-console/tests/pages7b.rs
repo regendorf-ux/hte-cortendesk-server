@@ -524,3 +524,73 @@ async fn the_address_book_page() {
     h.post_form("/address-books/act", &cookie, &[tok(), ("do", "delete-book"), ("back", &format!("tab=personal&selectedBookId={pb}"))]).await;
     assert_eq!(h.count(&format!("address_books where id = {pb}")), 1);
 }
+
+#[tokio::test]
+async fn the_strategies_page() {
+    let h = harness().await;
+    let cookie = h.login(&sid("st1"), 1, json!({}));
+    let r = h.get("/strategies", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("No strategies yet"));
+    let r = h.get("/strategies?create=1", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("Add Strategy") && r.body.contains("opt_access-mode"));
+    // validation
+    let r = h.post_form("/strategies/preview", &cookie, &[tok(), ("id", "0"), ("name", ""), ("timeout", "15"), ("opt_auto-disconnect-timeout", "")]).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("The name field is required."));
+    let r = h.post_form("/strategies/preview", &cookie, &[tok(), ("id", "0"), ("name", "Lock"), ("timeout", "15"), ("opt_auto-disconnect-timeout", "5000")]).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("Enter a whole number between 1 and 1440."));
+    // review, then apply
+    let fields = [tok(), ("id", "0"), ("name", "Lock"), ("enabled", "1"), ("is_default", "1"), ("timeout", "15"), ("opt_access-mode", "view"), ("opt_enable-keyboard", "N")];
+    let r = h.post_form("/strategies/preview", &cookie, &fields).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("Review strategy impact") && squash(&r.body).contains("Check these carefully"));
+    let fp = r.body.split("name=\"fingerprint\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let mut bad = fields.to_vec();
+    bad.push(("fingerprint", "deadbeef"));
+    let r = h.post_form("/strategies/confirm", &cookie, &bad).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("changed after the preview"));
+    assert_eq!(h.count("strategies"), 0);
+    let mut good = fields.to_vec();
+    good.push(("fingerprint", &fp));
+    let r = h.post_form("/strategies/confirm", &cookie, &good).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("strategies where name = 'Lock' and is_default = 1 and enabled = 1"), 1);
+    assert_eq!(h.count("strategy_revisions where change_note = 'Initial revision'"), 1);
+    assert_eq!(h.count("console_audits where action = 'strategy.create'"), 1);
+    assert_eq!(h.count("devices where strategy_id_resolved is not null and deleted_at is null and status = 'active'"), h.count("devices where deleted_at is null and status = 'active'"));
+    let id = h.text("select cast(id as text) from strategies where name = 'Lock'");
+    // toggle
+    h.post_form("/strategies/toggle", &cookie, &[tok(), ("id", &id)]).await;
+    assert_eq!(h.count("strategies where enabled = 0"), 1);
+    assert_eq!(h.count("strategy_revisions where change_note = 'Toggled enabled state'"), 1);
+    // assign
+    let dev = h.text("select cast(id as text) from devices where rustdesk_id = '1001'");
+    let r = h.post_form("/strategies/assign", &cookie, &[tok(), ("id", &id), ("device_ids[]", &dev), ("user_ids[]", "2")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count(&format!("device_strategy where strategy_id = {id}")), 1);
+    assert_eq!(h.count(&format!("strategy_user where strategy_id = {id}")), 1);
+    // pages
+    for q in ["history", "assign", "compliance"] {
+        let r = h.get(&format!("/strategies?{q}={id}"), &cookie).await;
+        assert_eq!(r.status, 200, "{q}: {}", r.body);
+    }
+    // restore review, then delete
+    let rev = h.text(&format!("select cast(id as text) from strategy_revisions where strategy_id = {id} order by revision limit 1"));
+    let r = h.post_form("/strategies/restore", &cookie, &[tok(), ("id", &rev)]).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("Review revision restore"));
+    let r = h.get(&format!("/strategies?delete={id}"), &cookie).await;
+    assert!(squash(&r.body).contains("Review strategy deletion"));
+    let fp = r.body.split("name=\"fingerprint\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let r = h.post_form("/strategies/confirm", &cookie, &[tok(), ("id", &id), ("delete_id", &id), ("fingerprint", &fp)]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("strategies where deleted_at is not null and name like 'Lock (deleted %'"), 1);
+    assert_eq!(h.count("device_strategy"), 0);
+    // a person without the strategy permission is turned away
+    let viewer = h.login(&sid("st2"), 3, json!({}));
+    assert_ne!(h.get("/strategies?create=1", &viewer).await.status, 200);
+}

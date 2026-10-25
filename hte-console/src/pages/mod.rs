@@ -21,6 +21,7 @@ pub mod kit;
 pub mod logs;
 pub mod paginate;
 pub mod session;
+pub mod strategies;
 pub mod groups;
 pub mod time;
 pub mod users;
@@ -607,9 +608,16 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
                     Ok(true) => Out::Forward,
                     Err(_) => Out::Done(error_response(500, "Server Error", head)),
                     Ok(false) => match (ROUTES[idx].handler)(&ctx, &conn, &req) {
-                        Ok(r) => Out::Done(finish(&ctx, &conn, reply_to_response(&ctx, r, head), head)),
+                        Ok(r) => {
+                            // a page answered to a form post (a dialog re-opened with its messages): the address bar keeps the page's own URL
+                            let keep_url = req.method == "POST" && matches!(r, Reply::Html(..));
+                            let mut resp = reply_to_response(&ctx, r, head);
+                            if keep_url {
+                                resp.headers_mut().insert("HX-Push-Url", HeaderValue::from_static("false"));
+                            }
+                            Out::Done(finish(&ctx, &conn, resp, head))
+                        }
                         Err(f) => {
-                            if let Fault::Other(m) = &f { eprintln!("PAGE FAULT {}: {}", req.path, m); }
                             tracing::error!("page {}: {}", req.path, match &f {
                                 Fault::Other(m) => m.as_str(),
                                 _ => "fault",
@@ -669,6 +677,12 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/devices/act", methods: &["POST"], need: Some(("device", "r")), handler: devices::act },
     Route { path: "/devices/:id", methods: &["GET"], need: Some(("device", "r")), handler: device_detail::show },
     Route { path: "/devices/:id/do", methods: &["POST"], need: Some(("device", "r")), handler: device_detail::act },
+    Route { path: "/strategies", methods: &["GET"], need: Some(("strategy", "r")), handler: strategies::index },
+    Route { path: "/strategies/preview", methods: &["POST"], need: Some(("strategy", "r")), handler: strategies::preview_post },
+    Route { path: "/strategies/confirm", methods: &["POST"], need: Some(("strategy", "r")), handler: strategies::confirm },
+    Route { path: "/strategies/toggle", methods: &["POST"], need: Some(("strategy", "r")), handler: strategies::toggle },
+    Route { path: "/strategies/restore", methods: &["POST"], need: Some(("strategy", "r")), handler: strategies::restore },
+    Route { path: "/strategies/assign", methods: &["POST"], need: Some(("strategy", "r")), handler: strategies::assign },
     Route { path: "/address-books", methods: &["GET"], need: Some(("address_book", "r")), handler: address_books::index },
     Route { path: "/address-books/act", methods: &["POST"], need: Some(("address_book", "r")), handler: address_books::act },
     Route { path: "/groups", methods: &["GET"], need: Some(("group", "r")), handler: groups::index },
