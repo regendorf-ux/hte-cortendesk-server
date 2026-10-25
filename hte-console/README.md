@@ -431,4 +431,5 @@ remaining pages: `notes/phase8/NOTES.md`. Off unless `HTE_CONSOLE_SIGNIN=1`.
 | TOTP enrolled, TOTP required, e-mailed codes | second step / enrolment | refused with a message (not used at HTE; deploy stops when on) |
 | "Forgot password?" link | shown when mail is configured | never (reset not offered) |
 | password reset, invitations | pages | "not available" (404) |
-| a guest page | a session row per visit | one row per browser, at most 60 new rows a minute per address |
+| a guest page | a session row per visit | one row per browser (GET only), at most 600 new rows a minute per address |
+| `SESSION_SECURE_COOKIE=true` on plain http | the cookie is dropped, the post fails (419), back to `/login` | no sign-in completed: back to `/login` (the page shows PHP's https note) |

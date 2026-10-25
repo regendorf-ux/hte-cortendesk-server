@@ -16,7 +16,11 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
 - `hte_console_sessions` is skipped by backups and restores like `sessions`.
 - Replay: `replay/replay-signin-web.sh` and `hte-console web-signin-replay` / `web-signin-seed` (the scenario against PHP, rows
   compared, mutation check). Never run against PHP yet.
-- Tests: `tests/console_signin.rs` (19), `websession` unit tests (5).
+- Independent Fable review (medium effort): no critical or high finding. Fixed: with `SESSION_SECURE_COOKIE=true` no sign-in completes
+  over plain http (medium); guest rows only for GET, 600 a minute per address (was 60, a NAT could lock itself out); `?code[]=` is a
+  refusal, not a 500; a first remember token no longer ends the account's other sessions. Left: unthrottled failed-callback log rows
+  (as PHP), `X-Forwarded-Proto: https` trusted from any peer (phase 2's `request_root`; HTE sets `HTE_CONSOLE_PUBLIC_URL`, which overrides it).
+- Tests: `tests/console_signin.rs` (20), `websession` unit tests (5).
 - The fake identity provider advertises an `end_session_endpoint` (logout through the provider).
 - CI: docker/setup-buildx-action v4, docker/login-action v4, docker/build-push-action v7 (Node 24; checked by the next tag's run only).
 - `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.

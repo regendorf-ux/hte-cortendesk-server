@@ -145,6 +145,22 @@ pub fn still_valid(c: &Connection, s: &Session, user: &Row) -> Result<bool, Faul
     Ok(false)
 }
 
+/// Move this account's sessions that carry fingerprint `from` to `to` (a remember token given where there was none).
+pub fn refingerprint(c: &Connection, user_id: i64, from: &str, to: &str) -> Result<(), Fault> {
+    let rows = db::rows(c, r#"select "id_hash", "payload" from "hte_console_sessions" where "user_id" = ?"#, &[P(Val::Int(user_id))])?;
+    for r in rows {
+        let stored = String::from_utf8_lossy(&r.val("payload").to_php_string()?).into_owned();
+        let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(stored.trim()) else { continue };
+        let Ok(Value::Object(mut data)) = serde_json::from_slice::<Value>(&raw) else { continue };
+        if data.get(FINGERPRINT).and_then(|v| v.as_str()) != Some(from) {
+            continue;
+        }
+        data.insert(FINGERPRINT.into(), json!(to));
+        db::exec(c, r#"update "hte_console_sessions" set "payload" = ? where "id_hash" = ? and "payload" = ?"#, &[P(Val::str(&encode(&data))), P(r.val("id_hash")), P(Val::str(&stored))])?;
+    }
+    Ok(())
+}
+
 /// A new session row (a guest's, before sign-in, or the signed-in one after a rotation). Returns the cookie id.
 pub fn create(c: &Connection, data: &Map<String, Value>, ip: &str, ua: &str, now: i64, created: i64, laravel_id: Option<&str>) -> Result<String, Fault> {
     let id = laravel::str_random(40);

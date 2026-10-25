@@ -42,7 +42,7 @@ pub const ALARM_COOLDOWN: i64 = 300;
 pub const TYP_BRUTE_FORCE: i64 = 100;
 pub const TYP_SPRAYING: i64 = 101;
 /// Guest sessions one address may open a minute (each is a row until it expires).
-const GUEST_PER_MINUTE: u64 = 60;
+const GUEST_PER_MINUTE: u64 = 600;
 
 const SSO_OFF: &str = "Single sign-on is not enabled on this console.";
 const EXPIRED: &str = "The sign-in request expired or was tampered with. Please try again.";
@@ -435,7 +435,24 @@ fn boolean(v: Option<&Val>) -> bool {
     }
 }
 
+/// `SESSION_SECURE_COOKIE=true` and a plain-http request: PHP's cookie would be dropped by the browser and the post fail
+/// (419, then `/login` with the https note). No sign-in is completed over plain http then.
+fn https_only(p: &Pages, w: &Web) -> bool {
+    p.session.secure == Some(true) && !w.secure
+}
+
+/// `(string) $request->query($k, '')`, an array read as empty (a hostile `?code[]=` is a refusal, not a 500).
+fn query_text(input: &Input, k: &str) -> Vec<u8> {
+    match input.query(k) {
+        None | Some(Val::Arr(_)) => vec![],
+        Some(v) => v.to_php_string().unwrap_or_default(),
+    }
+}
+
 fn password_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
+    if https_only(p, w) {
+        return Ok(Out::new(redirect(&format!("{}/login", w.root))));
+    }
     let s = guest_session(p, c, w)?;
     if !csrf(p, &s, w) {
         return Ok(page_expired());
@@ -533,8 +550,11 @@ fn complete(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via
     // it is what revocation rotates (`websession::still_valid`).
     let mut user = user.clone();
     if remember && user.val("remember_token").to_php_string()?.is_empty() {
+        let before = ws::fingerprint(&user);
         cycle_remember_token(c, &user)?;
         user = db::first(c, r#"select * from "users" where "id" = ? limit 1"#, &[P(user.val("id"))])?.ok_or_else(|| Fault::Other("user vanished".into()))?;
+        // giving a token to an account that had none is not a revocation: its other sessions follow the new token
+        ws::refingerprint(c, user.id(), &before, &ws::fingerprint(&user))?;
     }
     let user = &user;
     let target = guest.data.get(ws::INTENDED).and_then(|v| v.as_str()).and_then(|t| ws::safe_target(t, &w.root)).unwrap_or_else(|| "/".into());
@@ -567,6 +587,9 @@ async fn oidc_start(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
     // the session first: state, nonce and verifier stored before the browser leaves
     let (p2, w2) = (p.clone(), w.clone());
     let started = tokio::task::spawn_blocking(move || -> Result<Result<(Settings, String, String, String, String), Out>, Fault> {
+        if https_only(&p2, &w2) {
+            return Ok(Err(Out::new(redirect(&format!("{}/login", w2.root)))));
+        }
         let c = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
         let s = guest_session(&p2, &c, &w2)?;
         if signed_in(&c, &s)? {
@@ -627,6 +650,9 @@ struct Pending {
 async fn oidc_callback(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
     let (p2, w2) = (p.clone(), w.clone());
     let first = tokio::task::spawn_blocking(move || -> Result<Result<Pending, Out>, Fault> {
+        if https_only(&p2, &w2) {
+            return Ok(Err(Out::new(redirect(&format!("{}/login", w2.root)))));
+        }
         let c = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
         let s = guest_session(&p2, &c, &w2)?;
         if signed_in(&c, &s)? {
@@ -651,15 +677,15 @@ async fn oidc_callback(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
             login_log(&c, Val::Null, Val::str("sso"), "sso", &w2.ip, false, w2.now)?;
             Ok(Err(back_to_login(&p2, &c, &w2, &s, "username", m, None)?))
         };
-        if let Some(e) = w2.input.query("error").filter(|v| v.to_bool()) {
+        if w2.input.query("error").map_or(false, |v| v.to_bool()) {
             let desc = match w2.input.query("error_description") {
-                Some(d) => d.to_php_string()?,
-                None => e.to_php_string()?,
+                Some(_) => query_text(&w2.input, "error_description"),
+                None => query_text(&w2.input, "error"),
             };
             return fail(&format!("The identity provider rejected the sign-in: {}", String::from_utf8_lossy(&desc)));
         }
-        let code = String::from_utf8_lossy(&w2.input.query_string("code")?).into_owned();
-        let state = w2.input.query_string("state")?;
+        let code = String::from_utf8_lossy(&query_text(&w2.input, "code")).into_owned();
+        let state = query_text(&w2.input, "state");
         if code.is_empty() {
             return fail("The identity provider did not return an authorization code.");
         }
@@ -797,6 +823,13 @@ pub fn to_login(p: &Pages, c: &Connection, cookie: &str, root: &str, secure: boo
     };
     let built = (|| -> Result<Out, Fault> {
         let _ = ws::sweep(c, &p.own, now);
+        // a write without a session has no page to come back to: no guest row for it (crawlers and scripts make none)
+        if method != "GET" {
+            if let Some(old) = ws::load(c, &p.own, now, cookie, secure)?.filter(|s| s.user_id().is_some()) {
+                ws::destroy(c, &old)?;
+            }
+            return Ok(Out::new(redirect(&format!("{root}/login"))));
+        }
         let mut s = guest_session(p, c, &w)?;
         if s.user_id().is_some() {
             // a signed-in session the gate refused (revoked, or a step this console cannot offer): it ends here

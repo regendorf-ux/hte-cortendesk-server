@@ -774,3 +774,33 @@ async fn the_web_sign_in_replay_sees_no_difference_between_two_identical_console
     std::env::remove_var("HTE_WEBREPLAY_MUTATE");
     assert_eq!(r.differences.len(), 1, "{:#?}", r.differences);
 }
+
+// ------------------------------------------------------------------------------------- after the review ---
+
+#[tokio::test(flavor = "multi_thread")]
+async fn review_fixes_hostile_queries_remember_and_writes_without_a_session() {
+    let h = harness().await;
+    // an array where a string belongs is a refusal, not a 500
+    let (c, _) = h.guest().await;
+    for q in ["code[]=1&state=x", "code=1&state[]=x", "error[]=x"] {
+        let r = h.get(&format!("/login/oidc/callback?{q}"), Some(&c)).await;
+        assert_eq!((r.status, r.path()), (302, "/login".into()), "{q}");
+    }
+    // a Microsoft session survives a later remembered password sign-in of the same account (its first remember token)
+    h.sql("update users set password = (select password from users where id = 920001), auth_provider = 'local', remember_token = null where id = 910009");
+    let (r, _) = h.sso("ok", "known").await;
+    let sso = r.own_cookie().unwrap();
+    let (g, t) = h.guest().await;
+    let r = h.password(&g, &t, "user-5eed0009", ADMIN_PW).await;
+    assert_eq!(r.path(), "/");
+    assert_ne!(h.text("select remember_token from users where id = 910009"), "");
+    assert_eq!(h.get("/account", Some(&sso)).await.status, 200);
+    // but a real revoke still ends both
+    h.sql("update users set remember_token = 'rt-x' where id = 910009");
+    assert_eq!(h.get("/account", Some(&sso)).await.path(), "/login");
+    // a write with no session: to the sign-in page, and no guest row for it
+    let before = h.count("hte_console_sessions");
+    let r = h.go("POST", "/devices/save", None, Some(&[("x", "1")]), &[]).await;
+    assert_eq!(r.path(), "/login");
+    assert_eq!(h.count("hte_console_sessions"), before);
+}
