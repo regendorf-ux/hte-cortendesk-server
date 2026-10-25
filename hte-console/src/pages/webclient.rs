@@ -7,11 +7,12 @@
 //! that changes under us fails the test instead of being half-branded. The source maps are not served (the served files
 //! differ from them) and their `sourceMappingURL` lines are dropped.
 //!
-//! The password: the desktop client gets it from the person's own "HTE Remote" address book (`hte_auto_books`), whose
-//! entries carry the computer's confirmed password, readable by that person only. `POST /webclient/credential` answers
-//! the same question for the browser: the entry in the signed-in person's own book, for a computer they may reach right
-//! now, else nothing. Nothing is logged and the answer is not cacheable. The bundle itself is not patched for it:
-//! `assets/js/hte-webclient.js` fills the password box the bundle already reads, then presses Connect.
+//! The list and the password: the bundle has no list of computers (it takes an ID), so `assets/js/hte-webclient.js` adds
+//! one above the ID field, filled from `GET /webclient/devices` (the computers the person may reach now). The desktop client
+//! gets the password from the person's own "HTE Remote" book, a copy the sweep refreshes each minute; the browser asks
+//! `POST /webclient/credential`, which evaluates the reach rule on the request and answers with the computer's confirmed
+//! password (the value the book copies), else nothing. Nothing is logged and the answers are not cacheable. The bundle
+//! itself is not patched: the script fills the password box the bundle already reads, then presses Connect.
 
 use super::kit::*;
 use super::{Ctx, Reply, Req};
@@ -239,6 +240,7 @@ pub fn show(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         "workerUrl": format!("/rdclient/session.worker.js?v={v}"),
         // HTE: where the page asks for the person's own password for a computer, and the token that call needs
         "hteCredentialUrl": "/webclient/credential",
+        "hteDevicesUrl": "/webclient/devices",
         "hteCsrf": ctx.session.token().unwrap_or(""),
     });
     let theme = ctx.theme();
@@ -255,8 +257,26 @@ pub fn show(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
 
 // ------------------------------------------------------------------------------------------------ the password ---
 
-/// POST /webclient/credential {id}: `{"password": "..."}` for a computer in the signed-in person's own HTE Remote book that they
-/// may reach now; 404 `{}` for anything else (a computer outside their book or scope never gets a password).
+/// GET /webclient/devices: the computers the signed-in person may reach right now (the reach rule, evaluated on every call:
+/// the same set and order `/api/peers` gives the desktop client), for the list the page shows. Not cacheable.
+pub fn devices(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
+    let window = online_window(c)?;
+    let rows = crate::reach::visible_devices(c, &ctx.user, None, "rustdesk_id")?;
+    let list: Vec<Value> = rows
+        .iter()
+        .map(|d| {
+            let (alias, host) = (s(d, "alias"), s(d, "hostname"));
+            let name = if truthy(&alias) { alias } else { host };
+            json!({"id": s(d, "rustdesk_id"), "name": name, "os": s(d, "os"), "user": s(d, "username"), "online": is_online(d, ctx.now, window)})
+        })
+        .collect();
+    Ok(Reply::Json(200, json!({"devices": list}).to_string()))
+}
+
+/// POST /webclient/credential {id}: `{"password": "..."}` for any computer the signed-in person may reach NOW (the reach rule,
+/// evaluated on this request), else 404 `{}`; a computer outside their reach never gets a password. The password is the
+/// computer's confirmed one (`hte_device_passwords.confirmed_enc`), the value the sweep copies into the person's book for the
+/// desktop client; a computer on stock RustDesk, or whose new password is not confirmed yet, has none and answers 404 too.
 pub fn credential(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let none = || Ok(Reply::Json(404, "{}".into()));
     let id = super::kit::Body::of(req).get("id");
@@ -264,26 +284,17 @@ pub fn credential(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> 
     if id.is_empty() || id.len() > 64 {
         return none();
     }
-    // the computer must be one this person may see now (the reach rule, as the lists apply it), not only one an old book entry names
     let mut w = visible(c, &ctx.user, false)?;
     w.add(r#""devices"."rustdesk_id" = ?"#, vec![P(Val::str(&id))]);
     if count(c, &format!(r#"select count(*) as aggregate from "devices"{}"#, w.sql()), &w.params.clone())? == 0 {
         return none();
     }
-    let Some(book) = db::first(c, r#"select "address_book_id" from "hte_auto_books" where "user_id" = ? limit 1"#, &[P(Val::Int(ctx.uid()))])? else {
-        return none();
-    };
-    let Some(entry) = db::first(c, r#"select "password_enc" from "address_book_entries" where "address_book_id" = ? and "rustdesk_id" = ? limit 1"#, &[P(book.val("address_book_id")), P(Val::str(&id))])? else {
-        return none();
-    };
-    let enc = match entry.val("password_enc") {
-        Val::Null => return none(),
-        v => v.to_php_string()?,
-    };
-    if enc.is_empty() {
+    let Some(row) = db::first(c, r#"select "confirmed_enc" from "hte_device_passwords" where "rustdesk_id" = ? limit 1"#, &[P(Val::str(&id))])? else { return none() };
+    let enc = row.val("confirmed_enc");
+    if !enc.to_bool() {
         return none();
     }
-    let Ok(plain) = ctx.p.n.crypt.decrypt_string(&enc) else { return none() };
+    let Ok(plain) = ctx.p.n.crypt.decrypt_string(&enc.to_php_string()?) else { return none() };
     Ok(Reply::Json(200, json!({"password": String::from_utf8_lossy(&plain)}).to_string()))
 }
 

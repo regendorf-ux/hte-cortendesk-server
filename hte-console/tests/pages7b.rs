@@ -728,11 +728,10 @@ async fn the_overview_page() {
 async fn the_web_client() {
     let h = harness().await;
     std::env::set_var("APP_URL", "https://remote.example.test");
-    // dana (2) has her own HTE Remote book: 1001 (hers) and a stale entry for 1002 (not hers); erin (3) has no book
+    // computers' confirmed passwords: 1001 (dana's), 1002 (not hers), 1004 (pending), 1005 (hers, no confirmed password yet)
     let pw = h.crypt.encrypt_string(b"Zq7-managed-PASSWORD");
-    h.sql("insert into address_books (id, guid, name, owner_user_id, is_personal, created_at, updated_at) values (5, 'g5', 'HTE Remote', 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
-    h.sql("insert into hte_auto_books (user_id, address_book_id, created_at, updated_at) values (2, 5, '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
-    h.sql(&format!("insert into address_book_entries (address_book_id, rustdesk_id, password_enc, created_at, updated_at) values (5, '1001', '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), (5, '1002', '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), (5, '1004', null, '2025-01-01 00:00:00', '2025-01-01 00:00:00')"));
+    h.sql("insert into devices (id, rustdesk_id, uuid, hostname, user_id, status, created_at, updated_at) values (5, '1005', 'u5', 'SPARE-PC', 2, 'active', '2025-09-05 10:00:00', '2025-09-05 10:00:00')");
+    h.sql(&format!("insert into hte_device_passwords (rustdesk_id, capable_at, current_version, confirmed_version, confirmed_enc, created_at, updated_at) values ('1001', '2025-01-01 00:00:00', 1, 1, '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('1002', '2025-01-01 00:00:00', 1, 1, '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('1004', '2025-01-01 00:00:00', 1, 1, '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('1005', '2025-01-01 00:00:00', 0, 0, null, '2025-01-01 00:00:00', '2025-01-01 00:00:00')"));
     h.sql("insert into settings (key, value, created_at, updated_at) values ('hte_scope_enforce', '1', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('public_key', 'SERVERKEYb64=', '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
     let dana = h.login(&sid("wc2"), 2, json!({}));
     let erin = h.login(&sid("wc3"), 3, json!({}));
@@ -757,23 +756,37 @@ async fn the_web_client() {
     let r = h.get("/webclient", &dana).await;
     assert!(r.body.contains("<title>HTE Remote Web Client</title>"));
 
-    // the credential: her computer in her book gives the password; a stale entry outside her scope, an entry without a
-    // password, a computer in nobody's book and a person without a book give nothing
+    // the list: exactly the computers the person may reach now, in /api/peers' order; never another person's
+    let ids = |body: &str| -> Vec<String> { serde_json::from_str::<serde_json::Value>(body).unwrap()["devices"].as_array().unwrap().iter().map(|d| d["id"].as_str().unwrap().to_string()).collect() };
+    let r = h.get("/webclient/devices", &dana).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.headers.get("cache-control").unwrap().to_str().unwrap().contains("no-store"));
+    assert_eq!(ids(&r.body), vec!["1001", "1005"]);
+    assert!(!r.body.contains("Zq7-managed-PASSWORD"));
+    assert!(ids(&h.get("/webclient/devices", &erin).await.body).is_empty());
+    assert!(h.client.get(format!("{}/webclient/devices", h.url)).send().await.unwrap().status().is_redirection());
+
+    // the credential: any computer she may reach now with a confirmed password gives it (no address book needed); another
+    // person's computer, a pending one, one in the recycle bin, one with no confirmed password, an unknown one give nothing
     let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", "1001")]).await;
     assert_eq!(r.status, 200, "{}", r.body);
     assert_eq!(serde_json::from_str::<serde_json::Value>(&r.body).unwrap()["password"], "Zq7-managed-PASSWORD");
     assert!(r.headers.get("cache-control").unwrap().to_str().unwrap().contains("no-store"));
-    for id in ["1002", "1004", "1003", "9999", ""] {
+    for id in ["1002", "1004", "1003", "1005", "9999", ""] {
         let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", id)]).await;
         assert_eq!(r.status, 404, "{id}: {}", r.body);
         assert_eq!(r.body, "{}");
     }
     let r = h.post_form("/webclient/credential", &erin, &[tok(), ("id", "1001")]).await;
     assert_eq!(r.status, 404);
+    // access revoked: the computer moves to someone else and is refused at once, and leaves her list
+    h.sql("update devices set user_id = 3 where id = 1");
+    assert_eq!(h.post_form("/webclient/credential", &dana, &[tok(), ("id", "1001")]).await.status, 404);
+    assert_eq!(ids(&h.get("/webclient/devices", &dana).await.body), vec!["1005"]);
+    assert_eq!(h.post_form("/webclient/credential", &erin, &[tok(), ("id", "1001")]).await.status, 200);
     // a form post without the token is refused before the handler
     let r = h.post_form("/webclient/credential", &dana, &[("id", "1001")]).await;
     assert_eq!(r.status, 419);
-    // reach rule: with enforcement off dana's stale entry for 1002 would be visible; with it on it is not (checked above)
 
     // the static files: branded copies with types, ETag and cache rules; the maps are gone
     let c = reqwest::Client::new();

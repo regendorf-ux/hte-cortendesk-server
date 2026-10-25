@@ -725,6 +725,7 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/dashboard/sessions", methods: &["GET"], need: Some(("audit", "r")), handler: overview::sessions_fragment },
     Route { path: "/dashboard/disconnect", methods: &["POST"], need: Some(("audit", "r")), handler: overview::disconnect },
     Route { path: "/webclient", methods: &["GET"], need: None, handler: webclient::show },
+    Route { path: "/webclient/devices", methods: &["GET"], need: None, handler: webclient::devices },
     Route { path: "/webclient/credential", methods: &["POST"], need: None, handler: webclient::credential },
     Route { path: "/settings", methods: &["GET"], need: Some(("setting", "r")), handler: settings::index },
     Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },

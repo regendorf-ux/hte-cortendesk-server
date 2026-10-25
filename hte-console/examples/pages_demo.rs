@@ -30,12 +30,13 @@ async fn main() {
         let c = rusqlite::Connection::open(&db).unwrap();
         c.execute_batch(include_str!("../tests/schema_live.sql")).unwrap();
         c.execute_batch(&hte_console::pagereplay::seed_sql(now).unwrap()).unwrap();
-        // dana's own HTE Remote book holds computer 1001 with a (made-up) password: the web client connects to it without asking
+        // computer 1001 has a (made-up) confirmed password: the web client connects to it without asking
         let pw = Encrypter::from_app_key(APP_KEY).unwrap().encrypt_string(b"demo-only-password");
         c.execute_batch(&format!(
             "insert into address_books (id, guid, name, owner_user_id, is_personal, created_at, updated_at) values (9, 'demo-hte', 'HTE Remote', 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\
              insert into hte_auto_books (user_id, address_book_id, created_at, updated_at) values (2, 9, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\
              insert into address_book_entries (address_book_id, rustdesk_id, password_enc, created_at, updated_at) values (9, '1001', '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\
+             insert into hte_device_passwords (rustdesk_id, capable_at, current_version, confirmed_version, confirmed_enc, created_at, updated_at) values ('1001', '2025-01-01 00:00:00', 1, 1, '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\
              insert into settings (key, value, created_at, updated_at) values ('public_key', 'DEMOKEYDEMOKEYDEMOKEYDEMOKEYDEMOKEYDEMO0=', '2025-01-01 00:00:00', '2025-01-01 00:00:00');"
         ))
         .unwrap();

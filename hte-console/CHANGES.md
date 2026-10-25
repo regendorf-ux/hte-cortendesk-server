@@ -8,6 +8,7 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
   Still not ported: the connection/mail/Apprise test buttons, the off-site FTP/S3 settings, restore from an upload.
 - `page-replay` now carries the writes of the new pages (PHP through Livewire, hte-console through its forms; `HTE_PAGEREPLAY_RUST_ONLY=1`
   runs hte-console's half alone); `snapshot` masks token hash/prefix with `HTE_SNAPSHOT_MASK_TOKENS=1`; the seed gains a pending computer.
+- Web client: "Your computers" (`GET /webclient/devices`, the live reach rule) above a secondary ID field; `POST /webclient/credential` now answers for any computer in reach with a confirmed password (`hte_device_passwords`), no address-book entry needed.
 - `Reply::Bytes` (a stored file as it is); the demo server's login takes `?to=` and `?theme=`.
 
 ## 0.7.7 (2026-10-25): phase 7b, the rest of the console's pages

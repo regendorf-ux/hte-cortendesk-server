@@ -7,3 +7,17 @@
 }
 .hte-pw-toggle:hover { color: var(--rd-fg); }
 .rd-save.hte-hidden { display: none; }
+
+/* the person's computers, above the secondary ID field */
+.hte-devices { margin: 6px 0 12px; text-align: left; }
+.hte-devices-head, .hte-devices-other { font-size: 12px; letter-spacing: .04em; text-transform: uppercase; color: var(--rd-muted); margin-bottom: 6px; }
+.hte-devices-other { margin-top: 14px; text-align: center; text-transform: none; letter-spacing: 0; }
+.hte-devices-list { display: flex; flex-direction: column; gap: 6px; max-height: 240px; overflow-y: auto; }
+.hte-devices-empty { font-size: 13px; color: var(--rd-muted); padding: 8px 0; text-align: center; }
+.hte-device { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 1px solid var(--rd-border, rgba(127,127,127,.3)); border-radius: 10px; background: none; color: var(--rd-fg); font: inherit; text-align: left; cursor: pointer; }
+.hte-device:hover { border-color: #0a66e8; }
+.hte-device-body { display: flex; flex-direction: column; min-width: 0; }
+.hte-device-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hte-device-sub { font-size: 12px; color: var(--rd-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hte-dot { flex: none; width: 9px; height: 9px; border-radius: 50%; background: #8a8f98; }
+.hte-dot.hte-on { background: #22b573; }
