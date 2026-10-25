@@ -582,11 +582,12 @@ impl RendezvousServer {
                     let addr_b = AddrMangle::decode(&rr.socket_addr);
                     rr.socket_addr = Default::default();
                     let id = rr.id();
+                    let target_id = id.to_owned(); // HTE: set_pk below replaces the id (same oneof)
                     if !id.is_empty() {
                         let pk = self.get_pk(&rr.version, id.to_owned()).await;
                         rr.set_pk(pk);
                     }
-                    if crate::hte_scope::target_answers(&self.pm, &rr.id().to_owned(), peer_ip).await { crate::hte_relay_gate::admit(&rr.uuid); } // HTE
+                    if crate::hte_scope::target_answers(&self.pm, &target_id, peer_ip).await { crate::hte_relay_gate::admit(&rr.uuid); } // HTE
                     let mut msg_out = RendezvousMessage::new();
                     if !rr.relay_server.is_empty() {
                         if self.is_lan(addr_b) {
