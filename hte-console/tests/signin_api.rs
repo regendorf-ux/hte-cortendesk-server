@@ -564,7 +564,8 @@ async fn pkce_and_client_secret_reach_the_provider() {
     // a verifier that does not match the challenge: the provider refuses the code
     let (code, url) = h.oidc_start("990000240").await;
     let cb = h.authorize(&url, "ok", "anna").await;
-    h.sql("update oidc_auth_requests set verifier = 'x' || substr(verifier, 2)");
+    // the first character always changes (a random verifier starts with 'x' one time in 64)
+    h.sql("update oidc_auth_requests set verifier = case when substr(verifier, 1, 1) = 'x' then 'y' else 'x' end || substr(verifier, 2)");
     let page = h.callback(&cb).await;
     assert_eq!(page.status, 403);
     assert!(page.body.contains("Token exchange failed (400). Check the client ID and secret."));

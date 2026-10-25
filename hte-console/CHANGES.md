@@ -2,6 +2,11 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.5.3 (2026-10-25): phase 5, a flaky test
+
+- `signin_api::pkce_and_client_secret_reach_the_provider` (phase 2) failed about one run in 64: it replaced the first character of
+  the random PKCE verifier with `x`, which is no change when the verifier already starts with `x`. It now always changes it. No change to the console.
+
 ## 0.5.2 (2026-10-25): phase 5, the replay against PHP found one difference
 
 - `unique` and `exists` are not run for an attribute that already failed a rule (Laravel's
