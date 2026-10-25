@@ -345,9 +345,12 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
             let snap = snapshot(&page.body, component).ok_or_else(|| format!("PHP's /account has no {component} snapshot"))?;
             let upd: serde_json::Map<String, serde_json::Value> = updates.into_iter().map(|(k, v)| (k.to_string(), serde_json::json!(v))).collect();
             let body = serde_json::json!({"_token": TOKEN, "components": [{"snapshot": snap, "updates": upd, "calls": [{"path": "", "method": method, "params": []}]}]});
-            let r = fetch(&c, &php, &cookie, "POST", "/livewire/update", Some("application/json"), body.to_string(), &[("x-livewire", "true")]).await?;
+            // Livewire 4 posts to a hashed address the page announces (`data-update-uri`), not to /livewire/update
+            static URI: Lazy<Regex> = Lazy::new(|| Regex::new(r#"data-update-uri="([^"]+)""#).unwrap());
+            let uri = URI.captures(&page.body).map(|m| m[1].to_string()).unwrap_or_else(|| "/livewire/update".into());
+            let r = fetch(&c, &php, &cookie, "POST", &uri, Some("application/json"), body.to_string(), &[("x-livewire", "true"), ("x-csrf-token", TOKEN)]).await?;
             if r.status != 200 {
-                return Err(format!("PHP's Livewire answered {} to {component}.{method}: {}", r.status, &r.body[..r.body.len().min(300)]));
+                return Err(format!("PHP's Livewire ({uri}) answered {} to {component}.{method}: {}", r.status, &r.body[..r.body.len().min(300)]));
             }
             Ok::<(), String>(())
         }

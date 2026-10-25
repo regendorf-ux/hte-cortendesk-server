@@ -51,8 +51,11 @@ replay() { # replay [extra docker env...]: prints page-replay's report, returns 
   docker run --rm --network "$TAG" -v "$WORK/rdata:/data:ro" -e HTE_CONSOLE_APP_KEY_FILE=/data/.app_key -e HTE_CONSOLE_SESSION_COOKIE="$COOKIE" "$@" \
     "$CONSOLE_IMAGE" page-replay "http://$TAG-php:8080" "http://$TAG-rust:8080" "$NOW" </dev/null
 }
-state() { # state <sqlite-dir> : the data as comparable text (sessions keep their count, not their rows: PHP and hte-console mint different ids; a bcrypt hash is salted, so only its shape is compared)
-  docker run --rm --network none -v "$1:/data:ro" "$CONSOLE_IMAGE" snapshot /data/cortendesk.sqlite </dev/null \
+state() { # state <sqlite-dir> [uid]: the data as comparable text (sessions keep their count, not their rows: PHP and hte-console mint different ids; a bcrypt hash is salted, so only its shape is compared)
+  # the directory hte-console served is in WAL mode: it is opened writable, as the uid that owns it, never read-only
+  local mode=ro user=0
+  [ "${2:-}" = rust ] && { mode=rw; user=82:82; }
+  docker run --rm -u "$user" --network none -v "$1:/data:$mode" "$CONSOLE_IMAGE" snapshot /data/cortendesk.sqlite </dev/null \
     | grep -vE '^(cache|cache_locks|sqlite_sequence|jobs|job_batches|failed_jobs|oidc_auth_requests|password_reset_tokens|password_resets|migrations)[ :]' \
     | grep -vE '^sessions \{' | sed -E 's/text:\$2y\$[^"]*/text:<bcrypt>/' || true
 }
@@ -81,7 +84,7 @@ docker cp "$TAG-php:/data/.app_key" "$WORK/rdata/.app_key" </dev/null
 chmod 666 "$WORK/rdata/cortendesk.sqlite"; chmod 644 "$WORK/rdata/.app_key"
 # docker cp makes them root's, and the console refuses a database it does not own: hand them to the uid it runs as (82, as in compose)
 docker run --rm -u 0 --network none -v "$WORK/rdata:/data" --entrypoint chown "$CONSOLE_IMAGE" -R 82:82 /data </dev/null
-state "$WORK/rdata" > "$WORK/before-rust.txt"
+state "$WORK/rdata" rust > "$WORK/before-rust.txt"
 docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec("VACUUM INTO \"/data/state-before.sqlite\"");' </dev/null
 mkdir -p "$WORK/state-before"
 docker cp "$TAG-php:/data/state-before.sqlite" "$WORK/state-before/cortendesk.sqlite" </dev/null
@@ -100,7 +103,7 @@ docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk
 mkdir -p "$WORK/state-after"; chmod 755 "$WORK/state-after"
 docker cp "$TAG-php:/data/state-after.sqlite" "$WORK/state-after/cortendesk.sqlite" </dev/null; chmod 644 "$WORK/state-after/cortendesk.sqlite"
 state "$WORK/state-after" > "$WORK/after-php.txt"
-state "$WORK/rdata" > "$WORK/after-rust.txt"
+state "$WORK/rdata" rust > "$WORK/after-rust.txt"
 if cmp -s "$WORK/after-php.txt" "$WORK/after-rust.txt"; then
   echo "   equal: both databases after the same writes ($(wc -l < "$WORK/after-php.txt") lines)"
 else
