@@ -2,6 +2,14 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.14 (2026-10-25): the replay opens the dialogs; Add/Edit Device answered 500
+- `page-replay` opens 16 dialogs on both sides (PHP by a Livewire call, hte-console by its query) and compares them like pages: strategies add/edit/assign/
+  history/compliance/delete, users add/edit/devices, groups add (both kinds)/edit, devices add/delete, device edit/delete.
+- Found by the new check, and fixed: **Add Device and Edit Device (`/devices?create=1`, `?edit=N`, and on the device page) answered 500**: the dialog's
+  template reads `errors.rustdesk_id` and a dialog opened without an error had no such key (strict undefined). Only the re-opened dialog after a failed save
+  worked. A test (`the_dialogs_the_replay_opens`) now opens all 16.
+- Includes 0.7.12 (Settings option-group wrappers, no extra prune note, About card out of the comparison) and 0.7.13 (every difference of a page is listed).
+
 ## 0.7.13 (2026-10-25): the replay lists every difference of a page, not the first
 - `page-replay` compares the text and the class sequence with a longest-common-subsequence walk and prints each place that differs (what PHP has that
   hte-console lacks, what hte-console has extra, with context; 25 places per page and kind at most), so one run shows everything left on a page.

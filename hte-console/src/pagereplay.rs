@@ -667,6 +667,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("POST /account/theme without a token on {side}: {}, not 419", r.status));
         }
     }
+    if writes && !rust_only {
+        dialogs(&c, php, rust, &cfg, &crypt, now, diffs, total).await;
+    }
     write_steps(&c, php, rust, &cfg, &crypt, now, rust_only, diffs, total).await;
     Ok(())
 }
@@ -676,6 +679,12 @@ type Round = (Vec<(&'static str, serde_json::Value)>, Vec<(&'static str, Vec<ser
 /// PHP's side of a write: Livewire calls on a page's component, in rounds (each round's answer carries the snapshot the
 /// next one is sent against, as the browser does). A validation error is not an HTTP error: the databases show it.
 async fn livewire(c: &reqwest::Client, php: &str, cookie: &str, page: &str, component: &str, rounds: Vec<Round>) -> Result<(), String> {
+    livewire_html(c, php, cookie, page, component, rounds).await.map(|_| ())
+}
+
+/// The same, answering with the html the last round rendered for the component (what the browser swaps into the page).
+async fn livewire_html(c: &reqwest::Client, php: &str, cookie: &str, page: &str, component: &str, rounds: Vec<Round>) -> Result<String, String> {
+    let mut html = String::new();
     let first = fetch(c, php, cookie, "GET", page, None, String::new(), &[]).await?;
     if first.status != 200 {
         return Err(format!("PHP answered {} to GET {page}", first.status));
@@ -694,8 +703,78 @@ async fn livewire(c: &reqwest::Client, php: &str, cookie: &str, page: &str, comp
         if let Some(next) = v["components"][0]["snapshot"].as_str() {
             snap = next.to_string();
         }
+        if let Some(h) = v["components"][0]["effects"]["html"].as_str() {
+            html = h.to_string();
+        }
     }
-    Ok(())
+    Ok(html)
+}
+
+/// The dialog in a page or a component's html: the `modal fade show` element (its backdrop is a sibling and is left out).
+fn dialog_of(html: &str) -> Option<&str> {
+    let i = html.find("modal fade show")?;
+    let start = html[..i].rfind("<div")?;
+    let open_end = start + html[start..].find('>')? + 1;
+    Some(&html[start..div_end(html, open_end)])
+}
+
+/// Dialogs: PHP opens them with a Livewire call on the component (their state is not in the URL), hte-console with a query
+/// on the same page; what each shows (text and classes) is compared like a page.
+async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, total: &mut usize) {
+    use serde_json::json;
+    // (what, page, component, method, params, hte-console's query)
+    let cases: Vec<(&str, &str, &str, &str, Vec<serde_json::Value>, &str)> = vec![
+        ("strategies: add", "/strategies", "strategy-list", "create", vec![], "?create=1"),
+        ("strategies: edit", "/strategies", "strategy-list", "edit", vec![json!(1)], "?edit=1"),
+        ("strategies: assign", "/strategies", "strategy-list", "openAssign", vec![json!(1)], "?assign=1"),
+        ("strategies: history", "/strategies", "strategy-list", "showHistory", vec![json!(1)], "?history=1"),
+        ("strategies: compliance", "/strategies", "strategy-list", "showCompliance", vec![json!(1)], "?compliance=1"),
+        ("strategies: delete", "/strategies", "strategy-list", "deleteStrategy", vec![json!(1)], "?delete=1"),
+        ("users: add", "/users", "user-list", "create", vec![], "?create=1"),
+        ("users: edit", "/users", "user-list", "edit", vec![json!(2)], "?edit=2"),
+        ("users: devices", "/users", "user-list", "openAssign", vec![json!(2)], "?assign=2"),
+        ("groups: add (devices)", "/groups", "group-list", "create", vec![json!("devices")], "?tab=devices&create=1"),
+        ("groups: add (users)", "/groups", "group-list", "create", vec![json!("users")], "?tab=users&create=1"),
+        ("groups: edit (devices)", "/groups", "group-list", "edit", vec![json!("devices"), json!(2)], "?tab=devices&edit=2"),
+        ("devices: add", "/devices", "device-list", "create", vec![], "?create=1"),
+        ("devices: delete", "/devices", "device-list", "confirmDelete", vec![json!(1)], "?delete=1"),
+        ("device 1: edit", "/devices/1", "device-detail", "editDevice", vec![], "?edit=1"),
+        ("device 1: delete", "/devices/1", "device-detail", "confirmDelete", vec![], "?delete=1"),
+    ];
+    let cookie = cookie_for(cfg, crypt, "hteadmin", now);
+    for (what, page, component, method, params, query) in cases {
+        *total += 1;
+        let label = format!("hteadmin dialog {what}");
+        let php_html = match livewire_html(c, php, &cookie, page, component, vec![(vec![], vec![(method, params)])]).await {
+            Ok(h) => h,
+            Err(e) => {
+                diffs.push(format!("{label} (PHP): {e}"));
+                continue;
+            }
+        };
+        let ours = match fetch(c, rust, &cookie, "GET", &format!("{page}{query}"), None, String::new(), &[]).await {
+            Ok(r) if r.status == 200 => r.body,
+            Ok(r) => {
+                diffs.push(format!("{label}: hte-console answered {} to GET {page}{query}", r.status));
+                continue;
+            }
+            Err(e) => {
+                diffs.push(format!("{label}: {e}"));
+                continue;
+            }
+        };
+        let (Some(a), Some(b)) = (dialog_of(&php_html), dialog_of(&ours)) else {
+            diffs.push(format!("{label}: no dialog in {}", match (dialog_of(&php_html).is_some(), dialog_of(&ours).is_some()) { (false, false) => "either page", (false, true) => "PHP's answer", _ => "hte-console's page" }));
+            continue;
+        };
+        let ((ta, ca), (tb, cb)) = (shape(a), shape(b));
+        for d in all_differences(&ta, &tb) {
+            diffs.push(format!("{label}: text {d}"));
+        }
+        for d in all_differences(&ca, &cb) {
+            diffs.push(format!("{label}: classes {d}"));
+        }
+    }
 }
 
 /// The fields a browser would post for the form with this action: what each input, select and textarea holds now.

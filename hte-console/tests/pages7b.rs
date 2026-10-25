@@ -952,3 +952,25 @@ async fn the_replay_writes_run_on_hte_console() {
     assert_eq!(h.text("select value from settings where key = 'log_retention_days'"), "30");
     assert_eq!(h.text("select note from devices where id = 1"), "Reception desk, left monitor");
 }
+
+/// Every dialog the replay opens (`pagereplay::dialogs`) answers 200 and shows its dialog.
+#[tokio::test]
+async fn the_dialogs_the_replay_opens() {
+    let h = harness().await;
+    let cookie = h.login(&sid("dialogs"), 1, json!({}));
+    let fields = [tok(), ("id", "0"), ("name", "Lock"), ("enabled", "1"), ("is_default", "1"), ("timeout", "15"), ("opt_access-mode", "view")];
+    let r = h.post_form("/strategies/preview", &cookie, &fields).await;
+    let fp = r.body.split("name=\"fingerprint\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
+    let mut good = fields.to_vec();
+    good.push(("fingerprint", &fp));
+    assert_eq!(h.post_form("/strategies/confirm", &cookie, &good).await.status, 302);
+    for q in [
+        "/strategies?create=1", "/strategies?edit=1", "/strategies?assign=1", "/strategies?history=1", "/strategies?compliance=1", "/strategies?delete=1",
+        "/users?create=1", "/users?edit=2", "/users?assign=2", "/groups?tab=devices&create=1", "/groups?tab=users&create=1", "/groups?tab=devices&edit=2",
+        "/devices?create=1", "/devices?delete=1", "/devices/1?edit=1", "/devices/1?delete=1",
+    ] {
+        let r = h.get(q, &cookie).await;
+        assert_eq!(r.status, 200, "{q}: {}", &r.body[..r.body.len().min(400)]);
+        assert!(r.body.contains("modal fade show"), "{q} shows no dialog");
+    }
+}

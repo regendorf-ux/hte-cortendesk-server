@@ -421,6 +421,9 @@ pub fn modal_json(ctx: &Ctx, c: &Connection, modal: &Modal, return_to: &str) -> 
             let d = if *id != 0 { scoped_device(ctx, c, *id)? } else { None };
             let groups: Vec<Value> = accessible_groups(ctx, c)?.iter().map(|g| json!({"id": g.id(), "name": s(g, "name")})).collect();
             let users: Vec<Value> = all_users(c)?.iter().map(|u| json!({"id": u.id(), "username": s(u, "username")})).collect();
+            // the template reads `errors.rustdesk_id` whether or not the field failed (strict undefined)
+            let mut errors = errors.clone();
+            errors.entry("rustdesk_id").or_insert_with(|| json!(""));
             let (strategies, explain) = match (&d, ctx.is_admin() && *id != 0) {
                 (Some(d), true) => (
                     db::rows(c, r#"select "id", "name", "enabled" from "strategies" where "deleted_at" is null order by "name" asc"#, &[])?
