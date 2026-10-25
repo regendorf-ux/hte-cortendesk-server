@@ -417,3 +417,36 @@ async fn the_users_pages() {
     let erin = h.login(&sid("users-erin"), 3, json!({}));
     assert_eq!(h.get("/users", &erin).await.status, 302);
 }
+
+#[tokio::test]
+async fn the_groups_page() {
+    let h = harness().await;
+    let cookie = h.login(&sid("groups1"), 1, json!({}));
+    let r = h.get("/groups", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("Front desk") && squash(&r.body).contains("Back office"));
+    assert!(squash(&h.get("/groups?tab=users", &cookie).await.body).contains("Techs"));
+    assert!(squash(&h.get("/groups?tab=users&create=1", &cookie).await.body).contains("Add User Group"));
+    assert!(squash(&h.get("/groups?edit=1", &cookie).await.body).contains("Edit Device Group"));
+    let r = h.post_form("/groups/save", &cookie, &[tok(), ("type", "users"), ("id", "0"), ("name", "")]).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("The name field is required."));
+    let r = h.post_form("/groups/save", &cookie, &[tok(), ("type", "users"), ("id", "0"), ("name", "Ops"), ("note", "n"), ("device_group_ids[]", "1"), ("device_group_ids[]", "2"), ("accessor_group_ids[]", "1")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("device_group_user_group where user_group_id = 2"), 2);
+    assert_eq!(h.count("group_accesses where target_type = 'user_group' and target_id = 2 and accessor_id = 1"), 1);
+    assert_eq!(h.count("console_audits where action = 'group.create'"), 1);
+    h.post_form("/groups/save", &cookie, &[tok(), ("type", "devices"), ("id", "1"), ("name", "Front"), ("accessor_group_ids[]", "2")]).await;
+    assert_eq!(h.text("select name from device_groups where id = 1"), "Front");
+    assert_eq!(h.count("group_accesses where target_type = 'device_group' and target_id = 1 and accessor_id = 2"), 1);
+    h.post_form("/groups/act", &cookie, &[tok(), ("type", "devices"), ("id", "1"), ("do", "delete")]).await;
+    assert_eq!(h.count("device_groups"), 1);
+    assert_eq!(h.count("devices where device_group_id = 1"), 0);
+    assert_eq!(h.count("group_accesses where target_type = 'device_group'"), 0);
+    h.post_form("/groups/act", &cookie, &[tok(), ("type", "users"), ("id", "2"), ("do", "delete")]).await;
+    assert_eq!(h.count("user_groups"), 1);
+    assert_eq!(h.count("group_accesses"), 0);
+    assert_eq!(h.count("device_group_user_group where user_group_id = 2"), 0);
+    let erin = h.login(&sid("groups-erin"), 3, json!({}));
+    assert_eq!(h.get("/groups", &erin).await.status, 302);
+}

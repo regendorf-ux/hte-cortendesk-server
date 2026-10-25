@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+<div class="card">
+    <ul class="nav nav-tabs nav-bordered rd-tabbar">
+        <li class="nav-item">
+            <a href="{{ tab_devices }}" class="nav-link {{ 'active' if tab == 'devices' else '' }}">
+                <i class="ri-computer-line me-1"></i>Device Groups
+                <span class="badge bg-secondary-subtle text-secondary ms-1">{{ device_count }}</span>
+            </a>
+        </li>
+        <li class="nav-item">
+            <a href="{{ tab_users }}" class="nav-link {{ 'active' if tab == 'users' else '' }}">
+                <i class="ri-group-line me-1"></i>User Groups
+                <span class="badge bg-secondary-subtle text-secondary ms-1">{{ user_count }}</span>
+            </a>
+        </li>
+    </ul>
+
+    <div class="rd-toolbar">
+        <div>
+            <h4 class="header-title">{{ 'User Groups' if tab == 'users' else 'Device Groups' }}</h4>
+            <p class="rd-card-sub mb-0">{{ 'Groups of people. Membership drives address-book sharing and device-group access.' if tab == 'users' else 'Folders of machines. A device belongs to at most one.' }}</p>
+        </div>
+        {% if can_manage %}
+        <div class="rd-toolbar-actions"><a href="{{ create_url }}" class="btn btn-primary"><i class="ri-add-line"></i>Add Group</a></div>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-centered mb-0">
+            <thead>
+            <tr>
+                <th>Name</th><th>Note</th><th>{{ 'Users' if tab == 'users' else 'Devices' }}</th>
+                {% if tab == 'users' %}<th>Device access</th>{% endif %}
+                <th>Created</th><th class="text-end">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for g in rows %}
+                <tr>
+                    <td class="fw-semibold">{{ g.name }}</td>
+                    <td>{{ g.note or '—' }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ g.count }}</span></td>
+                    {% if tab == 'users' %}
+                        <td>{% for d in g.granted %}<span class="badge bg-primary-subtle text-primary me-1">{{ d }}</span>{% else %}<span class="text-muted">—</span>{% endfor %}</td>
+                    {% endif %}
+                    <td><span title="{{ g.created_at }}">{{ g.created }}</span></td>
+                    <td class="text-end rd-rowact">
+                        {% if can_manage %}
+                        <a href="{{ edit_prefix }}{{ g.id }}" class="rd-act me-2">Edit</a>
+                        <form method="post" action="/groups/act" class="d-inline">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="type" value="{{ tab }}"><input type="hidden" name="id" value="{{ g.id }}">
+                            <button type="submit" name="do" value="delete" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="{{ 'Delete this user group? Users in it will be kept but no longer belong to any group.' if tab == 'users' else 'Delete this device group? Devices in it will be kept but no longer belong to any group.' }}">Delete</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="{{ 6 if tab == 'users' else 5 }}" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="{{ 'ri-group-line' if tab == 'users' else 'ri-folders-line' }}"></i></div>
+                            <p class="rd-empty-title">No {{ 'user' if tab == 'users' else 'device' }} groups yet. Click "Add Group" to create one.</p>
+                            <p class="rd-empty-text">{{ 'User groups decide who can see whose machines and address books.' if tab == 'users' else 'Device groups keep machines organised and can be granted to a whole user group at once.' }}</p>
+                            {% if can_manage %}<a href="{{ create_url }}" class="btn btn-sm btn-outline-light">Add Group</a>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-md-none rd-cardlist">
+        {% for g in rows %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="min-width-0">
+                        <span class="rd-mini-title">{{ g.name }}</span>
+                        <span class="rd-mini-sub">{{ g.note or 'No note' }}</span>
+                    </div>
+                    <span class="badge bg-secondary-subtle text-secondary">{{ g.count }} {{ 'users' if tab == 'users' else 'devices' }}</span>
+                </div>
+                {% if tab == 'users' and g.granted %}
+                    <div class="mt-2">{% for d in g.granted %}<span class="badge bg-primary-subtle text-primary me-1">{{ d }}</span>{% endfor %}</div>
+                {% endif %}
+                <div class="rd-mini-foot">
+                    <span class="rd-mini-sub">Created {{ g.created }}</span>
+                    {% if can_manage %}
+                    <div class="rd-mini-acts">
+                        <a href="{{ edit_prefix }}{{ g.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                        <form method="post" action="/groups/act" class="d-contents">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="type" value="{{ tab }}"><input type="hidden" name="id" value="{{ g.id }}">
+                            <button type="submit" name="do" value="delete" class="rd-iconbtn text-danger" title="Delete" data-rd-confirm="{{ 'Delete this user group? Users in it will be kept but no longer belong to any group.' if tab == 'users' else 'Delete this device group? Devices in it will be kept but no longer belong to any group.' }}"><i class="ri-delete-bin-line"></i></button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="{{ 'ri-group-line' if tab == 'users' else 'ri-folders-line' }}"></i></div>
+                <p class="rd-empty-title">No {{ 'user' if tab == 'users' else 'device' }} groups yet. Tap "Add Group" to create one.</p>
+                {% if can_manage %}<a href="{{ create_url }}" class="btn btn-sm btn-outline-light">Add Group</a>{% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>
+
+{% if modal.kind == "edit" %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="post" action="/groups/save">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ modal.id }}"><input type="hidden" name="type" value="{{ modal.type }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ modal.title }}</h5>
+                        <a href="{{ modal.return }}" class="btn-close" aria-label="Close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="gl-name">Name <span class="text-danger">*</span></label>
+                            <input type="text" id="gl-name" name="name" value="{{ modal.values.name }}" class="form-control{{ ' is-invalid' if modal.errors.name else '' }}" autocomplete="off">
+                            {% if modal.errors.name %}<div class="invalid-feedback">{{ modal.errors.name }}</div>{% endif %}
+                        </div>
+                        <div class="{{ 'mb-3' if modal.type == 'users' else 'mb-0' }}">
+                            <label class="form-label" for="gl-note">Note</label>
+                            <textarea id="gl-note" rows="3" name="note" class="form-control{{ ' is-invalid' if modal.errors.note else '' }}">{{ modal.values.note }}</textarea>
+                            {% if modal.errors.note %}<div class="invalid-feedback">{{ modal.errors.note }}</div>{% endif %}
+                        </div>
+                        {% if modal.type == 'users' %}
+                            <div class="mb-3">
+                                <label class="form-label">Device group access</label>
+                                <p class="text-muted fs-13 mb-2">Every member of this user group sees the devices in the groups checked below (in addition to devices they own or were granted individually).</p>
+                                {% for dg in modal.device_groups %}
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="gl-dg-{{ dg.id }}" name="device_group_ids[]" value="{{ dg.id }}"{{ ' checked' if dg.id in modal.values.device_group_ids else '' }}>
+                                        <label class="form-check-label" for="gl-dg-{{ dg.id }}">{{ dg.name }}</label>
+                                    </div>
+                                {% else %}
+                                    <p class="text-muted fs-13">{{ 'No device groups exist yet.' if super else 'No device groups you can grant.' }}</p>
+                                {% endfor %}
+                            </div>
+                        {% endif %}
+                        <div class="mb-0">
+                            <label class="form-label">Accessed from</label>
+                            <p class="text-muted fs-13 mb-2">
+                                {% if modal.type == 'users' %}Members of the user groups checked below may see the members of this group (their machines appear in the group tab).{% else %}Members of the user groups checked below may see the devices in this folder.{% endif %}
+                            </p>
+                            {% for ug in modal.accessors %}
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="gl-af-{{ ug.id }}" name="accessor_group_ids[]" value="{{ ug.id }}"{{ ' checked' if ug.id in modal.values.accessor_group_ids else '' }}>
+                                    <label class="form-check-label" for="gl-af-{{ ug.id }}">{{ ug.name }}</label>
+                                </div>
+                            {% else %}
+                                <p class="text-muted fs-13 mb-0">No other user groups exist yet.</p>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if modal.editing else 'Create Group' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+{% endif %}
+</div>
+{% endblock %}

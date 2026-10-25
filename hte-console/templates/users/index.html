@@ -156,6 +156,18 @@
     </div>
 </div>
 
+{% if can_manage %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div>
+            <h4 class="header-title">Invitations</h4>
+            <p class="rd-card-sub mb-0">Inviting people by email is not available in this console yet. Existing invitations are kept as they are.</p>
+        </div>
+        <div class="rd-card-actions"><a href="/invitations" class="btn btn-outline-light" hx-boost="false">Details</a></div>
+    </div>
+</div>
+{% endif %}
+
 {% if modal.kind == "edit" %}
     <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
         <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
