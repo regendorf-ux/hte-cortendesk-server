@@ -43,13 +43,30 @@ fn q(s: &str) -> String {
 pub fn seed_sql(now: i64) -> Result<String, String> {
     let hash = laravel::hash_make(PASSWORD.as_bytes()).map_err(|_| "cannot hash".to_string())?;
     let t = |ago: i64| q(&laravel::ts(now - ago));
-    let mut s = String::from("PRAGMA foreign_keys = OFF;\nDELETE FROM users; DELETE FROM sessions; DELETE FROM roles; DELETE FROM devices; DELETE FROM device_groups;\nDELETE FROM alarm_logs; DELETE FROM audit_connections; DELETE FROM audit_file_transfers; DELETE FROM login_logs; DELETE FROM console_audits; DELETE FROM trusted_devices;\n");
+    let mut s = String::from("PRAGMA foreign_keys = OFF;\nDELETE FROM users; DELETE FROM sessions; DELETE FROM roles; DELETE FROM devices; DELETE FROM device_groups; DELETE FROM user_groups; DELETE FROM strategies; DELETE FROM address_books; DELETE FROM tags; DELETE FROM address_book_entries;\nDELETE FROM alarm_logs; DELETE FROM audit_connections; DELETE FROM audit_file_transfers; DELETE FROM login_logs; DELETE FROM console_audits; DELETE FROM trusted_devices;\n");
     s.push_str("INSERT INTO roles (id, name, permissions, require_two_factor, created_at, updated_at) VALUES (1, 'Auditor', '{\"audit\":\"rw\"}', 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
     s.push_str("INSERT INTO device_groups (id, name, created_at, updated_at) VALUES (1, 'Front desk', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
     for (id, rd, owner) in [(1, "1001", "2"), (2, "1002", "null"), (3, "1003", "2")] {
         s.push_str(&format!("INSERT INTO devices (id, rustdesk_id, uuid, user_id, status, created_at, updated_at) VALUES ({id}, '{rd}', 'uuid-{id}', {owner}, 'active', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n"));
     }
     s.push_str("UPDATE devices SET deleted_at = '2025-10-01 00:00:00' WHERE id = 3;\n");
+    // what the 7b pages show: computers with names, systems, versions and a group, a user group, a strategy, an address book
+    // with a tag and an entry, one session still open
+    s.push_str(&format!(
+        "UPDATE devices SET hostname = 'FRONT-PC', os = 'windows / Windows 11', version = '1.4.0', alias = 'Front PC', username = 'dana', device_group_id = 1, last_online_at = {}, last_online_ip = '10.0.0.1' WHERE id = 1;\n\
+         UPDATE devices SET hostname = 'BACK-PC', os = 'macos / macOS 14', version = '1.3.9', username = 'erin', last_online_at = {}, last_online_ip = '10.0.0.2' WHERE id = 2;\n",
+        t(30), t(500_000)
+    ));
+    s.push_str("INSERT INTO device_groups (id, name, created_at, updated_at) VALUES (2, 'Back office', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str("INSERT INTO user_groups (id, name, created_at, updated_at) VALUES (1, 'Techs', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str("INSERT INTO strategies (id, name, note, enabled, is_default, enforce, options, created_at, updated_at) VALUES (1, 'Baseline', 'Everyone', 1, 1, 0, '{\"enable-keyboard\":\"Y\"}', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str("INSERT INTO address_books (id, guid, name, owner_user_id, is_personal, note, created_at, updated_at) VALUES (1, 'guid-shared', 'Shared', 1, 0, 'For the team', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str("INSERT INTO tags (id, address_book_id, name, color, created_at, updated_at) VALUES (1, 1, 'Servers', 4278190335, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str("INSERT INTO address_book_entries (id, address_book_id, rustdesk_id, alias, hostname, platform, tag_ids, created_at, updated_at) VALUES (1, 1, '1001', 'Front PC', 'FRONT-PC', 'Windows', '[1]', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    s.push_str(&format!(
+        "INSERT INTO audit_connections (id, action, conn_id, rustdesk_id, from_peer, from_name, ip, conn_type, created_at, updated_at) VALUES (900, 'new', 900, '1001', '555', 'Ticket desk', '10.0.0.9', 0, {}, {});\n",
+        t(330), t(330)
+    ));
     for (id, username, name, email, admin, role) in USERS {
         s.push_str(&format!(
             "INSERT INTO users (id, username, name, email, password, is_admin, is_active, role_id, created_at, updated_at) VALUES ({id}, {}, {}, {}, {}, {}, 1, {}, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n",
@@ -305,6 +322,20 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             "/logs/console?action=device.update",
             "/logs/console?action=weird",
             "/account",
+            "/",
+            "/dashboard/stats",
+            "/dashboard/sessions",
+            "/devices",
+            "/devices?status=online",
+            "/devices?search=front",
+            "/devices/1",
+            "/users",
+            "/users?search=dana",
+            "/users/2",
+            "/groups",
+            "/address-books",
+            "/strategies",
+            "/settings",
         ] {
             cases.push((user, path.to_string()));
         }
