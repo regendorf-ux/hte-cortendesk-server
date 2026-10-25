@@ -2,6 +2,11 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.11 (2026-10-25): the last two differences of the server replay of 0.7.10 (131 requests, 2 differences, B equal, C caught)
+- Both were Settings -> Notifications: hte-console ships both Apprise delivery-mode groups (the other one hidden with `d-none`, switched by a click handler,
+  no server round trip) while PHP renders only the one in force. Kept as an improvement; the replay now leaves hidden `data-rd-group` blocks out of both sides
+  and lists that as "by design". Strategy history: PHP's empty text and restore button.
+
 ## 0.7.10 (2026-10-25): the ten differences left in the server replay of 0.7.9
 The 0.7.9 run (131 requests) went from 36 to 10 differences, section B was equal (214 lines: the API token step now matches), C caught the mutation. Fixed:
 - Every POST control that stands where PHP has a link (Disconnect on the Dashboard, tag remove on the device page and in address books, Approve/Reject/Restore/Destroy,

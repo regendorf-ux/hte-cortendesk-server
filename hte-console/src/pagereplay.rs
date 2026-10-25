@@ -292,6 +292,40 @@ const FRAGMENTS: [&str; 2] = ["/dashboard/stats", "/dashboard/sessions"];
 const FRAGMENT_REASON: &str = "by design (own htmx refresh URL; PHP refreshes the same cards through Livewire polling, which has no URL; same permission checks as the page)";
 const INVITE_REASON: &str = "by design (the Invitations card at the end of Users: inviting by email is not available in this console; the rest of the page is compared)";
 
+const GROUPS_REASON: &str = "by design (Settings: an option group the page hides with d-none and shows with a click handler, e.g. the other Apprise mode, is in the page; PHP re-renders the form from the server instead; only the group in force is compared)";
+
+/// The html without the `data-rd-group` blocks that are hidden (`d-none`): hte-console ships every variant and shows one,
+/// PHP renders only the one in force.
+fn without_hidden_groups(html: &str) -> String {
+    static OPEN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<div\b[^>]*\bdata-rd-group="[^"]*"[^>]*>"#).unwrap());
+    let mut out = String::new();
+    let mut pos = 0usize;
+    while let Some(m) = OPEN.find_at(html, pos) {
+        let hidden = CLASS.captures(m.as_str()).map_or(false, |c| c[1].split_whitespace().any(|w| w == "d-none"));
+        if !hidden {
+            out.push_str(&html[pos..m.end()]);
+            pos = m.end();
+            continue;
+        }
+        out.push_str(&html[pos..m.start()]);
+        let (mut depth, mut end) = (1i32, m.end());
+        for t in TAG.captures_iter(&html[m.end()..]) {
+            let whole = t.get(0).unwrap();
+            if whole.as_str().starts_with("<!--") || !t.get(2).map_or(false, |n| n.as_str().eq_ignore_ascii_case("div")) {
+                continue;
+            }
+            depth += if t.get(1).map_or(false, |c| !c.as_str().is_empty()) { -1 } else if whole.as_str().ends_with("/>") { 0 } else { 1 };
+            if depth == 0 {
+                end = m.end() + whole.end();
+                break;
+            }
+        }
+        pos = end;
+    }
+    out.push_str(&html[pos..]);
+    out
+}
+
 /// The html without the Invitations card, which closes the Users page on both sides.
 fn without_invitations(html: &str) -> &str {
     match html.find(">Invitations<").and_then(|i| html[..i].rfind("<div class=\"card\">")) {
@@ -408,6 +442,15 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
                 (without_invitations(&a.body), without_invitations(&b.body))
             } else {
                 (a.body.as_str(), b.body.as_str())
+            };
+            let (ga, gb);
+            let (pa, pb) = if path.starts_with("/settings") && (pa.contains("data-rd-group") || pb.contains("data-rd-group")) {
+                by_design.push(format!("/settings: {GROUPS_REASON}"));
+                ga = without_hidden_groups(pa);
+                gb = without_hidden_groups(pb);
+                (ga.as_str(), gb.as_str())
+            } else {
+                (pa, pb)
             };
             let ((ta, ca), (tb, cb)) = (shape(pa), shape(pb));
             if let Some(d) = first_difference(&ta, &tb) {
@@ -734,6 +777,12 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hidden_groups_are_cut_whole_and_shown_ones_kept() {
+        let html = r#"<p>a</p><div class="mb-3 d-none" data-rd-group="m" data-rd-when="x"><div>inner</div><span>gone</span></div><div class="mb-3" data-rd-group="m" data-rd-when="y"><b>kept</b></div><p>z</p>"#;
+        assert_eq!(without_hidden_groups(html), r#"<p>a</p><div class="mb-3" data-rd-group="m" data-rd-when="y"><b>kept</b></div><p>z</p>"#);
+    }
 
     #[test]
     fn shape_reads_text_and_classes_not_livewire() {
