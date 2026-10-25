@@ -546,7 +546,7 @@ async fn the_strategies_page() {
     let fields = [tok(), ("id", "0"), ("name", "Lock"), ("enabled", "1"), ("is_default", "1"), ("timeout", "15"), ("opt_access-mode", "view"), ("opt_enable-keyboard", "N")];
     let r = h.post_form("/strategies/preview", &cookie, &fields).await;
     assert_eq!(r.status, 200, "{}", r.body);
-    assert!(squash(&r.body).contains("Review strategy impact") && squash(&r.body).contains("Check these carefully"));
+    assert!(squash(&r.body).contains("Review strategy impact") && squash(&r.body).contains("High-impact controls"));
     let fp = r.body.split("name=\"fingerprint\" value=\"").nth(1).unwrap().split('"').next().unwrap().to_string();
     let mut bad = fields.to_vec();
     bad.push(("fingerprint", "deadbeef"));

@@ -2,6 +2,14 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.16 (2026-10-25): the strategies dialogs say what PHP's say
+From the 0.7.15 dialog comparison. Our own extra helper lines stay (improvements); what PHP says and we did not is now there.
+- Strategy editor: required star on Name, "Change note (kept in the revision history)" after Note (placeholder "What changed and why"), the help line under Enabled / Default / Enforce and the timeout, the "Not managed" alert, and `key — help` under every option.
+- Review (save / delete / restore): "Nothing has been changed yet.", the delete and restore alerts, "N device(s) will receive a different effective strategy or policy.", High-impact controls, the reset list, one "Policy diff" table, the "Affected-device sample (up to 50)" and a Back button.
+- Assign: `Assign "Name"` heading, the precedence explanation, tab counts as badges. History and Compliance: PHP's titles and subtitles.
+- Settings: the two disabled buttons no longer carry hidden "Contacting provider…" / "Sending…" text.
+- Not ported, for a reason: Settings > Backups "Restore from a file" (upload) and the off-site FTP/S3 copy.
+
 ## 0.7.15 (2026-10-25): the dialog comparison, made fair
 From the first run that opened the dialogs (0.7.14): its report was dominated by noise, none of it in the console.
 - A dialog opened over another (PHP's delete review sits over the edit form) is now taken as the one in front, not the one behind.
