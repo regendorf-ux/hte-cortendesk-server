@@ -2,7 +2,8 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie
+## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie (and all of 0.7.19, phase 7c)
+- One image for 7c and 8: phase 7c's branch is merged in (Diagnostics, Roles, health routes, below). Phase 7c's scripts accept 0.8.x.
 - New modules `pages/websession.rs` (hte-console's own session: cookie `__Host-hte-remote` over https, a random 40-character id,
   only its sha256 in the new table `hte_console_sessions`, idle 60 min / absolute 12 h, rotated at sign-in, revoked when the
   account's `remember_token` rotates or the account is disabled) and `pages/login.rs` (`/login` with the break-glass password,
@@ -23,6 +24,27 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
 - Tests: `tests/console_signin.rs` (20), `websession` unit tests (5).
 - The fake identity provider advertises an `end_session_endpoint` (logout through the provider).
 - CI: docker/setup-buildx-action v4, docker/login-action v4, docker/build-push-action v7 (Node 24; checked by the next tag's run only).
+
+## 0.7.19 (2026-10-25): phase 7c, the console pages that still ran on PHP
+- **Fleet diagnostics** (`/diagnostics`, `/diagnostics/export`): PHP's `FleetDiagnostics` report and page, the same queries, text and
+  classes; the sanitised JSON download with PHP's pretty print. The scheduler card reads the heartbeat hte-console's own
+  `diagnostics` sweep writes; the ID server link card reads the pull marker hte-console's policy endpoint leaves; the ID and
+  relay TCP probes (one second each) run side by side, so the page holds the database lock for at most about a second.
+- **Roles** (`/roles`, `/roles/save`, `/roles/delete`): list, create, edit, delete as `RoleList`: super-admin only (a redirect
+  with "That section is restricted to administrators." for the page, 403 for a write), the same validation and messages, the
+  matrix normalised and stored as Eloquent's `array` cast stores it, `role.create`/`role.update`/`role.delete` audit rows with
+  PHP's summaries; a deleted role's holders fall back to the standard-user baseline. The pages 7b ported already read the
+  same column the same way (`Ctx::allows`). The dialog's desktop radios and phone selects send only the set on screen.
+- **Health**: `/health/live`, `/health/ready` (database, ID server, every relay; 503 when not ready), `/up` (Laravel's page
+  without its external font and script).
+- Not used at HTE and not ported: `/downloads`, `/downloads/{id}`, `/storage/*` answer 404; `/client-downloads` and `/setup`
+  keep the "not available yet" page. PHP's own backup link `/settings/backups/{name}` leads to `/settings/backups/download?name=`.
+- Replay: Diagnostics, its JSON (clock and probe latency masked), Roles and the health JSON for every person; the New/Edit
+  Role dialogs; writes: create a role, a taken name, edit, delete a role someone holds. The seed adds an ID and a relay
+  server that refuse at once on both sides.
+- From the independent review: `/health/ready` reads its targets under the database lock and probes after releasing it;
+  `/health/live` and `/health/ready` have PHP's global limits (120 and 30 a minute, 429 with `Retry-After: 60`). A backup
+  download now writes PHP's `backup.download` audit row (missing since 7b).
 - `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.
 
 ## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP

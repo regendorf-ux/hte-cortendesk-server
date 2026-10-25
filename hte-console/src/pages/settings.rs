@@ -82,7 +82,7 @@ fn bool_s(b: bool) -> &'static str {
 }
 
 /// `Setting::server($name)`: the saved value when it is not blank, else the environment's.
-fn server_value(c: &Connection, name: &str, envs: &[&str]) -> Result<String, Fault> {
+pub(crate) fn server_value(c: &Connection, name: &str, envs: &[&str]) -> Result<String, Fault> {
     let saved = txt(c, name, "")?.trim().to_string();
     if !saved.is_empty() {
         return Ok(saved);
@@ -208,7 +208,7 @@ fn normalize_scheme(v: &str) -> String {
     if ok { s } else { String::new() }
 }
 
-fn server_mode(c: &Connection) -> Result<String, Fault> {
+pub(crate) fn server_mode(c: &Connection) -> Result<String, Fault> {
     Ok(if txt(c, "server_access_mode", "open")? == "approved" { "approved" } else { "open" }.into())
 }
 
@@ -386,17 +386,22 @@ fn validate_values(v: &Values, relays: &[(String, String)]) -> Vec<(String, Stri
 }
 
 /// `ServerLink::status()`'s link state as the page reads it, from the pull marker the ID server link leaves in the cache.
-struct Link {
-    configured: bool,
-    at: Option<i64>,
-    agent: String,
-    fresh: bool,
-    ok: Option<bool>,
-    note: String,
+pub(crate) struct Link {
+    pub configured: bool,
+    pub at: Option<i64>,
+    /// the marker's `at` as stored (Fleet Diagnostics' download shows it)
+    pub at_raw: Option<String>,
+    /// a pull marker exists (PHP's `is_array($pull)`)
+    pub has_pull: bool,
+    pub agent: String,
+    pub fresh: bool,
+    pub needed: bool,
+    pub ok: Option<bool>,
+    pub note: String,
 }
 
-fn pull_marker(ctx: &Ctx, c: &Connection) -> Result<(Option<i64>, String), Fault> {
-    let Some(raw) = ctx.p.store.get_raw(c, crate::cache::PULL_KEY, ctx.now)? else { return Ok((None, String::new())) };
+fn pull_marker(ctx: &Ctx, c: &Connection) -> Result<(Option<i64>, Option<String>, bool, String), Fault> {
+    let Some(raw) = ctx.p.store.get_raw(c, crate::cache::PULL_KEY, ctx.now)? else { return Ok((None, None, false, String::new())) };
     let t = String::from_utf8_lossy(&raw).into_owned();
     let grab = |name: &str| -> Option<String> {
         let marker = format!("s:{}:\"{}\";s:", name.len(), name);
@@ -405,12 +410,13 @@ fn pull_marker(ctx: &Ctx, c: &Connection) -> Result<(Option<i64>, String), Fault
         let len: usize = len.parse().ok()?;
         rest.get(..len).map(str::to_string)
     };
-    let at = grab("at").and_then(|a| crate::backup::parse_when(&a)).map(|d| d.timestamp());
-    Ok((at, grab("agent").unwrap_or_default()))
+    let at_raw = grab("at");
+    let at = at_raw.as_deref().and_then(crate::backup::parse_when).map(|d| d.timestamp());
+    Ok((at, at_raw.filter(|_| at.is_some()), t.starts_with("a:"), grab("agent").unwrap_or_default()))
 }
 
-fn link(ctx: &Ctx, c: &Connection) -> Result<Link, Fault> {
-    let (at, agent) = pull_marker(ctx, c)?;
+pub(crate) fn link(ctx: &Ctx, c: &Connection) -> Result<Link, Fault> {
+    let (at, at_raw, has_pull, agent) = pull_marker(ctx, c)?;
     let fresh = at.map_or(false, |a| a > ctx.now - 60);
     let needed = server_mode(c)? == "approved" || count(c, r#"select count(*) as aggregate from "devices" where "status" = ? and "can_initiate" = ? and "devices"."deleted_at" is null"#, &[P(Val::str("active")), P(Val::Bool(false))])? > 0;
     let configured = std::env::var("CORTENDESK_SERVER_SECRET").map(|s| !s.trim().is_empty()).unwrap_or(false)
@@ -421,7 +427,7 @@ fn link(ctx: &Ctx, c: &Connection) -> Result<Link, Fault> {
         (true, Some(a)) if !fresh => format!("The ID server last fetched the policy {}.", super::time::ago(a, ctx.now, false)),
         (true, Some(a)) => format!("The ID server fetched the policy {}.", super::time::ago(a, ctx.now, false)),
     };
-    Ok(Link { configured, at, agent, fresh: configured && fresh, ok: if configured && fresh { Some(true) } else if needed { Some(false) } else { None }, note })
+    Ok(Link { configured, at, at_raw, has_pull, agent, fresh: configured && fresh, needed, ok: if configured && fresh { Some(true) } else if needed { Some(false) } else { None }, note })
 }
 
 /// `ScopeSettings::hteScopeStatus()`
@@ -930,4 +936,19 @@ pub fn snooze(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     }
     audit(ctx, c, "settings.presence-snooze", &format!("Snoozed device presence alerts until {ts_exp}"), Some("settings"), None)?;
     Ok(Reply::Redirect("/settings?tab=notifications".into()))
+}
+
+/// `Setting::relayServers()`'s addresses: the pool's non-empty rows, else the single `relay_server` (or its environment default).
+pub(crate) fn relay_pool(c: &Connection) -> Result<Vec<String>, Fault> {
+    let raw = txt(c, "relay_servers", "")?;
+    if !raw.is_empty() {
+        if let Ok(Value::Array(rows)) = serde_json::from_str::<Value>(&raw) {
+            let list: Vec<String> = rows.iter().map(|r| value_text(r.get("address")).trim().to_string()).filter(|a| !a.is_empty()).collect();
+            if !list.is_empty() {
+                return Ok(list);
+            }
+        }
+    }
+    let single = server_value(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "CORTENDESK_RELAY_SERVER"])?;
+    Ok(if single.is_empty() { vec![] } else { vec![single] })
 }

@@ -364,13 +364,25 @@ pub fn upload(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
 }
 
 /// GET /settings/backups/download
-pub fn download(ctx: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
-    let _ = ctx;
+/// `GET /settings/backups/{name}`: PHP's own download URL (`BackupController::download`), the same file as `?name=`.
+pub fn download_by_path(_: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
+    let name = req.path.rsplit('/').next().unwrap_or("");
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')) {
+        return Ok(abort(404));
+    }
+    Ok(Reply::Redirect(format!("/settings/backups/download?name={name}")))
+}
+
+pub fn download(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let name = q(req, "name");
     let setup = setup()?;
     match backup::path_of(&setup.env, &name) {
         Ok(Some(p)) => match std::fs::read(&p) {
-            Ok(body) => Ok(Reply::Bytes { filename: name, body }),
+            Ok(body) => {
+                // BackupController::download
+                audit(ctx, c, "backup.download", &format!("Downloaded backup {name}"), Some("backup"), Some(&name))?;
+                Ok(Reply::Bytes { filename: name, body })
+            }
             Err(_) => Ok(abort(404)),
         },
         _ => Ok(abort(404)),

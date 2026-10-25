@@ -16,6 +16,8 @@ pub mod account;
 pub mod address_books;
 pub mod assets;
 pub mod device_detail;
+pub mod diagnostics;
+pub mod roles;
 pub mod devices;
 pub mod kit;
 pub mod logs;
@@ -132,6 +134,8 @@ pub enum Reply {
     Csv { filename: String, body: String },
     /// A stored file handed out as it is (a backup archive).
     Bytes { filename: String, body: Vec<u8> },
+    /// A generated download (`streamDownload` with its own content type, `no-store`): the diagnostics JSON.
+    Download { filename: String, content_type: &'static str, body: Vec<u8> },
 }
 
 pub type Handler = for<'a> fn(&Ctx<'a>, &Connection, &Req) -> Result<Reply, Fault>;
@@ -295,7 +299,7 @@ impl Pages {
 }
 
 /// `unserialize()` of a cached string: `s:<len>:"<bytes>";`.
-fn unserialize_string(b: &[u8]) -> Option<String> {
+pub(crate) fn unserialize_string(b: &[u8]) -> Option<String> {
     let s = std::str::from_utf8(b).ok()?;
     let rest = s.strip_prefix("s:")?;
     let (len, rest) = rest.split_once(':')?;
@@ -620,6 +624,13 @@ fn reply_to_response(ctx: &Ctx, r: Reply, head: bool) -> Response<Body> {
             .header(header::CACHE_CONTROL, "no-cache, private")
             .body(if head { Body::empty() } else { Body::from(body) })
             .unwrap(),
+        Reply::Download { filename, content_type, body } => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, content_type)
+            .header(header::CONTENT_DISPOSITION, format!("attachment; filename={filename}"))
+            .header(header::CACHE_CONTROL, "no-store, private")
+            .body(if head { Body::empty() } else { Body::from(body) })
+            .unwrap(),
         Reply::Bytes { filename, body } => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, "application/x-tar")
@@ -723,6 +734,63 @@ async fn asset(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::ex
     assets::respond(&path, req.method() == Method::HEAD)
 }
 
+/// `GET /health/live`: `{"live":true}`; 429 past PHP's limit.
+async fn health_live(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return error_response(405, "Method Not Allowed", false);
+    }
+    if !diagnostics::probe_allowed("live", p.n.now()) {
+        return health_json(429, r#"{"live":false}"#.into());
+    }
+    health_json(200, r#"{"live":true}"#.into())
+}
+
+fn health_json(status: u16, body: String) -> Response<Body> {
+    let mut b = Response::builder().status(StatusCode::from_u16(status).unwrap_or(StatusCode::SERVICE_UNAVAILABLE)).header(header::CONTENT_TYPE, "application/json").header(header::CACHE_CONTROL, "no-cache, private");
+    if status == 429 {
+        b = b.header(header::RETRY_AFTER, "60");
+    }
+    b.body(Body::from(body)).unwrap()
+}
+
+/// `GET /health/ready`: the database, the ID server and every relay (`FleetDiagnostics::readiness`); 503 when not ready, 429
+/// past PHP's limit. The database lock is held only to read the targets, never while probing.
+async fn health_ready(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return error_response(405, "Method Not Allowed", false);
+    }
+    if !diagnostics::probe_allowed("ready", p.n.now()) {
+        return health_json(429, r#"{"ready":false,"database":false,"id_server":false,"relay_server":false}"#.into());
+    }
+    let p2 = p.clone();
+    let (status, body) = tokio::task::spawn_blocking(move || {
+        let targets = {
+            let conn = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
+            diagnostics::readiness_targets(&conn)
+        };
+        diagnostics::ready_body(diagnostics::readiness(targets))
+    })
+    .await
+    .unwrap_or((503, r#"{"ready":false,"database":false,"id_server":false,"relay_server":false}"#.into()));
+    health_json(status, body)
+}
+
+/// `GET /up`: Laravel's health page (status 200, "Application up"), without its external font and Tailwind script.
+async fn health_up(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return error_response(405, "Method Not Allowed", false);
+    }
+    let body = format!(
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n    <meta charset=\"utf-8\">\n    <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">\n\n    <title>{}</title>\n</head>\n<body>\n    <h2>Application up</h2>\n    <p>HTTP request received.</p>\n</body>\n</html>\n",
+        laravel::e(&p.n.signin.app_name)
+    );
+    html(200, body, req.method() == Method::HEAD)
+}
+
+async fn not_found(req: Request<Body>) -> Response<Body> {
+    error_response(404, "Not Found", req.method() == Method::HEAD)
+}
+
 async fn rdclient(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::extract::Path<String>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return error_response(405, "Method Not Allowed", false);
@@ -786,7 +854,12 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/settings/backups/test", methods: &["POST"], need: Some(("setting", "r")), handler: backups::test },
     Route { path: "/settings/backups/upload", methods: &["POST"], need: Some(("setting", "r")), handler: backups::upload },
     Route { path: "/settings/backups/download", methods: &["GET"], need: Some(("setting", "rw")), handler: backups::download },
-    Route { path: "/roles", methods: &["GET"], need: None, handler: unavailable::roles },
+    Route { path: "/settings/backups/:name", methods: &["GET"], need: Some(("setting", "rw")), handler: backups::download_by_path },
+    Route { path: "/diagnostics", methods: &["GET"], need: Some(("setting", "r")), handler: diagnostics::index },
+    Route { path: "/diagnostics/export", methods: &["GET"], need: Some(("setting", "r")), handler: diagnostics::export },
+    Route { path: "/roles", methods: &["GET"], need: None, handler: roles::index },
+    Route { path: "/roles/save", methods: &["POST"], need: None, handler: roles::save },
+    Route { path: "/roles/delete", methods: &["POST"], need: None, handler: roles::delete },
     Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: unavailable::invitations },
     Route { path: "/api-tokens", methods: &["GET", "POST"], need: Some(("token", "r")), handler: api_tokens::index },
     Route { path: "/api-tokens/revoke", methods: &["POST"], need: Some(("token", "r")), handler: api_tokens::revoke },
@@ -821,6 +894,13 @@ pub fn routes_with(n: Arc<Native>, php: Option<Router>, own: websession::OwnConf
     for (i, route) in ROUTES.iter().enumerate() {
         r = r.route(route.path, any(move |s: State<Arc<Pages>>, c: ConnectInfo<SocketAddr>, req: Request<Body>| serve(s, c, req, i)));
     }
+    r = r.route("/health/live", any(health_live));
+    r = r.route("/health/ready", any(health_ready));
+    r = r.route("/up", any(health_up));
+    // Client downloads are not ported (none at HTE): their public pages and Laravel's signed local-disk URLs answer 404 here
+    r = r.route("/downloads", any(not_found));
+    r = r.route("/downloads/*rest", any(not_found));
+    r = r.route("/storage/*rest", any(not_found));
     r = login::routes(r);
     r = r.route("/assets/*path", any(asset));
     r = r.route("/rdclient/*path", any(rdclient));

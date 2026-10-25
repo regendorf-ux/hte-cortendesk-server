@@ -46,6 +46,9 @@ pub fn seed_sql(now: i64) -> Result<String, String> {
     let mut s = String::from("PRAGMA foreign_keys = OFF;\nDELETE FROM users; DELETE FROM sessions; DELETE FROM roles; DELETE FROM devices; DELETE FROM device_groups; DELETE FROM user_groups; DELETE FROM strategies; DELETE FROM address_books; DELETE FROM tags; DELETE FROM address_book_entries;\nDELETE FROM alarm_logs; DELETE FROM audit_connections; DELETE FROM audit_file_transfers; DELETE FROM login_logs; DELETE FROM console_audits; DELETE FROM trusted_devices;\n");
     s.push_str("INSERT INTO roles (id, name, permissions, require_two_factor, created_at, updated_at) VALUES (1, 'Auditor', '{\"audit\":\"rw\"}', 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
     s.push_str("INSERT INTO device_groups (id, name, created_at, updated_at) VALUES (1, 'Front desk', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
+    // 7c, Fleet diagnostics: an ID and a relay server that refuse at once on both sides (nothing listens on port 9 in either
+    // container), so both probes run and fail the same way
+    s.push_str("DELETE FROM settings WHERE key IN ('id_server', 'relay_server');\nINSERT INTO settings (key, value, created_at, updated_at) VALUES ('id_server', '127.0.0.1:9', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('relay_server', 'localhost:9', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
     for (id, rd, owner) in [(1, "1001", "2"), (2, "1002", "null"), (3, "1003", "2")] {
         s.push_str(&format!("INSERT INTO devices (id, rustdesk_id, uuid, user_id, status, created_at, updated_at) VALUES ({id}, '{rd}', 'uuid-{id}', {owner}, 'active', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n"));
     }
@@ -554,9 +557,26 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             cases.push((user, path.clone()));
         }
     }
+    // 7c, after everything 7b asked, so a 7b capture still lines up up to here
+    for user in ["hteadmin", "dana", "erin"] {
+        for path in ["/diagnostics", "/diagnostics/export", "/roles"] {
+            cases.push((user, path.to_string()));
+        }
+    }
+    // the health routes answer without a session
+    for path in ["/health/live", "/health/ready"] {
+        cases.push(("hteadmin", path.to_string()));
+    }
     for (i, (user, path)) in cases.iter().enumerate() {
         let cookie = cookie_for(&cfg, &crypt, user, now);
-        let a = php_get(&side, &format!("p{i:03}"), &format!("{user} GET {path}"), &c, php, &cookie, path).await?;
+        let a = match php_get(&side, &format!("p{i:03}"), &format!("{user} GET {path}"), &c, php, &cookie, path).await {
+            // a capture taken by an older replay ends before the pages added since: those are not compared (said, not counted)
+            Err(e) if offline && e.contains("capture from an older replay") => {
+                eprintln!("not in this capture (added after it was taken), not compared: {user} GET {path}");
+                continue;
+            }
+            r => r?,
+        };
         let clock = a.at.to_string();
         let at: &[(&str, &str)] = if offline { &[("x-hte-replay-clock", clock.as_str())] } else { &[] };
         let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), at).await?;
@@ -572,6 +592,23 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
         }
         if a.status != 200 {
             // a redirect: the status and where to are what a person gets (its body names the host)
+        } else if path == "/diagnostics/export" {
+            // the JSON download: the same report, but the second it was made and how long each probe took are the clock's
+            let mask = |s: &str| -> Option<serde_json::Value> {
+                let mut v: serde_json::Value = serde_json::from_str(s).ok()?;
+                v["generated_at"] = serde_json::Value::Null;
+                for k in ["id_server", "relay_server"] {
+                    if v["services"][k].get("latency_ms").is_some() {
+                        v["services"][k]["latency_ms"] = serde_json::Value::Null;
+                    }
+                }
+                Some(v)
+            };
+            match (mask(&a.body), mask(&b.body)) {
+                (Some(x), Some(y)) if x == y && a.ctype == b.ctype && a.disposition == b.disposition => {}
+                (Some(x), Some(y)) => diffs.push(format!("{label}: the JSON differs (content types «{}» / «{}», dispositions «{}» / «{}»): PHP {x} / hte-console {y}", a.ctype, b.ctype, a.disposition, b.disposition)),
+                _ => diffs.push(format!("{label}: not JSON on one side (PHP {} bytes, hte-console {})", a.body.len(), b.body.len())),
+            }
         } else if path.contains("/export") {
             // streamDownload's headers and the exact file
             if a.body != b.body || a.ctype != b.ctype {
@@ -823,7 +860,10 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, side: &Side, cfg: &
         ("devices: delete", "/devices", "device-list", "confirmDelete", vec![json!(1)], "?delete=1"),
         ("device 1: edit", "/devices/1", "device-detail", "editDevice", vec![], "?edit=1"),
         ("device 1: delete", "/devices/1", "device-detail", "confirmDelete", vec![], "?delete=1"),
+        ("roles: new", "/roles", "role-list", "create", vec![], "?create=1"),
+        ("roles: edit", "/roles", "role-list", "edit", vec![json!(1)], "?edit=1"),
     ];
+    let n_cases = cases.len();
     let cookie = cookie_for(cfg, crypt, "hteadmin", now);
     for (i, (what, page, component, method, params, query)) in cases.into_iter().enumerate() {
         *total += 1;
@@ -849,6 +889,11 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, side: &Side, cfg: &
         };
         let php_html = match got {
             Ok(h) => h,
+            Err(e) if matches!(side, Side::From(_)) && e.contains("capture from an older replay") => {
+                *total -= 1;
+                eprintln!("not in this capture (added after it was taken), not compared: {label}");
+                continue;
+            }
             Err(e) => {
                 diffs.push(format!("{label} (PHP): {e}"));
                 continue;
@@ -888,7 +933,7 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, side: &Side, cfg: &
         by_design.push(format!("dialogs: by design (Users add/edit: hte-console says in a helper line that a role or the device groups do not apply to an administrator; PHP shows the field without saying so) ({helper} lines)"));
     }
     if layout > 0 {
-        by_design.push(format!("dialogs: {DIALOG_LAYOUT_REASON} ({layout} of {} differ)", 16));
+        by_design.push(format!("dialogs: {DIALOG_LAYOUT_REASON} ({layout} of {n_cases} differ)"));
     }
 }
 
@@ -979,6 +1024,38 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
         Step { label: "strategies: switch one off", user: "hteadmin", page: "/strategies", component: "strategy-list", rounds: vec![(vec![], vec![("toggleEnabled", vec![int(1)])])], path: "/strategies/toggle", fields: f(&[("id", "1")]) },
         Step { label: "address books: create a shared book", user: "hteadmin", page: "/address-books", component: "address-book-manager", rounds: vec![(vec![], vec![("openNewBook", vec![])]), (vec![("bookName", json!("Field techs")), ("bookNote", json!("Shared"))], vec![("createBook", vec![])])], path: "/address-books/act", fields: f(&[("do", "create-book"), ("book_name", "Field techs"), ("book_note", "Shared")]) },
         Step { label: "settings, Backups: schedule and retention", user: "hteadmin", page: "/settings", component: "backup-manager", rounds: vec![(vec![("enabled", json!(false)), ("keepDaily", int(3)), ("keepWeekly", int(2)), ("keepMonthly", int(1))], vec![("save", vec![])])], path: "/settings/backups/save", fields: f(&[("keep_daily", "3"), ("keep_weekly", "2"), ("keep_monthly", "1")]) },
+        // 7c, Roles: a new role (the form posts every area, as the browser does), an edit, and the delete of a role someone holds
+        Step {
+            label: "roles: create a role",
+            user: "hteadmin",
+            page: "/roles",
+            component: "role-list",
+            rounds: vec![
+                (vec![], vec![("create", vec![])]),
+                (vec![("name", json!("Helpdesk")), ("description", json!("Front line")), ("permissions.device", json!("r")), ("permissions.setting", json!("rw")), ("require_two_factor", json!(true))], vec![("save", vec![])]),
+            ],
+            path: "/roles/save",
+            fields: f(&[("id", "0"), ("name", "Helpdesk"), ("description", "Front line"), ("permissions[device]", "r"), ("permissions[user]", "none"), ("permissions[group]", "none"), ("permissions[address_book]", "rw"), ("permissions[audit]", "r"), ("permissions[strategy]", "none"), ("permissions[setting]", "rw"), ("permissions[token]", "none"), ("require_two_factor", "1")]),
+        },
+        Step {
+            label: "roles: a name that is taken (refused on both)",
+            user: "hteadmin",
+            page: "/roles",
+            component: "role-list",
+            rounds: vec![(vec![], vec![("create", vec![])]), (vec![("name", json!("Auditor"))], vec![("save", vec![])])],
+            path: "/roles/save",
+            fields: f(&[("id", "0"), ("name", "Auditor"), ("description", ""), ("permissions[device]", "rw"), ("permissions[address_book]", "rw"), ("permissions[audit]", "r")]),
+        },
+        Step {
+            label: "roles: edit a role",
+            user: "hteadmin",
+            page: "/roles",
+            component: "role-list",
+            rounds: vec![(vec![], vec![("edit", vec![int(1)])]), (vec![("description", json!("Read-only logs")), ("permissions.device", json!("r"))], vec![("save", vec![])])],
+            path: "/roles/save",
+            fields: f(&[("id", "1"), ("name", "Auditor"), ("description", "Read-only logs"), ("permissions[device]", "r"), ("permissions[user]", "none"), ("permissions[group]", "none"), ("permissions[address_book]", "none"), ("permissions[audit]", "rw"), ("permissions[strategy]", "none"), ("permissions[setting]", "none"), ("permissions[token]", "none")]),
+        },
+        Step { label: "roles: delete a role someone holds", user: "hteadmin", page: "/roles", component: "role-list", rounds: vec![(vec![], vec![("deleteRole", vec![int(1)])])], path: "/roles/delete", fields: f(&[("id", "1")]) },
         Step { label: "settings, Maintenance: Prune now", user: "hteadmin", page: "/settings", component: "settings-page", rounds: vec![(vec![("logRetentionDays", int(30))], vec![("pruneNow", vec![])])], path: "/settings/prune", fields: f(&[("log_retention_days", "30")]) },
     ];
     let mut phase = 0;
@@ -991,7 +1068,7 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
                 flag_error(diffs, &format!("{} (PHP)", st.label), livewire(c, php, &cookie, st.page, st.component, st.rounds).await);
             }
             match rust_form(st.user, st.path.to_string(), st.fields).await {
-                Ok(r) if ok(r.status) => {}
+                Ok(r) if ok(r.status) || (st.label.contains("refused on both") && r.status == 422) => {}
                 Ok(r) => diffs.push(format!("{}: hte-console answered {} to POST {}", st.label, r.status, st.path)),
                 Err(e) => diffs.push(format!("{}: {e}", st.label)),
             }
