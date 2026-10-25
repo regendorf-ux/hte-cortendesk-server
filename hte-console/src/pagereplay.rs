@@ -419,7 +419,6 @@ pub struct Report {
 /// URL of its own, so PHP answers 404 where hte-console answers 200 (the same permission and reach checks as the page).
 const FRAGMENTS: [&str; 2] = ["/dashboard/stats", "/dashboard/sessions"];
 const FRAGMENT_REASON: &str = "by design (own htmx refresh URL; PHP refreshes the same cards through Livewire polling, which has no URL; same permission checks as the page)";
-const INVITE_REASON: &str = "by design (the Invitations card at the end of Users: inviting by email is not available in this console; the rest of the page is compared)";
 
 const DIALOG_LAYOUT_REASON: &str = "by design (the CSS classes of a dialog are not compared: hte-console lays dialogs out its own way; their text, fields and buttons are)";
 const GROUPS_REASON: &str = "by design (Settings: an option group the page hides with d-none and shows with a click handler, e.g. the other Apprise mode, is in the page; PHP re-renders the form from the server instead; only the group in force is compared; the About card lists different things: PHP its Laravel and PHP versions, hte-console its own)";
@@ -467,13 +466,6 @@ fn without_hidden_groups(html: &str) -> String {
     }
 }
 
-/// The html without the Invitations card, which closes the Users page on both sides.
-fn without_invitations(html: &str) -> &str {
-    match html.find(">Invitations<").and_then(|i| html[..i].rfind("<div class=\"card\">")) {
-        Some(i) => &html[..i],
-        None => html,
-    }
-}
 
 /// A Livewire component's snapshot from a page: the first `wire:snapshot` whose memo name is `name`.
 fn snapshot(html: &str, name: &str) -> Option<String> {
@@ -615,13 +607,8 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
                 diffs.push(format!("{label}: the CSV differs (PHP {} bytes, hte-console {}; content types «{}» / «{}»)", a.body.len(), b.body.len(), a.ctype, b.ctype));
             }
         } else if a.status == 200 {
-            let users = path.starts_with("/users");
-            let (pa, pb) = if users && (a.body.contains(">Invitations<") || b.body.contains(">Invitations<")) {
-                by_design.push(format!("/users*: {INVITE_REASON}"));
-                (without_invitations(&a.body), without_invitations(&b.body))
-            } else {
-                (a.body.as_str(), b.body.as_str())
-            };
+            // phase 8 (0.8.2) ported the Invitations card, so the whole Users page is compared now
+            let (pa, pb) = (a.body.as_str(), b.body.as_str());
             let (ga, gb);
             let (pa, pb) = if path.starts_with("/settings") && (pa.contains("data-rd-group") || pb.contains("data-rd-group")) {
                 by_design.push(format!("/settings: {GROUPS_REASON}"));

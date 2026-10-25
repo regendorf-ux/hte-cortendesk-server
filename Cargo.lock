@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "hte-console"
-version = "0.8.1"
+version = "0.8.2"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -1922,6 +1922,7 @@ dependencies = [
  "libc",
  "minijinja",
  "once_cell",
+ "qrcodegen",
  "rand 0.8.8",
  "rcgen",
  "regex",
@@ -1940,6 +1941,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "url",
+ "webpki-roots 0.26.11",
 ]
 
 [[package]]
@@ -3402,6 +3404,12 @@ name = "punycode"
 version = "0.4.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e9e1dcb320d6839f6edb64f7a4a59d39b30480d4d1765b56873f7c858538a5fe"
+
+[[package]]
+name = "qrcodegen"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142"
 
 [[package]]
 name = "quick-xml"

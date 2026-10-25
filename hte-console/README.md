@@ -428,8 +428,7 @@ remaining pages: `notes/phase8/NOTES.md`. Off unless `HTE_CONSOLE_SIGNIN=1`.
 | logout | cycles the remember token | the same; so it signs the person out of every hte-console session |
 | logout at the provider | `id_token_hint` (the ID token in a URL) | `client_id` (no token in a URL, none stored) |
 | unknown or disabled account | answered at once | as long as a wrong password (dummy bcrypt) |
-| TOTP enrolled, TOTP required, e-mailed codes | second step / enrolment | refused with a message (not used at HTE; deploy stops when on) |
-| "Forgot password?" link | shown when mail is configured | never (reset not offered) |
-| password reset, invitations | pages | "not available" (404) |
+| two-factor enrolment | the candidate secret in the session | in an encrypted form field bound to the account (no session write) |
+| SMTP authentication | CRAM-MD5, LOGIN, PLAIN, XOAUTH2 | LOGIN, PLAIN |
 | a guest page | a session row per visit | one row per browser (GET only), at most 600 new rows a minute per address |
 | `SESSION_SECURE_COOKIE=true` on plain http | the cookie is dropped, the post fails (419), back to `/login` | no sign-in completed: back to `/login` (the page shows PHP's https note) |

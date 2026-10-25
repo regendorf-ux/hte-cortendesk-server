@@ -39,6 +39,8 @@ const SSO_CREATED: (&str, &str) = ("user-5eed0004", "tok-5eed00000000b004");
 const WAITING: &str = "user-5eed0005";
 const THROTTLED: &str = "user-5eed0008";
 const WRONG: &str = "tok-5eed0000wrongpw1";
+/// The seed's TOTP account (its secret is `totp::REPLAY_SECRET`).
+const TOTP_USER: &str = "user-5eed0006";
 
 /// Modes PHP accepts and hte-console refuses (phase 2's hardening, `README.md` of the crate).
 const HARDENED: &[&str] = &["no-exp", "multi-aud"];
@@ -146,6 +148,17 @@ async fn scenario(base: &str) -> Result<Vec<(String, Obs)>, String> {
     out.push(("logout".into(), b.logout().await?));
     out.push(("after logout".into(), b.obs("GET", "/account", None).await?));
     out.push(("logout again (no session)".into(), b.obs("POST", "/logout", Some(vec![])).await?));
+    // two-factor (0.8.2): the TOTP account of the seed (RFC 6238's test key): the challenge page, a wrong code, the right one
+    let mut f = Browser::new(base);
+    out.push(("two-factor: password step".into(), f.password(TOTP_USER, BREAK_GLASS.1).await?));
+    out.push(("two-factor: the challenge page".into(), f.obs("GET", "/login/2fa", None).await?));
+    let t = f.token("/login/2fa").await?;
+    out.push(("two-factor: a wrong code".into(), f.obs("POST", "/login/2fa", Some(vec![("_token", t.clone()), ("code", "000000".into())])).await?));
+    out.push(("two-factor: the page after".into(), f.obs("GET", "/login/2fa", None).await?));
+    let key = crate::totp::base32_decode(crate::totp::REPLAY_SECRET.as_bytes()).unwrap_or_default();
+    let code = crate::totp::at(&key, chrono::Utc::now().timestamp() / crate::totp::PERIOD);
+    out.push(("two-factor: the right code".into(), f.obs("POST", "/login/2fa", Some(vec![("_token", t), ("code", code)])).await?));
+    out.push(("two-factor: logout".into(), f.logout().await?));
     // the per-account throttle: five failures, then even the right password waits (alarm 100, one row)
     let mut t = Browser::new(base);
     for i in 0..5 {

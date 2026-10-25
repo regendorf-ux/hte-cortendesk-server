@@ -372,7 +372,6 @@ async fn validation_and_accounts_the_password_may_not_open() {
     for (user, msg) in [
         ("user-5eed0004", None), // provisioned by SSO: its password is unusable (wrong password)
         ("user-5eed0005", Some("Your account is waiting for administrator approval.")),
-        ("user-5eed0006", Some("Two-factor sign-in is not available on this console yet. Contact an administrator.")),
     ] {
         let pw = if user == "user-5eed0004" { "tok-5eed00000000b004" } else { SEED_PW };
         let r = h.password(&c, &t, user, pw).await;
@@ -384,13 +383,19 @@ async fn validation_and_accounts_the_password_may_not_open() {
         }
     }
     assert_eq!(h.count("hte_console_sessions where user_id is not null"), 0);
-    // two-factor required by the settings, not enrolled: PHP would walk them to enrolment, which is not offered here
+    // TOTP enrolled: the second step, nothing signed in yet
+    let r = h.password(&c, &t, "user-5eed0006", SEED_PW).await;
+    assert_eq!(r.path(), "/login/2fa");
+    assert_eq!(h.count("hte_console_sessions where user_id is not null"), 0);
+    let (c, t) = h.guest().await;
+    // two-factor required by the settings, not enrolled: signed in, and every page sends them to enrol (RequireTwoFactor)
     h.sql("insert into settings (key, value, created_at, updated_at) values ('two_factor_required', '1', datetime('now'), datetime('now'))");
     let r = h.password(&c, &t, ADMIN, ADMIN_PW).await;
-    assert_eq!(r.path(), "/login");
-    assert!(h.error_shown(&c).await.starts_with("Two-factor authentication is required for this account"));
+    assert_eq!(r.path(), "/");
+    assert_eq!(h.get("/devices", Some(&r.own_cookie().unwrap())).await.path(), "/account/two-factor");
     // the password form switched off by the settings
     h.sql("delete from settings where key = 'two_factor_required'; insert into settings (key, value, created_at, updated_at) values ('oidc_disable_local_login', '1', datetime('now'), datetime('now'))");
+    let (c, t) = h.guest().await;
     let r = h.password(&c, &t, ADMIN, ADMIN_PW).await;
     assert_eq!(r.path(), "/login");
     let page = h.get("/login", Some(&c)).await;
@@ -623,16 +628,17 @@ async fn with_the_switch_off_everything_stays_php_s() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn steps_not_offered() {
+async fn steps_without_a_pending_sign_in_or_a_valid_link() {
     let h = harness().await;
-    for p in ["/login/2fa", "/login/email", "/login/email/resend"] {
+    // no challenge pending: back to the sign-in page (PHP's answer); the resend is a POST-only route
+    for p in ["/login/2fa", "/login/email"] {
         assert_eq!(h.get(p, None).await.path(), "/login", "{p}");
     }
-    for p in ["/forgot-password", "/reset-password/abc", "/invite/abc"] {
-        let r = h.get(p, None).await;
-        assert_eq!(r.status, 404, "{p}");
-        assert!(r.body.contains("Password reset and invitations are not available on this console."));
-    }
+    assert_eq!(h.get("/login/email/resend", None).await.status, 405);
+    // reset without mail: to the sign-in page; an unknown invitation: 404
+    assert_eq!(h.get("/forgot-password", None).await.path(), "/login");
+    assert_eq!(h.get("/reset-password/abc", None).await.path(), "/login");
+    assert_eq!(h.get("/invite/abc", None).await.status, 404);
 }
 
 // --------------------------------------------------------------------------------------- single sign-on ---
@@ -764,6 +770,10 @@ async fn no_secret_reaches_the_log() {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_web_sign_in_replay_sees_no_difference_between_two_identical_consoles_and_sees_a_real_one() {
     let (a, b) = (harness().await, harness().await);
+    // the replay computes the TOTP step from the wall clock, as it does against PHP
+    let now = chrono::Utc::now().timestamp();
+    a.clock.store(now, Ordering::SeqCst);
+    b.clock.store(now, Ordering::SeqCst);
     let r = hte_console::webreplay::run(&a.url, &b.url).await.unwrap();
     assert!(r.total > 60, "{}", r.total);
     assert!(r.differences.is_empty(), "{:#?}", r.differences);
@@ -771,6 +781,8 @@ async fn the_web_sign_in_replay_sees_no_difference_between_two_identical_console
     assert_eq!(a.logins(), b.logins());
     assert!(a.count("alarm_logs where typ = 100") == 1 && b.count("alarm_logs where typ = 100") == 1);
     let (c, d) = (harness().await, harness().await);
+    c.clock.store(now, Ordering::SeqCst);
+    d.clock.store(now, Ordering::SeqCst);
     std::env::set_var("HTE_WEBREPLAY_MUTATE", "1");
     let r = hte_console::webreplay::run(&c.url, &d.url).await.unwrap();
     std::env::remove_var("HTE_WEBREPLAY_MUTATE");

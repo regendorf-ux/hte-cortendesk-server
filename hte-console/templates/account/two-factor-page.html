@@ -1,0 +1,131 @@
+{#- PHP's account/two-factor.blade.php + livewire/two-factor-settings.blade.php: Livewire's actions are form posts here. -#}
+{% extends "base.html" %}
+{% block content %}
+    {% if enforced %}
+        <div class="alert alert-warning">
+            <i class="ri-shield-keyhole-line me-1"></i>{{ enforced }}
+        </div>
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+<div>
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h4 class="header-title">Two-Factor Authentication</h4>
+            {% if tfa.enabled %}
+                <span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Enabled</span>
+            {% else %}
+                <span class="badge bg-secondary-subtle text-secondary">Disabled</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+
+            {% if tfa.codes %}
+                <div class="alert alert-warning">
+                    <p class="fw-semibold mb-1"><i class="ri-key-2-line me-1"></i>Save your recovery codes</p>
+                    <p class="mb-2 fs-13">Each code works once. Store them somewhere safe — they're the only way in if you lose your authenticator. <strong>They won't be shown again.</strong></p>
+                    <div class="row row-cols-2 g-1 mb-2" id="recovery-codes">
+                        {% for code in tfa.codes %}
+                            <div class="col"><span class="rd-codechip">{{ code }}</span></div>
+                        {% endfor %}
+                    </div>
+                    <div class="d-flex flex-wrap gap-2">
+                        <button type="button" class="btn btn-sm btn-light"
+                                onclick="rdCopy(Array.from(document.querySelectorAll('#recovery-codes span')).map(e=>e.textContent.trim()).join('\n'), this)">
+                            <i class="ri-file-copy-line me-1"></i>Copy
+                        </button>
+                        <button type="button" class="btn btn-sm btn-light"
+                                onclick="(function(){var t=Array.from(document.querySelectorAll('#recovery-codes span')).map(e=>e.textContent.trim()).join('\n');var b=new Blob([t],{type:'text/plain'});var a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='cortendesk-recovery-codes.txt';a.click();})()">
+                            <i class="ri-download-2-line me-1"></i>Download
+                        </button>
+                        <a href="/account/two-factor" class="btn btn-sm btn-primary ms-auto">
+                            I've saved them
+                        </a>
+                    </div>
+                </div>
+            {% endif %}
+
+            {% if tfa.enabled %}
+                {% if not tfa.codes %}
+                    <p class="text-muted mb-3">
+                        Two-factor authentication is protecting your account
+                        {% if tfa.confirmed_at %}since {{ tfa.confirmed_at }}{% endif %}.
+                        You have <strong>{{ tfa.remaining }}</strong> recovery {{ 'code'|plural(tfa.remaining) }} remaining.
+                        {% if tfa.remaining <= 2 %}
+                            <span class="badge bg-warning-subtle text-warning ms-1">Running low — regenerate soon</span>
+                        {% endif %}
+                    </p>
+
+                    {% if tfa.required %}
+                        <div class="alert alert-info py-2 fs-13"><i class="ri-lock-line me-1"></i>Your account requires two-factor authentication, so it can't be turned off.</div>
+                    {% endif %}
+
+                    <form method="post" action="/account/two-factor" class="rd-inset">
+                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                        <label class="form-label">Account password</label>
+                        <input type="password" name="password" class="form-control{{ ' is-invalid' if tfa.error_field == 'password' else '' }}"
+                               autocomplete="current-password" style="max-width:320px;">
+                        {% if tfa.error_field == 'password' %} <div class="invalid-feedback d-block">{{ tfa.error }}</div> {% endif %}
+                        <div class="d-flex flex-wrap gap-2 mt-2">
+                            <button type="submit" name="do" value="regenerate" class="btn btn-outline-light">
+                                <i class="ri-refresh-line me-1"></i>Regenerate recovery codes
+                            </button>
+                            {% if not tfa.required %}
+                                <button type="submit" name="do" value="disable" class="btn btn-outline-danger">
+                                    <i class="ri-shield-cross-line me-1"></i>Disable 2FA
+                                </button>
+                            {% endif %}
+                        </div>
+                        <div class="form-text">Re-enter your password to regenerate codes or disable 2FA.</div>
+                    </form>
+                {% endif %}
+
+            {% elif tfa.setting_up %}
+                <p class="text-muted">Scan this QR code with an authenticator app (Google Authenticator, 1Password, Authy…), then enter the 6-digit code it shows.</p>
+
+                <div class="row">
+                    <div class="col-md-5 text-center mb-3">
+                        <div class="d-inline-block bg-white rounded p-2">{{ tfa.qr|safe }}</div>
+                    </div>
+                    <div class="col-md-7">
+                        <label class="form-label fs-13 text-muted mb-1">Can't scan? Enter this key manually:</label>
+                        <div class="input-group input-group-sm mb-3">
+                            <input type="text" class="form-control rd-mono" readonly value="{{ tfa.secret }}">
+                            <button class="btn btn-light" type="button" onclick="rdCopyPrevious(this)"><i class="ri-file-copy-line"></i></button>
+                        </div>
+
+                        <form method="post" action="/account/two-factor">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                            <input type="hidden" name="setup" value="{{ tfa.setup_blob }}">
+                            <label class="form-label">Verification code</label>
+                            <input type="text" name="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6"
+                                   class="form-control{{ ' is-invalid' if tfa.error_field == 'code' else '' }}"
+                                   placeholder="123456" style="max-width:180px;">
+                            {% if tfa.error_field == 'code' %} <div class="invalid-feedback d-block">{{ tfa.error }}</div> {% endif %}
+                            <div class="d-flex gap-2 mt-3">
+                                <button type="submit" name="do" value="confirm" class="btn btn-primary"><i class="ri-check-line me-1"></i>Verify &amp; enable</button>
+                                <a href="/account/two-factor" class="btn btn-outline-light">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+
+            {% else %}
+                <p class="text-muted">Add a second step to your console sign-in. After entering your password you'll be asked for a code from your authenticator app.</p>
+                {% if tfa.required %}
+                    <div class="alert alert-warning py-2 fs-13"><i class="ri-error-warning-line me-1"></i>Two-factor authentication is required for your account.</div>
+                {% endif %}
+                <form method="post" action="/account/two-factor">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <button type="submit" name="do" value="start" class="btn btn-primary">
+                        <i class="ri-shield-check-line me-1"></i>Enable two-factor authentication
+                    </button>
+                </form>
+            {% endif %}
+        </div>
+    </div>
+</div>
+        </div>
+    </div>
+{% endblock %}

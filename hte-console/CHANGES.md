@@ -2,6 +2,28 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.8.2 (2026-10-25): no console page left on PHP: two-factor, invitations, password reset, e-mailed codes, mail
+- **Mail** (`mail.rs`): PHP's `MailSettings` and Symfony's SMTP transport: TLS from the start (`ssl`) or STARTTLS whenever offered,
+  the certificate checked against the public roots (webpki-roots), AUTH LOGIN/PLAIN, 10-second timeouts, text/html quoted-printable;
+  the health record (`smtp_ok_at`, `smtp_failed_at`, `smtp_last_error`). Mail templates `templates/mail/` (PHP's). Settings → Email's
+  **Send test email** works (`/settings/mail-test`, `settings.mail-test` audit row).
+- **Two-factor** (`pages/twofactor.rs`, `pages/challenge.rs`): Account → Two-Factor Authentication (enrol with a QR code via qrcodegen,
+  recovery codes shown once, regenerate, disable; refused while required) and the sign-in challenge `/login/2fa` (TOTP with the replay
+  guard, recovery codes burnt atomically, 5 tries a minute + alarm). Required-but-not-enrolled people are sent to enrol (the gate's
+  `RequireTwoFactor`), as PHP. Deliberate difference: the candidate secret travels in an encrypted, account-bound form field, not the session.
+- **E-mailed sign-in codes**: `/login/email` (+ resend), trusted browsers (`cd_device`, `trusted_devices`), a broken relay lets only
+  someone who can repair it in (`mail_repair` → Settings → Email until it works), `RequireEmailAddress`. The RustDesk client's code step
+  (phase 2) now mails its code too.
+- **Password reset**: `/forgot-password`, `/reset-password/{token}` (only with mail on), neutral answers, one live link, the link burnt
+  before the change, every session and client token revoked, `login_logs` note `password reset`; "Forgot password?" on the sign-in page.
+- **Invitations**: the card at the end of Users (invite, resend, revoke, the link shown once and mailed when mail is on; delegated
+  managers clamped) and `/invite/{token}` (the account created from the row, signed in, `login_logs` note `invitation`, audit rows).
+  `/invitations` goes to Users. The page replay now compares the whole Users page (the card was "by design" before).
+- The gate answers `RequireTwoFactor` / `RequireEmailAddress` / `RequireMailHealthy` itself (no forwarding to PHP).
+- hte-console's own `hte-*` CSS/JS are revalidated on every load (a cached older copy hid the row-action button styles).
+- Sign-in replay: the two-factor challenge (password step, page, wrong code, right code) is compared with PHP too.
+- Tests: `tests/console_steps.rs` (5, with a fake SMTP relay), `mail` and `challenge`/`twofactor` unit tests.
+
 ## 0.8.1 (2026-10-25): what the 0.8.0 replay against PHP showed
 - Pages (7a/7b/7c): 164 requests, 0 differences. Sign-in: 100 steps, one difference: a POST /logout with no session and no token
   was answered 302 (to the sign-in page); PHP's CSRF check runs before `auth` and answers 419. Now the same order.

@@ -25,6 +25,10 @@ pub mod overview;
 pub mod paginate;
 pub mod session;
 pub mod login;
+pub mod challenge;
+pub mod invitations;
+pub mod twofactor;
+pub mod mailtest;
 pub mod websession;
 pub mod api_tokens;
 pub mod backups;
@@ -468,14 +472,6 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
             Err(f) => return Err(fault(f)),
         },
     };
-    // RequireTwoFactor / RequireEmailAddress / RequireMailHealthy: PHP redirects, so PHP answers
-    match enforced_elsewhere(c, &user, role.as_ref(), &sess) {
-        // PHP knows nothing of our session: its two-factor and mail steps are not offered, so the person is told
-        Ok(true) if sess.own => return Err(to_login(Some(STEP_UNAVAILABLE))),
-        Ok(true) => return Err(Out::Forward),
-        Ok(false) => {}
-        Err(f) => return Err(fault(f)),
-    }
     let flashed = sess.flashed();
     let ctx = Ctx {
         p,
@@ -507,6 +503,16 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
         return Err(Out::Done(error_response(419, "Page Expired", false)));
     }
     let req = Req { method, path: parts.uri.path().to_string(), htmx: parts.headers.contains_key("hx-request"), headers: parts.headers.clone(), input };
+    // RequireTwoFactor / RequireEmailAddress / RequireMailHealthy (after the CSRF check, as the web group orders them)
+    match required_step(c, &ctx, &req.path) {
+        Ok(None) => {}
+        Ok(Some((to, key, message))) => {
+            ctx.flash(key, json!(message));
+            let to = format!("{}{to}", ctx.root);
+            return Err(Out::Done(finish(&ctx, c, redirect(&to), false)));
+        }
+        Err(f) => return Err(fault(f)),
+    }
     // console-can
     if let Some((area, level)) = route.need {
         if !ctx.allows(area, level) {
@@ -518,45 +524,41 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
     Ok((ctx, req))
 }
 
-/// What a person signed in by hte-console hears when the console requires a step only PHP offers.
-const STEP_UNAVAILABLE: &str = "This console now requires two-factor authentication or an e-mail address for your account, which it cannot set up yet. Contact an administrator.";
-
-/// The three middlewares that redirect somewhere other than where the person asked (all answered by PHP).
-fn enforced_elsewhere(c: &Connection, user: &Row, role: Option<&Row>, sess: &session::Session) -> Result<bool, Fault> {
+/// The three middlewares that send a signed-in person somewhere else first (phase 8 answers them here):
+/// `RequireTwoFactor` (enrolment, only `/account/two-factor` stays open; single sign-on sessions exempt),
+/// `RequireEmailAddress` (an address while e-mailed codes are on; `/account*` stays open) and `RequireMailHealthy`
+/// (a person let in to repair a broken relay goes to Settings → Email until it works; the marker drops once it does).
+fn required_step(c: &Connection, ctx: &Ctx, path: &str) -> Result<Option<(&'static str, &'static str, &'static str)>, Fault> {
     let flag = |k: &str| -> Result<bool, Fault> { Ok(db::setting(c, k, "0")? == b"1") };
-    let truthy = |v: &Value| !matches!(v, Value::Null | Value::Bool(false)) && v.as_str().map_or(true, |s| !s.is_empty() && s != "0");
-    if sess.data.get("mail_repair").map_or(false, truthy) {
-        return Ok(true);
-    }
-    if sess.via_oidc() {
-        return Ok(false);
-    }
-    // RequireTwoFactor
-    if !user.val("totp_enabled").to_bool() {
-        let required = flag("two_factor_required")?
-            || (user.val("is_admin").to_bool() && flag("two_factor_required_admins")?)
-            || role.map_or(false, |r| r.val("require_two_factor").to_bool());
-        if required {
-            return Ok(true);
+    let user = &ctx.user;
+    if !ctx.session.via_oidc() {
+        if !user.val("totp_enabled").to_bool() && path != "/account/two-factor" {
+            let required = flag("two_factor_required")?
+                || (user.val("is_admin").to_bool() && flag("two_factor_required_admins")?)
+                || ctx.role.as_ref().map_or(false, |r| r.val("require_two_factor").to_bool());
+            if required {
+                return Ok(Some(("/account/two-factor", "twofactor_enforced", "Two-factor authentication is required. Please set it up to continue.")));
+            }
+        }
+        let email = String::from_utf8_lossy(&user.val("email").to_php_string().unwrap_or_default()).into_owned();
+        if email.trim().is_empty() && !path.starts_with("/account") && flag("email_login_verification")? && crate::mail::enabled(c)? {
+            return Ok(Some(("/account", "email_required", "Sign-in verification is enabled on this console, so your account needs an email address. Add one to continue.")));
         }
     }
-    Ok(false)
-}
-
-/// RequireEmailAddress applies to every page but `account`, `account.two-factor` and `logout`.
-fn email_gate(c: &Connection, user: &Row, sess: &session::Session, route_path: &str) -> Result<bool, Fault> {
-    if sess.via_oidc() || route_path.starts_with("/account") {
-        return Ok(false);
+    let truthy = |v: &Value| !matches!(v, Value::Null | Value::Bool(false)) && v.as_str().map_or(true, |s| !s.is_empty() && s != "0");
+    if ctx.session.data.get("mail_repair").map_or(false, truthy) {
+        if !(flag("email_login_verification")? && crate::mail::enabled(c)?) || crate::mail::is_healthy(c)? {
+            // fixed: the marker goes
+            let mut data = ctx.session.data.clone();
+            data.remove("mail_repair");
+            let _ = session::save(c, &ctx.session, &data, ctx.now);
+            return Ok(None);
+        }
+        if !(path.starts_with("/settings") || path.starts_with("/account")) {
+            return Ok(Some(("/settings?tab=email", "mail_broken", "This console cannot send email, so nobody else can sign in while verification is enabled. Fix the settings below and send a test message.")));
+        }
     }
-    let email = String::from_utf8_lossy(&user.val("email").to_php_string().unwrap_or_default()).into_owned();
-    if !email.trim().is_empty() {
-        return Ok(false);
-    }
-    let on = db::setting(c, "email_login_verification", "0")? == b"1"
-        && db::setting(c, "smtp_enabled", "")? == b"1"
-        && !db::setting(c, "smtp_host", "")?.is_empty()
-        && !db::setting(c, "smtp_from_address", "")?.is_empty();
-    Ok(on)
+    Ok(None)
 }
 
 /// What every authenticated response does at the end: write the session's changes and re-send its cookie.
@@ -677,15 +679,9 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
             let conn = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
             match gate(&p2, &conn, &parts, &bytes_c, peer, &ROUTES[idx]) {
                 Err(o) => o,
-                Ok((ctx, req)) => match email_gate(&conn, &ctx.user, &ctx.session, &req.path) {
-                    Ok(true) if ctx.session.own => {
-                        let ua = hstr(&req.headers, "user-agent").unwrap_or("");
-                        let cookie = req.headers.get_all(header::COOKIE).iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join("; ");
-                        Out::Done(login::to_login(&p2, &conn, &cookie, &ctx.root, ctx.secure, &ctx.ip, ua, &req.method, &req.path, ctx.now, Some(STEP_UNAVAILABLE)))
-                    }
-                    Ok(true) => Out::Forward,
+                Ok((ctx, req)) => match Ok::<(), Fault>(()) {
                     Err(_) => Out::Done(error_response(500, "Server Error", head)),
-                    Ok(false) => match (ROUTES[idx].handler)(&ctx, &conn, &req) {
+                    Ok(()) => match (ROUTES[idx].handler)(&ctx, &conn, &req) {
                         Ok(r) => {
                             // a page answered to a form post (a dialog re-opened with its messages): the address bar keeps the page's own URL
                             let keep_url = req.method == "POST" && matches!(r, Reply::Html(..));
@@ -843,6 +839,7 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/webclient/devices", methods: &["GET"], need: None, handler: webclient::devices },
     Route { path: "/webclient/credential", methods: &["POST"], need: None, handler: webclient::credential },
     Route { path: "/settings", methods: &["GET"], need: Some(("setting", "r")), handler: settings::index },
+    Route { path: "/settings/mail-test", methods: &["POST"], need: Some(("setting", "r")), handler: mailtest::send },
     Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },
     Route { path: "/settings/relay", methods: &["POST"], need: Some(("setting", "r")), handler: settings::relay },
     Route { path: "/settings/snooze", methods: &["POST"], need: Some(("setting", "r")), handler: settings::snooze },
@@ -860,7 +857,9 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/roles", methods: &["GET"], need: None, handler: roles::index },
     Route { path: "/roles/save", methods: &["POST"], need: None, handler: roles::save },
     Route { path: "/roles/delete", methods: &["POST"], need: None, handler: roles::delete },
-    Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: unavailable::invitations },
+    Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: invitations::to_users },
+    Route { path: "/users/invitations", methods: &["POST"], need: Some(("user", "r")), handler: invitations::post },
+    Route { path: "/account/two-factor", methods: &["GET", "POST"], need: None, handler: twofactor::page },
     Route { path: "/api-tokens", methods: &["GET", "POST"], need: Some(("token", "r")), handler: api_tokens::index },
     Route { path: "/api-tokens/revoke", methods: &["POST"], need: Some(("token", "r")), handler: api_tokens::revoke },
     Route { path: "/client-downloads", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::client_downloads },

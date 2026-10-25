@@ -53,10 +53,13 @@ enum Which {
     Oidc,
     Callback,
     Logout,
-    /// A challenge step that is never started here: back to the sign-in page.
-    Step,
-    /// Password reset, invitations: not available.
-    Unavailable,
+    /// The second steps and the pages reached from a link (`challenge.rs`, `invitations.rs`).
+    TwoFactor,
+    Email,
+    EmailResend,
+    Forgot,
+    Reset,
+    Invite,
 }
 
 pub fn routes(r: Router<Arc<Pages>>) -> Router<Arc<Pages>> {
@@ -66,12 +69,12 @@ pub fn routes(r: Router<Arc<Pages>>) -> Router<Arc<Pages>> {
         ("/login/oidc", Which::Oidc),
         ("/login/oidc/callback", Which::Callback),
         ("/logout", Which::Logout),
-        ("/login/2fa", Which::Step),
-        ("/login/email", Which::Step),
-        ("/login/email/resend", Which::Step),
-        ("/forgot-password", Which::Unavailable),
-        ("/reset-password/:token", Which::Unavailable),
-        ("/invite/:token", Which::Unavailable),
+        ("/login/2fa", Which::TwoFactor),
+        ("/login/email", Which::Email),
+        ("/login/email/resend", Which::EmailResend),
+        ("/forgot-password", Which::Forgot),
+        ("/reset-password/:token", Which::Reset),
+        ("/invite/:token", Which::Invite),
     ] {
         r = r.route(path, any(move |s: State<Arc<Pages>>, c: ConnectInfo<SocketAddr>, req: Request<Body>| entry(s, c, req, w)));
     }
@@ -79,23 +82,25 @@ pub fn routes(r: Router<Arc<Pages>>) -> Router<Arc<Pages>> {
 }
 
 /// What a sign-in route knows about its request.
-struct Web {
-    root: String,
-    secure: bool,
-    ip: String,
-    ua: String,
-    cookie: String,
-    now: i64,
-    method: String,
-    headers: HeaderMap,
-    input: Input,
+pub(super) struct Web {
+    pub(super) root: String,
+    pub(super) secure: bool,
+    pub(super) ip: String,
+    pub(super) ua: String,
+    pub(super) cookie: String,
+    pub(super) now: i64,
+    pub(super) method: String,
+    /// The request path (the token of `/reset-password/{token}` and `/invite/{token}` is its last segment).
+    pub(super) path: String,
+    pub(super) headers: HeaderMap,
+    pub(super) input: Input,
 }
 
-fn hstr<'a>(h: &'a HeaderMap, n: &str) -> Option<&'a str> {
+pub(super) fn hstr<'a>(h: &'a HeaderMap, n: &str) -> Option<&'a str> {
     h.get(n).and_then(|v| v.to_str().ok())
 }
 
-fn web(p: &Pages, parts: &axum::http::request::Parts, body: &[u8], peer: SocketAddr) -> Option<Web> {
+pub(super) fn web(p: &Pages, parts: &axum::http::request::Parts, body: &[u8], peer: SocketAddr) -> Option<Web> {
     let root = crate::api::request_root(&p.n, &parts.headers, peer.ip())?;
     let xff: Vec<&str> = parts.headers.get_all("x-forwarded-for").iter().filter_map(|v| v.to_str().ok()).collect();
     let method = if parts.method == Method::HEAD { "GET".to_string() } else { parts.method.as_str().to_string() };
@@ -107,6 +112,7 @@ fn web(p: &Pages, parts: &axum::http::request::Parts, body: &[u8], peer: SocketA
         now: p.n.now(),
         input: Input::new(&method, hstr(&parts.headers, "content-type"), parts.uri.query(), body),
         method,
+        path: parts.uri.path().to_string(),
         headers: parts.headers.clone(),
         root,
     })
@@ -115,16 +121,16 @@ fn web(p: &Pages, parts: &axum::http::request::Parts, body: &[u8], peer: SocketA
 // --------------------------------------------------------------------------------------------- responses ---
 
 /// A response under construction: the status/body/location and the cookies to set.
-struct Out {
-    resp: Response<Body>,
-    cookies: Vec<String>,
+pub(super) struct Out {
+    pub(super) resp: Response<Body>,
+    pub(super) cookies: Vec<String>,
 }
 
 impl Out {
-    fn new(resp: Response<Body>) -> Out {
+    pub(super) fn new(resp: Response<Body>) -> Out {
         Out { resp, cookies: vec![] }
     }
-    fn done(mut self) -> Response<Body> {
+    pub(super) fn done(mut self) -> Response<Body> {
         let h = self.resp.headers_mut();
         h.insert("x-content-type-options", HeaderValue::from_static("nosniff"));
         h.insert("x-frame-options", HeaderValue::from_static("DENY"));
@@ -140,7 +146,7 @@ impl Out {
     }
 }
 
-fn redirect(to: &str) -> Response<Body> {
+pub(super) fn redirect(to: &str) -> Response<Body> {
     let body = format!("<!DOCTYPE html>\n<html>\n    <head>\n        <meta charset=\"UTF-8\" />\n        <meta http-equiv=\"refresh\" content=\"0;url='{u}'\" />\n\n        <title>Redirecting to {u}</title>\n    </head>\n    <body>\n        Redirecting to <a href=\"{u}\">{u}</a>.\n    </body>\n</html>", u = laravel::e(to));
     Response::builder()
         .status(StatusCode::FOUND)
@@ -150,7 +156,7 @@ fn redirect(to: &str) -> Response<Body> {
         .unwrap()
 }
 
-fn error(status: u16, text: &str, head: bool) -> Response<Body> {
+pub(super) fn error(status: u16, text: &str, head: bool) -> Response<Body> {
     html(status, crate::signin::error_page(status, text), head)
 }
 
@@ -158,7 +164,7 @@ fn error(status: u16, text: &str, head: bool) -> Response<Body> {
 
 /// The session a guest page works in: the browser's own (ours), else a new one. `stored` false: a transient session
 /// (the address opened too many), whose writes go nowhere, so a form posted from it fails its CSRF check.
-fn guest_session(p: &Pages, c: &Connection, w: &Web) -> Result<Session, Fault> {
+pub(super) fn guest_session(p: &Pages, c: &Connection, w: &Web) -> Result<Session, Fault> {
     if let Some(s) = ws::load(c, &p.own, w.now, &w.cookie, w.secure)? {
         return Ok(s);
     }
@@ -178,7 +184,7 @@ fn guest_session(p: &Pages, c: &Connection, w: &Web) -> Result<Session, Fault> {
 }
 
 /// Is this a signed-in session of a person who may still use it?
-fn signed_in(c: &Connection, s: &Session) -> Result<bool, Fault> {
+pub(super) fn signed_in(c: &Connection, s: &Session) -> Result<bool, Fault> {
     let Some(uid) = s.user_id() else { return Ok(false) };
     match db::first(c, r#"select * from "users" where "id" = ? limit 1"#, &[P(Val::Int(uid))])? {
         Some(u) => ws::still_valid(c, s, &u),
@@ -190,7 +196,7 @@ fn signed_in(c: &Connection, s: &Session) -> Result<bool, Fault> {
 }
 
 /// Save a guest session's changes the Laravel way (flash first, then age), and set its cookie on the response.
-fn keep(p: &Pages, c: &Connection, w: &Web, s: &Session, mut data: Map<String, Value>, flashes: Vec<(&str, Value)>, out: &mut Out) -> Result<(), Fault> {
+pub(super) fn keep(p: &Pages, c: &Connection, w: &Web, s: &Session, mut data: Map<String, Value>, flashes: Vec<(&str, Value)>, out: &mut Out) -> Result<(), Fault> {
     for (k, v) in flashes {
         session::flash(&mut data, k, v);
     }
@@ -207,7 +213,7 @@ fn keep(p: &Pages, c: &Connection, w: &Web, s: &Session, mut data: Map<String, V
 }
 
 /// `back()->withErrors([$field => $message])` (and `->withInput($request->only('username'))`): to the sign-in page.
-fn back_to_login(p: &Pages, c: &Connection, w: &Web, s: &Session, field: &str, message: &str, username: Option<&[u8]>) -> Result<Out, Fault> {
+pub(super) fn back_to_login(p: &Pages, c: &Connection, w: &Web, s: &Session, field: &str, message: &str, username: Option<&[u8]>) -> Result<Out, Fault> {
     let mut out = Out::new(redirect(&format!("{}/login", w.root)));
     let mut flashes = vec![("errors", json!({ field: [message] }))];
     if let Some(u) = username {
@@ -237,8 +243,19 @@ async fn entry(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
         (Which::Oidc, "GET") => oidc_start(&p, &w).await,
         (Which::Callback, "GET") => oidc_callback(&p, &w).await,
         (Which::Logout, "POST") => logout(&p, &w).await,
-        (Which::Step, _) => Ok(Out::new(redirect(&format!("{}/login", w.root)))),
-        (Which::Unavailable, "GET" | "POST") => sync(&p, &w, unavailable).await,
+        (Which::TwoFactor, "GET") => sync(&p, &w, super::challenge::two_factor_show).await,
+        (Which::TwoFactor, "POST") => sync(&p, &w, super::challenge::two_factor_post).await,
+        (Which::Email, "GET") => sync(&p, &w, super::challenge::email_show).await,
+        (Which::Email, "POST") => sync(&p, &w, super::challenge::email_post).await,
+        (Which::EmailResend, "POST") => sync(&p, &w, super::challenge::email_resend).await,
+        // the routes' own `throttle:` middleware first (a 429 before anything else), as Laravel's route groups
+        (Which::Forgot | Which::Reset | Which::Invite, "GET" | "POST") if super::challenge::route_throttled(&p, &w, which_key(which)) => Ok(Out::new(error(429, "Too Many Requests", false))),
+        (Which::Forgot, "GET") => sync(&p, &w, super::challenge::forgot_show).await,
+        (Which::Forgot, "POST") => sync(&p, &w, super::challenge::forgot_post).await,
+        (Which::Reset, "GET") => sync(&p, &w, super::challenge::reset_show).await,
+        (Which::Reset, "POST") => sync(&p, &w, super::challenge::reset_post).await,
+        (Which::Invite, "GET") => sync(&p, &w, super::invitations::accept_show).await,
+        (Which::Invite, "POST") => sync(&p, &w, super::invitations::accept_post).await,
         _ => Ok(Out::new(error(405, "Method Not Allowed", false))),
     };
     let mut resp = match out {
@@ -257,8 +274,17 @@ async fn entry(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
     resp
 }
 
+/// The route throttles: `throttle:6,1,password-email` (POST only), `throttle:20,1,password-reset`, `throttle:20,1,invite`.
+fn which_key(w: Which) -> (&'static str, u64, bool) {
+    match w {
+        Which::Forgot => ("password-email", 6, true),
+        Which::Reset => ("password-reset", 20, false),
+        _ => ("invite", 20, false),
+    }
+}
+
 /// Run a handler on the database connection, outside the async runtime.
-async fn sync(p: &Arc<Pages>, w: &Arc<Web>, f: fn(&Pages, &Connection, &Web) -> Result<Out, Fault>) -> Result<Out, Fault> {
+pub(super) async fn sync(p: &Arc<Pages>, w: &Arc<Web>, f: fn(&Pages, &Connection, &Web) -> Result<Out, Fault>) -> Result<Out, Fault> {
     let (p2, w2) = (p.clone(), w.clone());
     tokio::task::spawn_blocking(move || {
         let c = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
@@ -271,13 +297,13 @@ async fn sync(p: &Arc<Pages>, w: &Arc<Web>, f: fn(&Pages, &Connection, &Web) -> 
 
 // --------------------------------------------------------------------------------------------- the page ---
 
-fn flag(c: &Connection, key: &str, default: &str) -> Result<bool, Fault> {
+pub(super) fn flag(c: &Connection, key: &str, default: &str) -> Result<bool, Fault> {
     Ok(db::setting(c, key, default)? == b"1")
 }
 
 /// `RedirectIfAuthenticated` for a signed-in person, plus the bridge's repair: a person whose PHP session is gone
 /// (PHP sent them here from one of its pages) gets a new one, and goes back where PHP wanted them.
-fn already_signed_in(p: &Pages, c: &Connection, w: &Web, s: &Session) -> Result<Out, Fault> {
+pub(super) fn already_signed_in(p: &Pages, c: &Connection, w: &Web, s: &Session) -> Result<Out, Fault> {
     let mut target = "/".to_string();
     let mut out_cookies = vec![];
     if p.own.bridge {
@@ -342,6 +368,7 @@ fn show_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
                 "form_open": !sso || !error.is_empty() || !old.is_empty(),
                 "old_username": old,
                 "show_downloads": show_downloads,
+                "forgot": crate::mail::enabled(c)?,
                 "signin_domain": domain,
             }),
         )
@@ -351,23 +378,11 @@ fn show_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     Ok(out)
 }
 
-fn unavailable(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
-    if let Some(s) = ws::load(c, &p.own, w.now, &w.cookie, w.secure)? {
-        if signed_in(c, &s)? {
-            return already_signed_in(p, c, w, &s);
-        }
-    }
-    let page = p
-        .view
-        .render("auth/unavailable.html", json!({"app_name": p.n.signin.app_name, "version": p.n.api_version, "root": w.root, "title": "Not available", "csrf": ""}))
-        .map_err(Fault::Other)?;
-    Ok(Out::new(html(404, page, false)))
-}
 
 // ------------------------------------------------------------------------------------- password sign-in ---
 
 /// `PreventRequestForgery` for a sign-in form.
-fn csrf(p: &Pages, s: &Session, w: &Web) -> bool {
+pub(super) fn csrf(p: &Pages, s: &Session, w: &Web) -> bool {
     session::csrf_ok(
         &p.n.crypt,
         s,
@@ -379,12 +394,12 @@ fn csrf(p: &Pages, s: &Session, w: &Web) -> bool {
     )
 }
 
-fn page_expired() -> Out {
+pub(super) fn page_expired() -> Out {
     Out::new(error(419, "Page Expired", false))
 }
 
 /// `ensureNotRateLimited($key, 'username', $max, $alarm)`: Some(message) when blocked (the alarm raised once per cooldown).
-fn rate_limited(p: &Pages, c: &Connection, w: &Web, key: &[u8], max: u64, typ: i64, info: Vec<(&str, Val)>) -> Result<Option<String>, Fault> {
+pub(super) fn rate_limited(p: &Pages, c: &Connection, w: &Web, key: &[u8], max: u64, typ: i64, info: Vec<(&str, Val)>) -> Result<Option<String>, Fault> {
     let blocked = p.n.limiter.lock().unwrap_or_else(|e| e.into_inner()).too_many(key, max, w.now);
     if !blocked {
         return Ok(None);
@@ -402,13 +417,17 @@ fn rate_limited(p: &Pages, c: &Connection, w: &Web, key: &[u8], max: u64, typ: i
     Ok(Some(format!("Too many attempts. Try again in {wait} seconds.")))
 }
 
-fn login_log(c: &Connection, user_id: Val, username: Val, client: &str, ip: &str, ok: bool, now: i64) -> Result<(), Fault> {
-    db::insert(
-        c,
-        "login_logs",
-        vec![("user_id", user_id), ("username", username), ("client", Val::str(client)), ("ip", Val::str(ip)), ("successful", Val::Bool(ok))],
-        &laravel::ts(now),
-    )?;
+pub(super) fn login_log(c: &Connection, user_id: Val, username: Val, client: &str, ip: &str, ok: bool, now: i64) -> Result<(), Fault> {
+    login_log_note(c, user_id, username, client, ip, ok, None, now)
+}
+
+/// A `login_logs` row with PHP's `note` (`'invitation'`, `'password reset'`, `'email-verification send failed'`).
+pub(super) fn login_log_note(c: &Connection, user_id: Val, username: Val, client: &str, ip: &str, ok: bool, note: Option<&str>, now: i64) -> Result<(), Fault> {
+    let mut cols = vec![("user_id", user_id), ("username", username), ("client", Val::str(client)), ("ip", Val::str(ip)), ("successful", Val::Bool(ok))];
+    if let Some(n) = note {
+        cols.push(("note", Val::str(n)));
+    }
+    db::insert(c, "login_logs", cols, &laravel::ts(now))?;
     Ok(())
 }
 
@@ -525,26 +544,40 @@ fn password_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     if user.val("oidc_status") == Val::str("pending") {
         return back_to_login(p, c, w, &s, "username", "Your account is waiting for administrator approval.", Some(&username));
     }
-    // The second steps PHP would start next. None is used at HTE (deploy.sh checks), so none is ported: refused here.
+    // TOTP enrolled: the challenge first (no session is signed in until it is cleared)
     if user.val("totp_enabled").to_bool() {
-        tracing::warn!("console sign-in refused: the account has two-factor sign-in, which hte-console does not offer");
-        return back_to_login(p, c, w, &s, "username", "Two-factor sign-in is not available on this console yet. Contact an administrator.", Some(&username));
+        return super::challenge::start_two_factor(p, c, w, &s, &user, remember);
     }
-    if crate::signin::email_verification_active(c)? && !php::trim(&user.val("email").to_php_string()?).is_empty() {
-        tracing::warn!("console sign-in refused: emailed sign-in codes are on and hte-console does not send mail");
-        return back_to_login(p, c, w, &s, "username", "Sign-in is temporarily unavailable: this console cannot send verification codes. Contact an administrator.", Some(&username));
-    }
-    if crate::signin::two_factor_required(c, &user)? {
-        tracing::warn!("console sign-in refused: two-factor enrolment is required and hte-console does not offer it");
-        return back_to_login(p, c, w, &s, "username", "Two-factor authentication is required for this account, and this console cannot set it up yet. Contact an administrator.", Some(&username));
+    // an emailed code for a browser this console does not know (an `elseif`: TOTP always wins)
+    let mut extra = vec![];
+    let mut cookies = vec![];
+    if super::challenge::email_required(p, c, w, &user, &mut cookies)? {
+        match super::challenge::start_email(p, c, w, &s, &user, remember)? {
+            Ok(out) => return Ok(out),
+            Err(()) => {
+                // the code could not be sent: only someone who can repair the relay gets in (RequireMailHealthy walks them there)
+                if !super::challenge::may_repair_mail(c, &user)? {
+                    return back_to_login(p, c, w, &s, "username", "Sign-in is temporarily unavailable: this console cannot send verification codes. Contact an administrator.", Some(&username));
+                }
+                extra.push(("mail_repair".to_string(), json!(true)));
+            }
+        }
     }
     tracing::info!("console sign-in: password accepted");
-    complete(p, c, w, &s, &user, false, remember)
+    let mut out = complete_with(p, c, w, &s, &user, false, remember, extra, vec![])?;
+    out.cookies.extend(cookies);
+    Ok(out)
 }
 
 /// `Auth::login($user)` + `$request->session()->regenerate()` + `redirect()->intended(route('overview'))`: a NEW
 /// session id and CSRF token (the guest row is deleted: fixation-proof), PHP's session minted beside it (the bridge).
-fn complete(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via_oidc: bool, remember: bool) -> Result<Out, Fault> {
+pub(super) fn complete(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via_oidc: bool, remember: bool) -> Result<Out, Fault> {
+    complete_with(p, c, w, guest, user, via_oidc, remember, vec![], vec![])
+}
+
+/// `complete` with values put in the new session (`mail_repair`) and flashed for the next page (`twofactor_warning`).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn complete_with(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via_oidc: bool, remember: bool, extra: Vec<(String, Value)>, flashes: Vec<(String, Value)>) -> Result<Out, Fault> {
     // `Auth::login($user, $remember)`: a remembered sign-in gives the account a remember token when it has none
     // (`ensureRememberTokenIsSet`, no `updated_at`). No remember-me cookie is issued here; the token matters because
     // it is what revocation rotates (`websession::still_valid`).
@@ -558,7 +591,13 @@ fn complete(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via
     }
     let user = &user;
     let target = guest.data.get(ws::INTENDED).and_then(|v| v.as_str()).and_then(|t| ws::safe_target(t, &w.root)).unwrap_or_else(|| "/".into());
-    let data = ws::signed_in_data(user, via_oidc, remember);
+    let mut data = ws::signed_in_data(user, via_oidc, remember);
+    for (k, v) in extra {
+        data.insert(k, v);
+    }
+    for (k, v) in flashes {
+        session::flash(&mut data, &k, v);
+    }
     let laravel_id = if p.own.bridge { Some(ws::mint_laravel(c, user, via_oidc, &w.root, &w.ip, &w.ua, w.now)?) } else { None };
     let id = ws::create(c, &data, &w.ip, &w.ua, w.now, w.now, laravel_id.as_deref())?;
     ws::destroy(c, guest)?;
@@ -821,6 +860,7 @@ pub fn to_login(p: &Pages, c: &Connection, cookie: &str, root: &str, secure: boo
         cookie: cookie.to_string(),
         now,
         method: method.to_string(),
+        path: String::new(),
         headers: HeaderMap::new(),
         input: Input::new("GET", None, None, b""),
     };
@@ -866,6 +906,7 @@ impl Web {
             cookie: self.cookie.clone(),
             now: self.now,
             method: self.method.clone(),
+            path: self.path.clone(),
             headers: HeaderMap::new(),
             input: Input::new("GET", None, None, b""),
         }

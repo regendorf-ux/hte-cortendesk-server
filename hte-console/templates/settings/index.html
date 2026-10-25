@@ -436,10 +436,15 @@
                     <hr>
                     <label class="form-label">Send a test email</label>
                     <div class="row g-2 align-items-start">
-                        <div class="col-sm-7"><input type="email" class="form-control" disabled placeholder="you@example.com"></div>
-                        <div class="col-sm-5 d-grid"><button type="button" class="btn btn-outline-secondary" disabled title="Not available yet in this version of the console"><i class="ri-send-plane-line me-1"></i><span>Send test email</span></button></div>
+                        <div class="col-sm-7"><input type="email" class="form-control" name="smtp_test_to" value="{{ mail_test.to if mail_test else '' }}" placeholder="you@example.com"></div>
+                        <div class="col-sm-5 d-grid"><button type="submit" formaction="/settings/mail-test" formmethod="post" formnovalidate class="btn btn-outline-secondary"{{ '' if can_manage else ' disabled' }}><i class="ri-send-plane-line me-1"></i><span>Send test email</span></button></div>
                     </div>
                     <div class="form-text">Uses the <strong>saved</strong> settings, not what is typed above — save first.</div>
+                    {% if mail_test %}
+                        <div class="mt-2 alert {{ 'alert-success' if mail_test.ok else 'alert-danger' }} py-2 mb-0 fs-13">
+                            {{ mail_test.message }}
+                        </div>
+                    {% endif %}
                 </div>
             </div>
         </div></div>

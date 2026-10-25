@@ -26,6 +26,7 @@ pub mod fixture;
 pub mod housekeeping;
 pub mod laravel;
 pub mod link;
+pub mod mail;
 pub mod multipart;
 pub mod oidc;
 pub mod pagereplay;
