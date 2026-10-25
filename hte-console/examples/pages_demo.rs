@@ -40,6 +40,22 @@ async fn main() {
         ))
         .unwrap();
     }
+    // Settings -> Backups and Maintenance run the real code: point them at this database and a folder of their own
+    let backups = dir.path().join("backups");
+    std::env::set_var("HTE_CONSOLE_DATABASE", &db);
+    std::env::set_var("APP_KEY", APP_KEY);
+    std::env::set_var("HTE_CONSOLE_BACKUPS_DIR", &backups);
+    std::env::set_var("HTE_CONSOLE_RUSTDESK_DIR", dir.path().join("rustdesk"));
+    std::env::set_var("HTE_CONSOLE_SERVER_SECRET_FILE", dir.path().join("none"));
+    {
+        let c = rusqlite::Connection::open(&db).unwrap();
+        c.execute_batch(
+            "insert into api_tokens (name, token_hash, token_prefix, user_id, permissions, last_used_at, expires_at, is_active, created_at, updated_at) values \
+             ('Nightly report', 'aa', 'cdk_ab12cd34', 1, '{\"device\":\"r\",\"user\":\"none\",\"group\":\"none\",\"strategy\":\"none\",\"address_book\":\"none\",\"audit\":\"r\"}', datetime('now', '-2 hours'), datetime('now', '+60 days'), 1, '2025-01-01 00:00:00', '2025-01-01 00:00:00');",
+        )
+        .unwrap();
+    }
+    let _ = hte_console::housekeeping::Setup::from_env().and_then(|s| hte_console::housekeeping::backup_command(&s.env, false, now).map(|_| ()));
     let native = Arc::new(Native {
         db: Mutex::new(hte_console::sqlite::open(&db, std::time::Duration::from_secs(5), true).unwrap()),
         crypt: Encrypter::from_app_key(APP_KEY).unwrap(),
@@ -54,16 +70,23 @@ async fn main() {
     });
     let crypt = Encrypter::from_app_key(APP_KEY).unwrap();
     let cfg = session::SessionConfig::from_env("HTE Remote");
-    let login = move |Path(user): Path<String>| {
+    let login = move |Path(user): Path<String>, axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>| {
         let (crypt, cfg) = (crypt.clone(), cfg.clone());
+        let db = db.clone();
         async move {
+            // ?theme=light|dark sets the person's theme (it is kept on the person, not the browser); ?to= is where to land
+            if let Some(t) = q.get("theme").filter(|t| ["light", "dark", "system"].contains(&t.as_str())) {
+                let c = rusqlite::Connection::open(&db).unwrap();
+                c.execute("update users set theme = ? where username = ?", rusqlite::params![t, user]).unwrap();
+            }
+            let to = q.get("to").filter(|t| t.starts_with('/')).cloned().unwrap_or_else(|| "/logs/alarms".into());
             let id = {
                 let mut s = user.repeat(40 / user.len().max(1) + 1);
                 s.truncate(40);
                 s
             };
             let cookie = session::set_cookie(&cfg, &crypt, &id, false, chrono::Utc::now().timestamp());
-            let r: Response = (StatusCode::FOUND, [(header::LOCATION, "/logs/alarms".to_string()), (header::SET_COOKIE, cookie)]).into_response();
+            let r: Response = (StatusCode::FOUND, [(header::LOCATION, to), (header::SET_COOKIE, cookie)]).into_response();
             r
         }
     };

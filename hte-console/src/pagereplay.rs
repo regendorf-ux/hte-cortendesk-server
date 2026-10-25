@@ -192,6 +192,13 @@ fn cookie_for(cfg: &session::SessionConfig, crypt: &Encrypter, user: &str, now: 
     session::set_cookie(cfg, crypt, &sid(user), false, now).split(';').next().unwrap_or("").to_string()
 }
 
+/// `name=value` of the session cookie for one of the seeded people.
+pub fn cookie(key: &str, name: &str, who: &str, now: i64) -> Result<String, String> {
+    let crypt = Encrypter::from_app_key(key)?;
+    let cfg = session::SessionConfig { cookie: name.to_string(), lifetime_min: 120, secure: None };
+    Ok(cookie_for(&cfg, &crypt, who, now))
+}
+
 /// Livewire 4 posts to a hashed address the page announces (`data-update-uri`), in full: only its path is ours to use.
 fn update_uri(page: &str) -> String {
     static URI: Lazy<Regex> = Lazy::new(|| Regex::new(r#"data-update-uri="([^"]+)""#).unwrap());

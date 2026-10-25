@@ -2,13 +2,21 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.8 (2026-10-25): phase 7b, Settings Backups, Prune now, API tokens, the replay's writes
+- Settings -> Backups (local only: list, Back up now, download, delete, restore from a stored archive, schedule and retention) and
+  Maintenance -> Prune now, on the phase 6 code. API tokens is a real page (`/api-tokens`: create, shown once, revoke).
+  Still not ported: the connection/mail/Apprise test buttons, the off-site FTP/S3 settings, restore from an upload.
+- `page-replay` now carries the writes of the new pages (PHP through Livewire, hte-console through its forms; `HTE_PAGEREPLAY_RUST_ONLY=1`
+  runs hte-console's half alone); `snapshot` masks token hash/prefix with `HTE_SNAPSHOT_MASK_TOKENS=1`; the seed gains a pending computer.
+- `Reply::Bytes` (a stored file as it is); the demo server's login takes `?to=` and `?theme=`.
+
 ## 0.7.7 (2026-10-25): phase 7b, the rest of the console's pages
 - Pages: Dashboard (stat cards and sessions refreshing every 15 s, connection and platform charts, versions, alerts, Disconnect), Devices
   (list, filters, sort, columns, bulk, edit, approve/reject, groups, address books, detail page), Users (list, editor, assign devices, actions,
   person page), Groups, Address books (books, tags, entries, sharing rules), Strategies (editor with impact review, assign, history/restore,
   compliance), Settings (eight tabs; secrets are encrypted like Laravel's and never shown back; relay pool; presence snoozes).
-- "Not available yet" pages for Roles, Invitations, API tokens, Client downloads and Setup (not routed by default; PHP keeps them).
-  Not ported inside Settings: the connection/mail/Apprise test buttons, Prune now, the Backups tab, the API-tokens card.
+- "Not available yet" pages for Roles, Invitations, Client downloads and Setup (not routed by default; PHP keeps them).
+  (0.7.8 adds Prune now, the Backups tab and the API tokens page.)
 - `page-seed` and `page-replay` cover the new pages' reads; the writes are covered by the integration tests (`tests/pages7b.rs`) only.
 - CI: actions/checkout v7, upload-artifact v7, download-artifact v8 (Node 24 majors; were v4). Verified only by the next tag's CI run.
 - Caddy: `phase7/caddy-pages-7b.sh` moves one page at a time.

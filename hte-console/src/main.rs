@@ -78,6 +78,11 @@ async fn main() {
             None => fail("usage: hte-console page-seed <unix-now>"),
         },
         Some("page-replay") => page_replay(&args[1..]).await,
+        // the cookie `page-seed`'s session row for a person goes with (for a browser or curl against the throwaway PHP)
+        Some("page-cookie") => match (args.get(1), args.get(2).and_then(|n| n.parse::<i64>().ok())) {
+            (Some(who), Some(now)) => page_cookie(who, now),
+            _ => fail("usage: hte-console page-cookie <hteadmin|dana|erin> <unix-now>"),
+        },
         Some("sql-apply") => match (args.get(1), args.get(2)) {
             (Some(db), Some(file)) => sql_apply(db, file),
             _ => fail("usage: hte-console sql-apply <sqlite> <sql>"),
@@ -110,6 +115,30 @@ async fn page_replay(args: &[String]) -> i32 {
             println!("{} page requests, {} differences", r.total, r.differences.len());
             r.differences.iter().for_each(|d| println!("{d}"));
             if r.differences.is_empty() { 0 } else { 1 }
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// Prints `name=value` (the app key as for `page-replay`, the cookie's name from HTE_CONSOLE_SESSION_COOKIE).
+fn page_cookie(who: &str, now: i64) -> i32 {
+    if !["hteadmin", "dana", "erin"].contains(&who) {
+        return fail("the people are hteadmin, dana and erin");
+    }
+    let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => match std::fs::read_to_string(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())) {
+            Ok(k) => k,
+            Err(e) => return fail(&format!("cannot read the app key: {e}")),
+        },
+    };
+    let Some(name) = std::env::var("HTE_CONSOLE_SESSION_COOKIE").ok().filter(|c| !c.trim().is_empty()) else {
+        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name PHP uses");
+    };
+    match hte_console::pagereplay::cookie(&key, &name, who, now) {
+        Ok(c) => {
+            println!("{c}");
+            0
         }
         Err(e) => fail(&e),
     }
