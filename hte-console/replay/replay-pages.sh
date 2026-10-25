@@ -78,7 +78,9 @@ docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk
 docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec("VACUUM INTO \"/data/copy-for-rust.sqlite\"");' </dev/null
 docker cp "$TAG-php:/data/copy-for-rust.sqlite" "$WORK/rdata/cortendesk.sqlite" </dev/null
 docker cp "$TAG-php:/data/.app_key" "$WORK/rdata/.app_key" </dev/null
-chmod 666 "$WORK/rdata/cortendesk.sqlite"; chmod 644 "$WORK/rdata/.app_key"   # docker cp makes them the caller's; the console runs as 82:82
+chmod 666 "$WORK/rdata/cortendesk.sqlite"; chmod 644 "$WORK/rdata/.app_key"
+# docker cp makes them root's, and the console refuses a database it does not own: hand them to the uid it runs as (82, as in compose)
+docker run --rm -u 0 --network none -v "$WORK/rdata:/data" --entrypoint chown "$CONSOLE_IMAGE" -R 82:82 /data </dev/null
 state "$WORK/rdata" > "$WORK/before-rust.txt"
 docker exec -u www-data "$TAG-php" php -r '$d = new PDO("sqlite:/data/cortendesk.sqlite"); $d->exec("VACUUM INTO \"/data/state-before.sqlite\"");' </dev/null
 mkdir -p "$WORK/state-before"
