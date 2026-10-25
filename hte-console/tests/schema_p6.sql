@@ -1,0 +1,9 @@
+-- Phase 6: the tables backups and pruning touch beyond tests/schema.sql and tests/schema_phase3.sql, as PHP's
+-- migrations create them on SQLite (cortendesk v1.15.0-hte.1). `if not exists`: other phases may add the same tables.
+create table if not exists "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
+create table if not exists "sessions" ("id" varchar not null, "user_id" integer, "ip_address" varchar, "user_agent" text, "payload" text not null, "last_activity" integer not null, primary key ("id"));
+create table if not exists "invitations" ("id" integer primary key autoincrement not null, "email" varchar not null, "username" varchar not null, "name" varchar, "token_hash" varchar not null, "is_admin" tinyint(1) not null default '0', "user_group_ids" text, "device_group_ids" text, "invited_by" integer, "expires_at" datetime not null default CURRENT_TIMESTAMP, "accepted_at" datetime, "accepted_user_id" integer, "created_at" datetime, "updated_at" datetime, foreign key("invited_by") references "users"("id") on delete set null);
+create unique index if not exists "invitations_token_hash_unique" on "invitations" ("token_hash");
+create table if not exists "trusted_devices" ("id" integer primary key autoincrement not null, "user_id" integer not null, "token_hash" varchar not null, "label" varchar, "ip" varchar, "last_used_at" datetime, "expires_at" datetime not null default CURRENT_TIMESTAMP, "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete cascade);
+create unique index if not exists "trusted_devices_token_hash_unique" on "trusted_devices" ("token_hash");
+create table if not exists "notification_deliveries" ("id" integer primary key autoincrement not null, "event" varchar not null, "subject" varchar, "status" varchar not null, "title" varchar not null, "error" text, "created_at" datetime, "updated_at" datetime);

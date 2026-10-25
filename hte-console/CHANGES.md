@@ -2,6 +2,29 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.6.0 (2026-10-25): phase 6, local backups, restore, pruning and the daily scheduler entries
+
+Built on top of 0.4.1 (phase 5, the admin API, is built in parallel and is not in this version).
+
+- `backup`, `backups`, `restore`, `prune-logs`, `prune-invitations` on the command line, and the three daily entries of
+  PHP's schedule as scheduler jobs (`HTE_CONSOLE_JOBS`, none by default): `cortendesk:backup --scheduled` (03:30 UTC),
+  `cortendesk:prune-logs` (04:10), `cortendesk:prune-invitations` (04:20). Ported from `BackupService`, `Backup`,
+  `Restore`, `PruneLogs`, `PruneInvitations` of 1.15.0-hte.1 (`src/backup.rs`, `src/prune.rs`, `src/housekeeping.rs`,
+  `src/tarfile.rs`).
+- The archive is PHP's, byte layout and all: a plain tar of `manifest.json`, `db/<table>.ndjson.gz` and
+  `files/{app_key,server_secret,rustdesk/*}`, plus the `.tar.json` sidecar. An archive PHP made restores here
+  (proven on a real one from the live server) and one made here restores in PHP (`replay/backup-roundtrip.sh` runs
+  that against PHP itself).
+- Safer than PHP, invisible to its reader: the dump is one `VACUUM INTO` snapshot; a restore is built and checked
+  (integrity, foreign keys, row counts against the manifest) in a temporary database and applied to the live one in a
+  single transaction; a cut or incomplete archive is refused; `hte_device_passwords` is re-keyed with the others.
+- Not ported (HTE has them off): off-site copies (FTP, S3), Apprise notifications, the upload/download routes of
+  Settings -> Backups (UI), `cortendesk:check-device-notifications`. A configured off-site target is reported as a
+  failed copy where Settings shows it; the deploy stops if one is set.
+- New env: `HTE_CONSOLE_JOBS`, `HTE_CONSOLE_BACKUPS_DIR` (else `CORTENDESK_BACKUPS_PATH`, else `/data/backups`),
+  `HTE_CONSOLE_RUSTDESK_DIR` (else the directory of `HTE_CONSOLE_HBBS_DB`), `HTE_CONSOLE_LOG_RETENTION_DAYS` (else
+  `CORTENDESK_LOG_RETENTION_DAYS`, else 365). Dependency: `flate2` (already in the lockfile).
+
 ## 0.4.1 (2026-10-24): phase 4, the signed-in client, on top of phase 3
 
 0.4.0 was tagged from a branch without phase 3 and must not be deployed; 0.4.1 is the same work merged with 0.3.0.

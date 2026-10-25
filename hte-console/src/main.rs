@@ -9,6 +9,7 @@
 //!   hte-console fake-idp                  a fake OpenID provider for the replay (TEST ONLY; see fake_idp.rs)
 //!   hte-console sweep <job>...|all        phase 3: run scheduled jobs once (reach, passwords, stale, diagnostics)
 //!   hte-console schedule-locks            phase 3: the PHP scheduler lock each job takes over (for the deploy's check)
+//!   hte-console backup|backups|restore|prune-logs|prune-invitations   phase 6: see housekeeping.rs
 //!   hte-console sql-apply <sqlite> <sql>  phase 3, replay only: apply a scenario step to a throwaway database
 
 use hte_console::config::Config;
@@ -65,6 +66,8 @@ async fn main() {
         },
         Some("sweep") => sweep_cmd(&args[1..]),
         Some("schedule-locks") => schedule_locks(),
+        // phase 6: backups, restore, pruning (housekeeping.rs)
+        Some("backup" | "backups" | "restore" | "prune-logs" | "prune-invitations" | "housekeeping-locks") => hte_console::housekeeping::cli(&args),
         Some("sql-apply") => match (args.get(1), args.get(2)) {
             (Some(db), Some(file)) => sql_apply(db, file),
             _ => fail("usage: hte-console sql-apply <sqlite> <sql>"),
@@ -201,6 +204,7 @@ async fn serve() -> i32 {
     });
     // phase 3: the server link and the scheduled jobs, beside the native routes
     let mut scheduler = None;
+    let mut daily = None;
     let app = match (native, shadow) {
         (Some(n), fallback) => {
             let (l, jobs) = match (link::Link::from_env(), sweeps::from_env()) {
@@ -210,6 +214,21 @@ async fn serve() -> i32 {
             let s = sweeps::Scheduler::new(n.clone(), l.store.clone(), jobs);
             s.start();
             scheduler = Some(s);
+            // phase 6: the daily entries (backup, pruning), none unless HTE_CONSOLE_JOBS lists them
+            let daily_jobs = match hte_console::housekeeping::from_env() {
+                Ok(j) => j,
+                Err(e) => return fail(&e),
+            };
+            if !daily_jobs.is_empty() {
+                match hte_console::housekeeping::Setup::from_env() {
+                    Ok(setup) => {
+                        let d = hte_console::housekeeping::Scheduler::new(setup, daily_jobs);
+                        d.start();
+                        daily = Some(d);
+                    }
+                    Err(e) => return fail(&e),
+                }
+            }
             link::routes(n.clone(), l).merge(api::router(n, fallback))
         }
         (None, Some(s)) => s,
@@ -233,6 +252,9 @@ async fn serve() -> i32 {
     let served = axum::serve(listener, svc).with_graceful_shutdown(shutdown).await;
     if let Some(s) = scheduler {
         s.release_all();
+    }
+    if let Some(d) = daily {
+        d.release_all();
     }
     if let Err(e) = served {
         return fail(&format!("server: {e}"));

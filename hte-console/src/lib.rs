@@ -3,14 +3,17 @@
 //! Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC) answered natively.
 //! Phase 3: the server link (policy with HTE's scope, local addresses, refusals) and the scheduled sweeps.
 //! Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config) answered natively.
+//! Phase 6: local backups (PHP's archive format), restore, log and invitation pruning, and their daily scheduler entries.
 pub mod api;
 pub mod audit;
+pub mod backup;
 pub mod cache;
 pub mod client;
 pub mod config;
 pub mod fake_idp;
 pub mod sqlite;
 pub mod fixture;
+pub mod housekeeping;
 pub mod laravel;
 pub mod link;
 pub mod oidc;
@@ -18,6 +21,7 @@ pub mod passwords;
 pub mod passwords_sweep;
 pub mod php;
 pub mod proxy;
+pub mod prune;
 pub mod reach;
 pub mod replay;
 pub mod resolver;
@@ -28,5 +32,6 @@ pub mod snapshot;
 pub mod strategy;
 pub mod sweeps;
 pub mod sync;
+pub mod tarfile;
 pub mod totp;
 pub mod validate;

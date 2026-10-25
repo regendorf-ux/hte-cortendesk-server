@@ -24,6 +24,11 @@ HTE Remote's console, step by step in Rust (plan: `PHPLESS-PLAN.md` in HTE's pri
   `App\Hte\{Reach,ReachSweep,RefusalsController,Passwords}` and `AuditConnection::closeStaleSessions`. Section
   "Phase 3" below.
 
+- **Phase 6, local backups, restore and pruning** (0.6.0). `hte-console backup|backups|restore|prune-logs|
+  prune-invitations` and the daily scheduler entries (`HTE_CONSOLE_JOBS`), ported from `BackupService`,
+  `cortendesk:backup`, `cortendesk:restore`, `cortendesk:prune-logs` and `cortendesk:prune-invitations`, in PHP's
+  archive format. Section "Phase 6" below.
+
 ```
 hte-console serve                       # serve; with HTE_CONSOLE_DATABASE the device endpoints are native
 hte-console scan <dir>                  # fail if a fixture holds anything real
@@ -287,3 +292,73 @@ window, a form-encoded PUT, the non-transactional push, the note length, the log
 - A legacy push whose `tag_colors` decodes to a non-empty JSON string, with a tag named by digits: PHP's
   `$tagColors[$name] ?? 0` reads the character at that offset of the string as the colour; here it is 0. The client
   never sends it (`tag_colors` is an object).
+
+## Phase 6: backups, restore, pruning
+
+`src/backup.rs` (the archive, create, restore, retention), `src/prune.rs`, `src/housekeeping.rs` (the commands, the
+scheduler entries, the command line), `src/tarfile.rs` (the tar container, by hand: ustar in, ustar and pax/GNU long
+names out of what PHP's `PharData` and GNU tar write; an entry's name is never used as a path).
+
+```
+hte-console backup [--scheduled]        # cortendesk:backup (--scheduled: only when enabled and not yet done today)
+hte-console backups                     # the local archives, newest first
+hte-console restore <name|path> [--force]
+hte-console prune-logs [--days=N]       # cortendesk:prune-logs
+hte-console prune-invitations [--days=N]
+```
+All of them read the same environment as `serve` (`HTE_CONSOLE_DATABASE`, the app key, `HTE_CONSOLE_BACKUPS_DIR`...).
+
+**The archive** is PHP's (format 1): `cortendesk-backup-YYYYMMDD-HHMMSS[-tag].tar`, a plain tar holding `manifest.json`
+(`format`, `app`, `app_version`, `created_at`, `trigger`, `app_url`, `db_driver`, `tables` name to rows, `files`),
+`db/<table>.ndjson.gz` (one JSON object per row, columns in table order, every table but the transient ones: `cache`,
+`cache_locks`, `sessions`, `jobs`, `job_batches`, `failed_jobs`, `oidc_auth_requests`, `password_reset_tokens`,
+`password_resets`) and `files/app_key`, `files/server_secret`, `files/rustdesk/{id_ed25519,id_ed25519.pub,db_v2.sqlite3}`;
+beside it `<name>.tar.json`, the manifest again. Archive and sidecar are mode 0600 in a 0700 directory. The retention
+tiers (newest N, first of each of the last N ISO weeks, first of each of the last N months; defaults 7/8/6; 0 turns a
+tier off, all 0 keeps everything) run after every backup, as in PHP.
+
+**Restore** replaces every data table except `migrations` (the live schema owns it) and the transient ones; columns the
+live schema lacks are dropped and reported; tables the archive lacks are emptied (PHP deletes every live table first);
+when the archive's app key differs from this install's, the encrypted columns (`settings.value`, `users.totp_secret`,
+`address_book_entries.password_enc` and, beyond PHP, `hte_device_passwords.current_enc|confirmed_enc`) are re-keyed.
+hbbs's files are staged as `<name>.restore` beside the originals for the PHP image's entrypoint to swap in at the next
+start of the container, each written whole under a temporary name first (restart the PHP container to adopt them).
+The database is never half-written: the new data is built in a temporary database (a `VACUUM INTO` copy of the live
+schema, emptied and filled from the archive), checked (`integrity_check`; rows whose foreign key points nowhere are
+reported, not refused, as PHP restores them unchecked; the row counts must equal the manifest's, a table with rows
+whose file is missing is a cut archive), and only then applied to the live file in one `BEGIN IMMEDIATE` transaction
+that deletes and refills the data tables from it. A crash or an error before COMMIT leaves the old content (SQLite's
+atomicity, WAL or not); PHP and the request handlers see the old data or the new, never a mixture. A file swap would
+leave PHP and this service holding the old file, which is why the swap is a transaction. If the schema changed
+between the build and the swap (a migration ran), the restore stops without changing anything.
+
+**Locks**: a backup or restore takes PHP's own `cortendesk:backup` cache lock (the Laravel database cache, which
+phase 3 put PHP on), so a click on "Back up now" in PHP and a run here exclude each other. Stale work directories
+(`.work-*`, `.restore-*`) of a killed run are removed by the next run.
+
+**The daily entries** (`HTE_CONSOLE_JOBS=backup,prune-logs,prune-invitations` or `all`; UTC, as the app's
+timezone): see the header of `housekeeping.rs` for how each avoids running twice. In short: the backup holds PHP's
+schedule mutex like phase 3's jobs, shares the `cortendesk:backup` lock and runs once per calendar day by the shared
+`backup_last_scheduled_at` marker; the two prune entries have no PHP mutex, so the deploy removes them from the PHP
+container's schedule before listing them here.
+
+### Phase 6: deliberate differences
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| the dump | table after table while the database is written | one `VACUUM INTO` snapshot, every table from the same moment |
+| restore | delete and insert in the live database | built and checked in a temporary database, applied in one transaction |
+| a cut archive | restores what it can read (a truncated table silently) | refused: no end-of-archive, a cut member or a row count different from the manifest |
+| `hte_device_passwords` on a cross-key restore | not re-keyed (its ciphertexts become unreadable) | re-keyed |
+| off-site copy (FTP/S3) | made after a backup | not made; a configured target is reported in `backup_last_result` as a failed copy |
+| Apprise on backup completed/failed | sent when configured | not sent (off at HTE; the deploy refuses to continue when on) |
+| restore confirmation | `confirm()` prompt | prompt on a terminal, `--force` to skip |
+| restore of rows with a foreign key to nothing | restored (foreign keys off) | restored, and listed as a warning |
+
+### Phase 6: known differences, not visible at HTE
+
+- The upload/download/delete routes of Settings -> Backups are PHP's Livewire page and stay PHP (they use the same
+  directory and the same archives).
+- A BLOB column is dumped as text with invalid UTF-8 replaced, as PHP's `JSON_INVALID_UTF8_SUBSTITUTE` does; the
+  console's tables have none.
+- U+2028/2029 are written unescaped (PHP escapes them); any JSON reader takes both.

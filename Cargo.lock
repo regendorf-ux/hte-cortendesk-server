@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "hte-console"
-version = "0.4.1"
+version = "0.6.0"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -1914,6 +1914,7 @@ dependencies = [
  "bytes",
  "cbc",
  "chrono",
+ "flate2",
  "hex",
  "hmac",
  "http 1.5.0",
