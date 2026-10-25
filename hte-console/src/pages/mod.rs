@@ -13,6 +13,7 @@
 //!      written afterwards, then the session cookie is re-sent (Laravel re-sends it on every response)
 
 pub mod account;
+pub mod address_books;
 pub mod assets;
 pub mod device_detail;
 pub mod devices;
@@ -668,6 +669,8 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/devices/act", methods: &["POST"], need: Some(("device", "r")), handler: devices::act },
     Route { path: "/devices/:id", methods: &["GET"], need: Some(("device", "r")), handler: device_detail::show },
     Route { path: "/devices/:id/do", methods: &["POST"], need: Some(("device", "r")), handler: device_detail::act },
+    Route { path: "/address-books", methods: &["GET"], need: Some(("address_book", "r")), handler: address_books::index },
+    Route { path: "/address-books/act", methods: &["POST"], need: Some(("address_book", "r")), handler: address_books::act },
     Route { path: "/groups", methods: &["GET"], need: Some(("group", "r")), handler: groups::index },
     Route { path: "/groups/save", methods: &["POST"], need: Some(("group", "r")), handler: groups::save },
     Route { path: "/groups/act", methods: &["POST"], need: Some(("group", "r")), handler: groups::act },

@@ -145,6 +145,17 @@
     });
     if (document.body) { document.body.addEventListener('htmx:afterSwap', refreshBulk); }
 
+    // A select that decides which other fields apply (the sharing rule's "Share with"): show those, disable the rest.
+    document.addEventListener('change', function (event) {
+        var sel = event.target;
+        if (!sel.matches || !sel.matches('[data-rd-switch]') || !sel.form) { return; }
+        Array.prototype.forEach.call(sel.form.querySelectorAll('[data-rd-when]'), function (box) {
+            var on = box.getAttribute('data-rd-when') === sel.value;
+            box.classList.toggle('d-none', !on);
+            Array.prototype.forEach.call(box.querySelectorAll('select, input'), function (f) { f.disabled = !on; });
+        });
+    });
+
     // Escape closes the open dialog (wire:keydown.escape).
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') { return; }

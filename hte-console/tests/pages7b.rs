@@ -414,7 +414,7 @@ async fn the_users_pages() {
     // the self guard and a person without the role
     h.post_form("/users/act", &cookie, &[tok(), ("id", "1"), ("do", "delete"), ("back", "")]).await;
     assert_eq!(h.count("users where id = 1"), 1);
-    let erin = h.login(&sid("users-erin"), 3, json!({}));
+    let erin = h.login(&sid("userserin"), 3, json!({}));
     assert_eq!(h.get("/users", &erin).await.status, 302);
 }
 
@@ -447,6 +447,80 @@ async fn the_groups_page() {
     assert_eq!(h.count("user_groups"), 1);
     assert_eq!(h.count("group_accesses"), 0);
     assert_eq!(h.count("device_group_user_group where user_group_id = 2"), 0);
-    let erin = h.login(&sid("groups-erin"), 3, json!({}));
+    let erin = h.login(&sid("groupserin"), 3, json!({}));
     assert_eq!(h.get("/groups", &erin).await.status, 302);
+}
+
+#[tokio::test]
+async fn the_address_book_page() {
+    let h = harness().await;
+    let cookie = h.login(&sid("ab1"), 1, json!({}));
+    // opening the page makes the person's own book
+    let r = h.get("/address-books", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(h.count("address_books where owner_user_id = 1 and is_personal = 1"), 1);
+    assert!(squash(&r.body).contains("No shared address books yet") || squash(&r.body).contains("Select an address book") || squash(&r.body).contains("My address book"));
+    // a shared book
+    assert!(squash(&h.get("/address-books?modal=newBook", &cookie).await.body).contains("New shared address book"));
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "create-book"), ("back", ""), ("book_name", "")]).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("The name field is required."));
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "create-book"), ("back", ""), ("book_name", "  Clinic  "), ("book_note", "n")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("address_books where name = 'Clinic' and is_personal = 0"), 1);
+    let id = h.text("select cast(id as text) from address_books where name = 'Clinic'");
+    let back = format!("tab=shared&selectedBookId={id}");
+    assert!(r.location().ends_with(&format!("/address-books?selectedBookId={id}&tab=shared")));
+    // tags
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "add-tag"), ("back", &back), ("tag_name", "Red"), ("tag_color", "bad")]).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("The color field format is invalid."));
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "add-tag"), ("back", &back), ("tag_name", "Red"), ("tag_color", "#FF0000")]).await;
+    assert_eq!(h.text("select cast(color as text) from tags where name = 'Red'"), "4294901760");
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "add-tag"), ("back", &back), ("tag_name", "Red"), ("tag_color", "#FF0000")]).await;
+    assert!(r.body.contains("The tag name has already been taken."));
+    let tag = h.text("select cast(id as text) from tags where name = 'Red'");
+    // entries
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "save-entry"), ("back", &back), ("entry_id", "0"), ("rustdesk_id", "555"), ("alias", "Desk"), ("tag_ids[]", &tag), ("tag_ids[]", "999")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.text("select tag_ids from address_book_entries where rustdesk_id = '555'"), format!("[{tag}]"));
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "save-entry"), ("back", &back), ("entry_id", "0"), ("rustdesk_id", "555")]).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("The RustDesk ID has already been taken."));
+    let page = squash(&h.get(&format!("/address-books?{back}"), &cookie).await.body);
+    assert!(page.contains("Desk") && page.contains("Red") && page.contains("Sharing rules"), "{page}");
+    let eid = h.text("select cast(id as text) from address_book_entries where rustdesk_id = '555'");
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "save-entry"), ("back", &back), ("entry_id", &eid), ("alias", "Desk 2")]).await;
+    assert_eq!(h.text("select alias from address_book_entries where rustdesk_id = '555'"), "Desk 2");
+    assert_eq!(h.text("select tag_ids from address_book_entries where rustdesk_id = '555'"), "[]");
+    // rules
+    let r = h.post_form("/address-books/act", &cookie, &[tok(), ("do", "add-rule"), ("back", &back), ("rule_type", "user"), ("rule_subject", ""), ("rule_permission", "1")]).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("The subject field is required."));
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "add-rule"), ("back", &back), ("rule_type", "everyone"), ("rule_permission", "1")]).await;
+    assert_eq!(h.count("address_book_rules where subject_type = 'everyone' and subject_id is null and permission = 1"), 1);
+    let rid = h.text("select cast(id as text) from address_book_rules");
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "rule-perm"), ("back", &back), ("id", &rid), ("permission", "2")]).await;
+    assert_eq!(h.text("select cast(permission as text) from address_book_rules"), "2");
+    // a plain user now sees the book, with read/write, and cannot manage it
+    let dana = h.login(&sid("abdana"), 2, json!({}));
+    let page = squash(&h.get(&format!("/address-books?{back}"), &dana).await.body);
+    assert!(page.contains("Clinic") && page.contains("Read/Write") && !page.contains("Sharing rules"), "{page}");
+    let r = h.post_form("/address-books/act", &dana, &[tok(), ("do", "delete-book"), ("back", &back)]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.count("address_books where name = 'Clinic'"), 1);
+    h.post_form("/address-books/act", &dana, &[tok(), ("do", "delete-entry"), ("back", &back), ("id", &eid)]).await;
+    assert_eq!(h.count("address_book_entries"), 0);
+    // deleting a tag strips it from entries; deleting the book takes the rest
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "delete-tag"), ("back", &back), ("id", &tag)]).await;
+    assert_eq!(h.count("tags"), 0);
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "delete-rule"), ("back", &back), ("id", &rid)]).await;
+    assert_eq!(h.count("address_book_rules"), 0);
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "delete-book"), ("back", &back)]).await;
+    assert_eq!(h.count("address_books where name = 'Clinic'"), 0);
+    assert!(h.count("console_audits where action like 'address-book.%'") >= 8);
+    // a personal book is not removable while its owner lives
+    let pb = h.text("select cast(id as text) from address_books where is_personal = 1 and owner_user_id = 1");
+    h.post_form("/address-books/act", &cookie, &[tok(), ("do", "delete-book"), ("back", &format!("tab=personal&selectedBookId={pb}"))]).await;
+    assert_eq!(h.count(&format!("address_books where id = {pb}")), 1);
 }

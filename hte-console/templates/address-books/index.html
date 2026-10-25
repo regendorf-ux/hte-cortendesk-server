@@ -1,0 +1,378 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+<div class="row g-3">
+
+    <div class="col-12 col-lg-4">
+        <ul class="nav nav-tabs nav-bordered mb-2">
+            <li class="nav-item">
+                <a href="{{ tab_personal }}" class="nav-link {{ 'active' if tab == 'personal' else '' }}">
+                    <i class="ri-user-line me-1"></i>Personal
+                    <span class="badge bg-secondary-subtle text-secondary ms-1">{{ personal_count }}</span>
+                </a>
+            </li>
+            <li class="nav-item">
+                <a href="{{ tab_shared }}" class="nav-link {{ 'active' if tab == 'shared' else '' }}">
+                    <i class="ri-share-line me-1"></i>Shared
+                    <span class="badge bg-secondary-subtle text-secondary ms-1">{{ shared_count }}</span>
+                </a>
+            </li>
+        </ul>
+
+        <div class="d-lg-none mb-2">
+            <div class="d-flex gap-2">
+                <form method="get" action="/address-books" class="flex-grow-1">
+                    <input type="hidden" name="tab" value="{{ tab }}">
+                    <select class="form-select" name="selectedBookId" aria-label="Select address book" data-rd-autosubmit-select>
+                        {% for b in books %}<option value="{{ b.id }}"{{ ' selected' if b.active else '' }}>{{ b.label }}</option>{% endfor %}
+                    </select>
+                </form>
+                {% if can_create %}
+                    <a href="{{ new_url }}" class="btn btn-primary flex-shrink-0" title="New shared address book"><i class="ri-add-line"></i></a>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card d-none d-lg-block">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h4 class="header-title">Address Books</h4>
+                {% if can_create %}
+                    <div class="rd-card-actions"><a href="{{ new_url }}" class="btn btn-primary"><i class="ri-add-line"></i>New shared</a></div>
+                {% endif %}
+            </div>
+            <div class="list-group list-group-flush rd-masterlist">
+                {% for b in books %}
+                    <a href="{{ b.url }}" class="list-group-item list-group-item-action {{ 'active' if b.active else '' }}">
+                        <span class="rd-cell-title text-truncate"><i class="{{ 'ri-user-line' if tab == 'personal' else 'ri-contacts-book-2-line' }} me-1"></i>{{ b.title }}</span>
+                        <small class="rd-cell-sub">{{ b.sub }}</small>
+                    </a>
+                {% else %}
+                    <div class="list-group-item">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-contacts-book-2-line"></i></div>
+                            <p class="rd-empty-title">No {{ tab }} address books yet.</p>
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-12 col-lg-8">
+        {% if book %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-start flex-wrap gap-2">
+                    <div>
+                        <h4 class="header-title d-flex align-items-center gap-2 flex-wrap">
+                            {{ book.name }}
+                            {% if book.personal and book.orphan %}<span class="badge bg-warning-subtle text-warning">Orphaned</span>
+                            {% elif book.personal %}<span class="badge bg-info-subtle text-info">Personal</span>
+                            {% else %}<span class="badge bg-primary-subtle text-primary">Shared</span>{% endif %}
+                        </h4>
+                        <p class="rd-card-sub mb-0">
+                            <i class="ri-user-line me-1"></i>{{ book.owner }}
+                            {% if book.note %}<span class="ms-2">{{ book.note }}</span>{% endif %}
+                        </p>
+                    </div>
+                    {% if not book.personal and can_manage %}
+                        <div class="d-flex gap-2">
+                            <a href="{{ rename_url }}" class="btn btn-sm btn-light"><i class="ri-pencil-line me-1"></i>Rename</a>
+                            <form method="post" action="/address-books/act" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}">
+                                <button type="submit" name="do" value="delete-book" class="btn btn-sm btn-outline-danger" data-rd-confirm="Delete address book “{{ book.name }}”? This also permanently deletes all of its entries, tags, and sharing rules."><i class="ri-delete-bin-line me-1"></i>Delete</button>
+                            </form>
+                        </div>
+                    {% elif book.personal and book.orphan and can_manage %}
+                        <div class="d-flex gap-2">
+                            <form method="post" action="/address-books/act" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}">
+                                <button type="submit" name="do" value="delete-book" class="btn btn-sm btn-outline-danger" data-rd-confirm="Delete this orphaned address book? Its owner no longer exists, so nobody can read it. This permanently deletes its entries and tags."><i class="ri-delete-bin-line me-1"></i>Delete</button>
+                            </form>
+                        </div>
+                    {% elif not book.personal %}
+                        <span class="badge bg-secondary-subtle text-secondary align-self-start">{{ 'Read/Write' if perm >= 2 else 'Read only' }}</span>
+                    {% endif %}
+                </div>
+
+                <div class="rd-toolbar">
+                    <span class="text-muted fw-semibold me-1"><i class="ri-price-tag-3-line me-1"></i>Tags:</span>
+                    {% for t in tags %}
+                        <span class="badge d-inline-flex align-items-center gap-1 {{ t.text }}" style="background-color: {{ t.hex }};">
+                            {{ t.name }}
+                            {% if can_manage %}
+                                <form method="post" action="/address-books/act" class="d-contents">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ t.id }}">
+                                    <button type="submit" name="do" value="delete-tag" class="btn btn-link p-0 border-0 {{ t.text }} text-decoration-none lh-1" title="Delete tag" data-rd-confirm="Delete tag “{{ t.name }}”? It will be removed from all entries."><i class="ri-close-line align-middle"></i></button>
+                                </form>
+                            {% endif %}
+                        </span>
+                    {% else %}
+                        <span class="text-muted fst-italic">none</span>
+                    {% endfor %}
+                    {% if can_manage %}<a href="{{ tag_url }}" class="btn btn-sm btn-light"><i class="ri-add-line"></i> Add tag</a>{% endif %}
+                </div>
+
+                <div class="rd-toolbar">
+                    <h4 class="header-title">Entries</h4>
+                    {% if can_write %}
+                        <div class="rd-toolbar-actions"><a href="{{ entry_url }}" class="btn btn-primary"><i class="ri-add-line"></i>Add entry</a></div>
+                    {% endif %}
+                </div>
+
+                <div class="mb-3">
+                    <form method="get" action="/address-books" hx-disinherit="*" hx-get="/address-books" hx-trigger="input delay:300ms from:#ab-search, submit" hx-sync="this:replace"
+                          hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+                        <input type="hidden" name="tab" value="{{ tab }}"><input type="hidden" name="selectedBookId" value="{{ selected }}">
+                        <div class="input-group" style="max-width: 320px;">
+                            <span class="input-group-text"><i class="ri-search-line"></i></span>
+                            <input type="search" id="ab-search" name="search" value="{{ search }}" class="form-control" placeholder="Search device, ID or alias…" hx-preserve="true">
+                        </div>
+                    </form>
+                </div>
+
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-hover table-centered mb-0">
+                        <thead>
+                        <tr><th>Device</th><th>Alias</th><th>User</th><th>Tags</th><th>Created</th><th class="text-end">Action</th></tr>
+                        </thead>
+                        <tbody>
+                        {% for e in entries %}
+                            <tr>
+                                <td>
+                                    <div class="rd-cell">
+                                        <i class="{{ e.platform.icon }} {{ e.platform.color }} fs-20 align-middle" title="{{ e.platform.label }}"></i>
+                                        <div class="min-width-0">
+                                            <a href="{{ e.link }}" class="rd-cell-title text-truncate" title="Connect with RustDesk" hx-boost="false">{{ e.title }}</a>
+                                            <span class="rd-cell-sub">{{ e.rustdesk_id }}{% if e.platform_name %} · {{ e.platform_name }}{% endif %}</span>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>{{ e.alias or '—' }}</td>
+                                <td>{{ e.username or '—' }}</td>
+                                <td>
+                                    {% for t in e.chips %}<span class="badge {{ t.text }}" style="background-color: {{ t.hex }};">{{ t.name }}</span>{% else %}<span class="text-muted">—</span>{% endfor %}
+                                </td>
+                                <td><span title="{{ e.created_at }}">{{ e.created or '—' }}</span></td>
+                                <td class="text-end rd-rowact">
+                                    {% if can_write %}
+                                        <a href="{{ entry_edit_prefix }}{{ e.id }}" class="rd-act me-2">Edit</a>
+                                        <form method="post" action="/address-books/act" class="d-inline">
+                                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ e.id }}">
+                                            <button type="submit" name="do" value="delete-entry" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="Remove {{ e.rustdesk_id }} from this address book?">Remove</button>
+                                        </form>
+                                    {% else %}
+                                        <span class="text-muted">—</span>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                        {% else %}
+                            <tr>
+                                <td colspan="6" class="rd-empty-cell">
+                                    <div class="rd-empty">
+                                        <div class="rd-empty-icon"><i class="ri-contacts-book-2-line"></i></div>
+                                        <p class="rd-empty-title">No entries in this address book.</p>
+                                        <p class="rd-empty-text">Entries are the machines a user keeps to hand — they sync straight into the RustDesk client.</p>
+                                        {% if can_write %}<a href="{{ entry_url }}" class="btn btn-sm btn-outline-light">Add entry</a>{% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-md-none rd-cardlist">
+                    {% for e in entries %}
+                        <div class="rd-mini">
+                            <div class="rd-mini-head">
+                                <div class="d-flex align-items-center gap-2 min-width-0">
+                                    <i class="{{ e.platform.icon }} {{ e.platform.color }} fs-22 align-middle" title="{{ e.platform.label }}"></i>
+                                    <div class="min-width-0">
+                                        <a href="{{ e.link }}" class="rd-mini-title text-truncate" title="Connect with RustDesk" hx-boost="false">{{ e.title }}</a>
+                                        <span class="rd-mini-sub text-truncate">{{ e.rustdesk_id }}{% if e.alias %} · {{ e.alias }}{% endif %}</span>
+                                    </div>
+                                </div>
+                                {% if can_write %}
+                                    <div class="rd-mini-acts">
+                                        <a href="{{ entry_edit_prefix }}{{ e.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                                        <form method="post" action="/address-books/act" class="d-contents">
+                                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ e.id }}">
+                                            <button type="submit" name="do" value="delete-entry" class="rd-iconbtn text-danger" title="Remove" data-rd-confirm="Remove {{ e.rustdesk_id }} from this address book?"><i class="ri-delete-bin-line"></i></button>
+                                        </form>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="mt-2 d-flex flex-wrap gap-1 align-items-center">
+                                {% for t in e.chips %}<span class="badge {{ t.text }}" style="background-color: {{ t.hex }};">{{ t.name }}</span>{% endfor %}
+                                <small class="text-muted ms-auto">{{ e.created_short }}</small>
+                            </div>
+                        </div>
+                    {% else %}
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-contacts-book-2-line"></i></div>
+                            <p class="rd-empty-title">No entries in this address book.</p>
+                            {% if can_write %}<a href="{{ entry_url }}" class="btn btn-sm btn-outline-light">Add entry</a>{% endif %}
+                        </div>
+                    {% endfor %}
+                </div>
+
+                {% if pager.has_pages %}
+                    <div class="rd-tablefoot">
+                        <span>Showing {{ pager.first_item or 0 }}–{{ pager.last_item or 0 }} of {{ pager.total }}</span>
+                        {% include "partials/pager_plain.html" %}
+                    </div>
+                {% endif %}
+            </div>
+
+            {% if not book.personal and can_manage %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <h4 class="header-title">Sharing rules</h4>
+                        <div class="rd-card-actions"><a href="{{ rule_url }}" class="btn btn-primary"><i class="ri-add-line"></i>Add rule</a></div>
+                    </div>
+                    <div class="card-body">
+                        {% for r in rules %}
+                            <div class="d-flex align-items-center gap-2 rd-inset mb-2 flex-wrap">
+                                <span class="flex-grow-1 text-truncate"><i class="{{ r.icon }} me-1 text-muted"></i>{{ r.label }}</span>
+                                <form method="post" action="/address-books/act" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="do" value="rule-perm">
+                                    <select class="form-select form-select-sm w-auto" name="permission" aria-label="Permission" data-rd-autosubmit-select>
+                                        {% for l in perm_labels %}<option value="{{ l.v }}"{{ ' selected' if r.permission == l.v else '' }}>{{ l.l }}</option>{% endfor %}
+                                    </select>
+                                </form>
+                                <form method="post" action="/address-books/act" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ r.id }}">
+                                    <button type="submit" name="do" value="delete-rule" class="rd-iconbtn text-danger" title="Delete rule" data-rd-confirm="Delete this sharing rule?"><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </div>
+                        {% else %}
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-share-line"></i></div>
+                                <p class="rd-empty-title">Not shared with anyone yet.</p>
+                                <p class="rd-empty-text">Add a rule to share this address book with a person, a user group, or everyone.</p>
+                                <a href="{{ rule_url }}" class="btn btn-sm btn-outline-light">Add rule</a>
+                            </div>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+        {% else %}
+            <div class="card">
+                <div class="card-body">
+                    <div class="rd-empty">
+                        <div class="rd-empty-icon"><i class="ri-contacts-book-2-line"></i></div>
+                        <p class="rd-empty-title">Select an address book to view its entries.</p>
+                        <p class="rd-empty-text">Personal books belong to one user; shared books are handed out by rule.</p>
+                    </div>
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if modal.kind %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="/address-books/act">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}">
+                    <input type="hidden" name="do" value="{{ {'newBook': 'create-book', 'renameBook': 'rename-book', 'addTag': 'add-tag', 'entry': 'save-entry', 'addRule': 'add-rule'}[modal.kind] }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ modal.title }}</h5>
+                        <a href="{{ modal.return }}" class="btn-close" aria-label="Close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        {% if modal.kind == 'newBook' or modal.kind == 'renameBook' %}
+                            <div class="mb-3">
+                                <label class="form-label" for="ab-book-name">Name</label>
+                                <input type="text" id="ab-book-name" name="book_name" value="{{ modal.values.book_name }}" class="form-control{{ ' is-invalid' if modal.errors.book_name else '' }}" autofocus>
+                                {% if modal.errors.book_name %}<div class="invalid-feedback">{{ modal.errors.book_name }}</div>{% endif %}
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label" for="ab-book-note">Note <span class="text-muted">(optional)</span></label>
+                                <textarea id="ab-book-note" name="book_note" rows="2" class="form-control{{ ' is-invalid' if modal.errors.book_note else '' }}">{{ modal.values.book_note }}</textarea>
+                                {% if modal.errors.book_note %}<div class="invalid-feedback">{{ modal.errors.book_note }}</div>{% endif %}
+                            </div>
+                        {% elif modal.kind == 'addTag' %}
+                            <div class="row g-3">
+                                <div class="col-8">
+                                    <label class="form-label" for="ab-tag-name">Name</label>
+                                    <input type="text" id="ab-tag-name" name="tag_name" value="{{ modal.values.tag_name }}" class="form-control{{ ' is-invalid' if modal.errors.tag_name else '' }}" autofocus>
+                                    {% if modal.errors.tag_name %}<div class="invalid-feedback">{{ modal.errors.tag_name }}</div>{% endif %}
+                                </div>
+                                <div class="col-4">
+                                    <label class="form-label" for="ab-tag-color">Color</label>
+                                    <input type="color" id="ab-tag-color" name="tag_color" value="{{ modal.values.tag_color }}" class="form-control form-control-color w-100{{ ' is-invalid' if modal.errors.tag_color else '' }}">
+                                    {% if modal.errors.tag_color %}<div class="invalid-feedback">{{ modal.errors.tag_color }}</div>{% endif %}
+                                </div>
+                            </div>
+                        {% elif modal.kind == 'entry' %}
+                            <input type="hidden" name="entry_id" value="{{ modal.entry_id }}">
+                            <div class="mb-3">
+                                <label class="form-label" for="ab-entry-id">RustDesk ID</label>
+                                <input type="text" id="ab-entry-id" name="rustdesk_id" value="{{ modal.values.rustdesk_id }}" class="form-control{{ ' is-invalid' if modal.errors.rustdesk_id else '' }}"{{ ' disabled' if modal.entry_id else '' }}>
+                                {% if modal.errors.rustdesk_id %}<div class="invalid-feedback">{{ modal.errors.rustdesk_id }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label" for="ab-entry-alias">Alias <span class="text-muted">(optional)</span></label>
+                                <input type="text" id="ab-entry-alias" name="alias" value="{{ modal.values.alias }}" class="form-control{{ ' is-invalid' if modal.errors.alias else '' }}">
+                                {% if modal.errors.alias %}<div class="invalid-feedback">{{ modal.errors.alias }}</div>{% endif %}
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label d-block">Tags</label>
+                                {% for t in tags %}
+                                    <div class="form-check form-check-inline">
+                                        <input class="form-check-input" type="checkbox" id="ab-etag-{{ t.id }}" name="tag_ids[]" value="{{ t.id }}"{{ ' checked' if t.id in modal.values.tag_ids else '' }}>
+                                        <label class="form-check-label" for="ab-etag-{{ t.id }}"><span class="badge {{ t.text }}" style="background-color: {{ t.hex }};">{{ t.name }}</span></label>
+                                    </div>
+                                {% else %}
+                                    <span class="text-muted fst-italic">No tags in this address book yet.</span>
+                                {% endfor %}
+                            </div>
+                        {% elif modal.kind == 'addRule' %}
+                            <div class="mb-3">
+                                <label class="form-label" for="ab-rule-type">Share with</label>
+                                <select id="ab-rule-type" name="rule_type" class="form-select{{ ' is-invalid' if modal.errors.rule_type else '' }}" data-rd-switch>
+                                    <option value="everyone"{{ ' selected' if modal.values.rule_type == 'everyone' else '' }}>Everyone</option>
+                                    <option value="user"{{ ' selected' if modal.values.rule_type == 'user' else '' }}>A specific user</option>
+                                    <option value="group"{{ ' selected' if modal.values.rule_type == 'group' else '' }}>A user group</option>
+                                </select>
+                                {% if modal.errors.rule_type %}<div class="invalid-feedback">{{ modal.errors.rule_type }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3{{ '' if modal.values.rule_type == 'user' else ' d-none' }}" data-rd-when="user">
+                                <label class="form-label" for="ab-rule-user">User</label>
+                                <select id="ab-rule-user" name="rule_subject" class="form-select{{ ' is-invalid' if modal.errors.rule_subject and modal.values.rule_type == 'user' else '' }}"{{ '' if modal.values.rule_type == 'user' else ' disabled' }}>
+                                    <option value="">Choose a user…</option>
+                                    {% for u in modal.users %}<option value="{{ u.id }}"{{ ' selected' if modal.values.rule_subject == u.id else '' }}>{{ u.label }}</option>{% endfor %}
+                                </select>
+                                {% if modal.errors.rule_subject and modal.values.rule_type == 'user' %}<div class="invalid-feedback">{{ modal.errors.rule_subject }}</div>{% endif %}
+                            </div>
+                            <div class="mb-3{{ '' if modal.values.rule_type == 'group' else ' d-none' }}" data-rd-when="group">
+                                <label class="form-label" for="ab-rule-group">Group</label>
+                                <select id="ab-rule-group" name="rule_subject" class="form-select{{ ' is-invalid' if modal.errors.rule_subject and modal.values.rule_type == 'group' else '' }}"{{ '' if modal.values.rule_type == 'group' else ' disabled' }}>
+                                    <option value="">Choose a group…</option>
+                                    {% for g in modal.groups %}<option value="{{ g.id }}"{{ ' selected' if modal.values.rule_subject == g.id else '' }}>{{ g.name }}</option>{% endfor %}
+                                </select>
+                                {% if modal.errors.rule_subject and modal.values.rule_type == 'group' %}<div class="invalid-feedback">{{ modal.errors.rule_subject }}</div>{% endif %}
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label" for="ab-rule-perm">Permission</label>
+                                <select id="ab-rule-perm" name="rule_permission" class="form-select{{ ' is-invalid' if modal.errors.rule_permission else '' }}">
+                                    {% for l in perm_labels %}<option value="{{ l.v }}"{{ ' selected' if modal.values.rule_permission == l.v else '' }}>{{ l.l }}</option>{% endfor %}
+                                </select>
+                                {% if modal.errors.rule_permission %}<div class="invalid-feedback">{{ modal.errors.rule_permission }}</div>{% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{% if modal.kind == 'newBook' %}Create{% elif modal.kind == 'renameBook' %}Save{% elif modal.kind == 'addTag' %}Add{% elif modal.kind == 'addRule' %}Add rule{% elif modal.entry_id %}Save{% else %}Add{% endif %}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+{% endif %}
+</div>
+{% endblock %}
