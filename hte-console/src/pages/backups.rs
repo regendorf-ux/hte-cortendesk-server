@@ -119,6 +119,14 @@ pub fn save(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     put("backup_keep_daily", &keep[0].to_string())?;
     put("backup_keep_weekly", &keep[1].to_string())?;
     put("backup_keep_monthly", &keep[2].to_string())?;
+    // BackupManager::save() writes the off-site fields too (as they are: this page does not edit them)
+    for (k, default) in [
+        ("backup_target", "none"), ("backup_ftp_host", ""), ("backup_ftp_port", "21"), ("backup_ftp_username", ""), ("backup_ftp_path", ""), ("backup_ftp_tls", "0"),
+        ("backup_s3_endpoint", ""), ("backup_s3_region", ""), ("backup_s3_bucket", ""), ("backup_s3_prefix", ""), ("backup_s3_access_key", ""), ("backup_s3_path_style", "0"),
+    ] {
+        let now_value = String::from_utf8_lossy(&db::setting(c, k, default)?).trim().to_string();
+        put(k, &now_value)?;
+    }
     audit(ctx, c, "backup.settings", &format!("Updated backup settings ({}, keep {}/{}/{}, copy: {})", if enabled { "daily" } else { "off" }, keep[0], keep[1], keep[2], target), Some("settings"), None)?;
     ctx.flash("backup_saved", json!(true));
     Ok(back())
@@ -201,12 +209,18 @@ pub fn download(ctx: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
     }
 }
 
-/// POST /settings/prune: `SettingsPage::pruneNow()`, on the saved retention (the page's Save keeps the field).
-pub fn prune(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
+/// POST /settings/prune: `SettingsPage::pruneNow()`: the retention in the form is saved, then the pruner runs.
+pub fn prune(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     if let Some(r) = writer(ctx) {
         return Ok(r);
     }
     let setup = setup()?;
+    // `$logRetentionDays` is an int property: a value that is not a whole number leaves the saved one in force
+    if let Ok(n) = Body::of(req).get("log_retention_days").trim().parse::<i64>() {
+        if (0..=3650).contains(&n) {
+            backup::put_setting(c, "log_retention_days", &n.to_string(), ctx.now).map_err(Fault::Other)?;
+        }
+    }
     let days = crate::prune::retention_days(c, &setup.retention_default).map_err(Fault::Other)?;
     let out = crate::prune::prune_logs(c, ctx.now, None, &setup.retention_default).map_err(Fault::Other)?;
     audit(ctx, c, "logs.prune", &format!("Pruned logs older than {days} days"), Some("logs"), None)?;

@@ -54,8 +54,9 @@ pub fn seed_sql(now: i64) -> Result<String, String> {
     // with a tag and an entry, one session still open
     s.push_str(&format!(
         "UPDATE devices SET hostname = 'FRONT-PC', os = 'windows / Windows 11', version = '1.4.0', alias = 'Front PC', username = 'dana', device_group_id = 1, last_online_at = {}, last_online_ip = '10.0.0.1' WHERE id = 1;\n\
-         UPDATE devices SET hostname = 'BACK-PC', os = 'macos / macOS 14', version = '1.3.9', username = 'erin', last_online_at = {}, last_online_ip = '10.0.0.2' WHERE id = 2;\n",
-        t(30), t(500_000)
+         UPDATE devices SET hostname = 'BACK-PC', os = 'macos / macOS 14', version = '1.3.9', username = 'erin', device_group_id = 2, last_online_at = {}, last_online_ip = '10.0.0.2' WHERE id = 2;\n\
+         INSERT INTO devices (id, rustdesk_id, uuid, hostname, os, version, username, status, last_online_at, last_online_ip, created_at, updated_at) VALUES (4, '1004', 'uuid-4', 'NEW-PC', 'windows / Windows 10', '1.4.0', 'dana', 'pending', {}, '10.0.0.4', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n\n",
+        t(30), t(500_000), t(60)
     ));
     s.push_str("INSERT INTO device_groups (id, name, created_at, updated_at) VALUES (2, 'Back office', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
     s.push_str("INSERT INTO user_groups (id, name, created_at, updated_at) VALUES (1, 'Techs', '2025-01-01 00:00:00', '2025-01-01 00:00:00');\n");
@@ -300,6 +301,9 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
 
 async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool, diffs: &mut Vec<String>, total: &mut usize) -> Result<(), String> {
     let crypt = Encrypter::from_app_key(key)?;
+    // HTE_PAGEREPLAY_RUST_ONLY=1: the writes run on hte-console alone (no Livewire), so the Rust half can be checked where
+    // there is no PHP; the comparison with PHP is the server run's
+    let rust_only = std::env::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
     let cfg = session::SessionConfig { cookie: cookie_name.to_string(), lifetime_min: 120, secure: None };
     let c = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
     let (day, week) = (laravel::ts(now - 90_000)[..10].to_string(), laravel::ts(now - 9_000)[..10].to_string());
@@ -391,6 +395,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
         ("hteadmin", "/logs/logins", "login-log-list", vec![], ""),
         ("hteadmin", "/logs/console", "console-audit-list", vec![], ""),
     ] } else { vec![] } {
+        if rust_only {
+            break;
+        }
         let cookie = cookie_for(&cfg, &crypt, user, now);
         let label = format!("{user} export {page}{query}");
         *total += 1;
@@ -432,6 +439,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     let wire = |user: &'static str, component: &'static str, updates: Vec<(&'static str, &'static str)>, method: &'static str| {
         let (c, php, cookie) = (c.clone(), php.to_string(), cookie_for(&cfg, &crypt, user, now));
         async move {
+            if rust_only {
+                return Ok::<(), String>(());
+            }
             let page = fetch(&c, &php, &cookie, "GET", "/account", None, String::new(), &[]).await?;
             let snap = snapshot(&page.body, component).ok_or_else(|| format!("PHP's /account has no {component} snapshot"))?;
             let upd: serde_json::Map<String, serde_json::Value> = updates.into_iter().map(|(k, v)| (k.to_string(), serde_json::json!(v))).collect();
@@ -483,7 +493,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     }
     // the theme (the top bar's and the page's): PHP's controller and hte-console's, the same JSON
     let both = ["php", "rust"];
-    for (side, base) in both.iter().zip([php, rust]) {
+    for (side, base) in both.iter().zip([php, rust]).filter(|(s, _)| !rust_only || **s == "rust") {
         let cookie = cookie_for(&cfg, &crypt, "hteadmin", now);
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"light"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
         *total += 1;
@@ -499,7 +509,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
         }
     }
     // a write with no token is refused by both
-    for (side, base) in both.iter().zip([php, rust]) {
+    for (side, base) in both.iter().zip([php, rust]).filter(|(s, _)| !rust_only || **s == "rust") {
         let cookie = cookie_for(&cfg, &crypt, "hteadmin", now);
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"dark"}"#.into(), &[]).await?;
         *total += 1;
@@ -507,7 +517,181 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("POST /account/theme without a token on {side}: {}, not 419", r.status));
         }
     }
+    write_steps(&c, php, rust, &cfg, &crypt, now, rust_only, diffs, total).await;
     Ok(())
+}
+
+type Round = (Vec<(&'static str, serde_json::Value)>, Vec<(&'static str, Vec<serde_json::Value>)>);
+
+/// PHP's side of a write: Livewire calls on a page's component, in rounds (each round's answer carries the snapshot the
+/// next one is sent against, as the browser does). A validation error is not an HTTP error: the databases show it.
+async fn livewire(c: &reqwest::Client, php: &str, cookie: &str, page: &str, component: &str, rounds: Vec<Round>) -> Result<(), String> {
+    let first = fetch(c, php, cookie, "GET", page, None, String::new(), &[]).await?;
+    if first.status != 200 {
+        return Err(format!("PHP answered {} to GET {page}", first.status));
+    }
+    let mut snap = snapshot(&first.body, component).ok_or_else(|| format!("PHP's {page} has no {component} snapshot"))?;
+    let uri = update_uri(&first.body);
+    for (updates, calls) in rounds {
+        let upd: serde_json::Map<String, serde_json::Value> = updates.into_iter().map(|(k, v)| (k.to_string(), v)).collect();
+        let calls: Vec<serde_json::Value> = calls.into_iter().map(|(m, p)| serde_json::json!({"path": "", "method": m, "params": p})).collect();
+        let body = serde_json::json!({"_token": TOKEN, "components": [{"snapshot": snap, "updates": upd, "calls": calls}]});
+        let r = fetch(c, php, cookie, "POST", &uri, Some("application/json"), body.to_string(), &[("x-livewire", "true"), ("x-csrf-token", TOKEN)]).await?;
+        if r.status != 200 {
+            return Err(format!("PHP's Livewire ({uri}) answered {} to {component}: {}", r.status, &r.body[..r.body.len().min(300)]));
+        }
+        let v: serde_json::Value = serde_json::from_str(&r.body).map_err(|e| format!("PHP's Livewire answer is not JSON: {e}"))?;
+        if let Some(next) = v["components"][0]["snapshot"].as_str() {
+            snap = next.to_string();
+        }
+    }
+    Ok(())
+}
+
+/// The fields a browser would post for the form with this action: what each input, select and textarea holds now.
+fn scrape_form(html: &str, action: &str) -> Vec<(String, String)> {
+    static INPUT: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<input\b([^>]*)>"#).unwrap());
+    static SELECT: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<select\b([^>]*)>(.*?)</select>"#).unwrap());
+    static AREA: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<textarea\b([^>]*)>(.*?)</textarea>"#).unwrap());
+    static OPTION: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<option\b([^>]*)>"#).unwrap());
+    let attr = |tag: &str, name: &str| -> Option<String> {
+        Regex::new(&format!(r#"(?s)(?:^|\s){name}\s*=\s*"([^"]*)""#)).unwrap().captures(tag).map(|m| decode(&m[1]))
+    };
+    let flag = |tag: &str, name: &str| Regex::new(&format!(r#"(?:^|\s){name}(?:\s|=|$|/)"#)).unwrap().is_match(tag);
+    let Some(start) = html.find(&format!(r#"action="{action}""#)) else { return vec![] };
+    let end = html[start..].find("</form>").map_or(html.len(), |e| start + e);
+    let region = &html[start..end];
+    let mut out = vec![];
+    for m in INPUT.captures_iter(region) {
+        let tag = &m[1];
+        let (Some(name), false, false) = (attr(tag, "name"), flag(tag, "disabled"), attr(tag, "form").is_some()) else { continue };
+        let kind = attr(tag, "type").unwrap_or_else(|| "text".into());
+        match kind.as_str() {
+            "checkbox" | "radio" => {
+                if flag(tag, "checked") {
+                    out.push((name, attr(tag, "value").unwrap_or_else(|| "on".into())));
+                }
+            }
+            "submit" | "button" | "file" => {}
+            _ => out.push((name, attr(tag, "value").unwrap_or_default())),
+        }
+    }
+    for m in SELECT.captures_iter(region) {
+        let (Some(name), false) = (attr(&m[1], "name"), flag(&m[1], "disabled") || attr(&m[1], "form").is_some()) else { continue };
+        let opts: Vec<(String, bool)> = OPTION.captures_iter(&m[2]).map(|o| (attr(&o[1], "value").unwrap_or_default(), flag(&o[1], "selected"))).collect();
+        if let Some((v, _)) = opts.iter().find(|(_, sel)| *sel).or(opts.first()) {
+            out.push((name, v.clone()));
+        }
+    }
+    for m in AREA.captures_iter(region) {
+        if let (Some(name), false) = (attr(&m[1], "name"), flag(&m[1], "disabled")) {
+            out.push((name, decode(m[2].trim_start_matches('\n'))));
+        }
+    }
+    out
+}
+
+fn flag_error(diffs: &mut Vec<String>, label: &str, r: Result<(), String>) {
+    if let Err(e) = r {
+        diffs.push(format!("{label}: {e}"));
+    }
+}
+
+/// The writes of the pages 7b ported, one per kind of change. Each is PHP's own Livewire call and hte-console's form post
+/// of the same thing; the caller then compares the two databases row by row. A step that fails is reported and the
+/// next one still runs, so one wrong guess about a PHP component does not hide the rest.
+#[allow(clippy::too_many_arguments)]
+async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, rust_only: bool, diffs: &mut Vec<String>, total: &mut usize) {
+    use serde_json::json;
+    let int = |n: i64| json!(n);
+    let ok = |st: u16| st == 302 || st == 200;
+    let rust_form = |user: &'static str, path: String, fields: Vec<(String, String)>| {
+        let (c, rust, cookie) = (c.clone(), rust.to_string(), cookie_for(cfg, crypt, user, now));
+        async move {
+            let body = laravel::http_build_query(&fields.iter().map(|(k, v)| (k.as_str(), v.as_bytes())).collect::<Vec<_>>());
+            fetch(&c, &rust, &cookie, "POST", &path, Some("application/x-www-form-urlencoded"), body, &[("x-csrf-token", TOKEN)]).await
+        }
+    };
+    let f = |pairs: &[(&str, &str)]| -> Vec<(String, String)> { pairs.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect() };
+    // (label, user, PHP page, component, rounds, hte-console path, hte-console fields, expected statuses)
+    struct Step {
+        label: &'static str,
+        user: &'static str,
+        page: &'static str,
+        component: &'static str,
+        rounds: Vec<Round>,
+        path: &'static str,
+        fields: Vec<(String, String)>,
+    }
+    let mut steps: Vec<Step> = vec![
+        Step { label: "devices: approve a pending computer", user: "hteadmin", page: "/devices", component: "device-list", rounds: vec![(vec![], vec![("approveDevice", vec![int(4)])])], path: "/devices/act", fields: f(&[("do", "approve"), ("id", "4")]) },
+        Step { label: "devices: delete a computer (the recycle bin)", user: "hteadmin", page: "/devices", component: "device-list", rounds: vec![(vec![], vec![("deleteDevice", vec![int(2)])])], path: "/devices/delete", fields: f(&[("ids[]", "2")]) },
+        Step { label: "devices: restore it", user: "hteadmin", page: "/devices", component: "device-list", rounds: vec![(vec![], vec![("restoreDevice", vec![int(2)])])], path: "/devices/act", fields: f(&[("do", "restore"), ("id", "2")]) },
+        Step { label: "device page: save the note", user: "hteadmin", page: "/devices/1", component: "device-detail", rounds: vec![(vec![("note", json!("Reception desk, left monitor"))], vec![("saveNote", vec![])])], path: "/devices/1/do", fields: f(&[("do", "note"), ("note", "Reception desk, left monitor")]) },
+        Step { label: "groups: create a device group", user: "hteadmin", page: "/groups", component: "group-list", rounds: vec![(vec![], vec![("create", vec![json!("devices")])]), (vec![("name", json!("Lab")), ("note", json!("Test bench"))], vec![("save", vec![])])], path: "/groups/save", fields: f(&[("type", "devices"), ("name", "Lab"), ("note", "Test bench")]) },
+        Step { label: "groups: delete a device group that has a computer in it", user: "hteadmin", page: "/groups", component: "group-list", rounds: vec![(vec![], vec![("deleteGroup", vec![json!("devices"), int(2)])])], path: "/groups/act", fields: f(&[("do", "delete"), ("type", "devices"), ("id", "2")]) },
+        Step { label: "users: disable a person", user: "hteadmin", page: "/users", component: "user-list", rounds: vec![(vec![], vec![("toggleActive", vec![int(3)])])], path: "/users/act", fields: f(&[("do", "toggle"), ("id", "3")]) },
+        Step { label: "users: enable them again", user: "hteadmin", page: "/users", component: "user-list", rounds: vec![(vec![], vec![("toggleActive", vec![int(3)])])], path: "/users/act", fields: f(&[("do", "toggle"), ("id", "3")]) },
+        Step { label: "strategies: switch one off", user: "hteadmin", page: "/strategies", component: "strategy-list", rounds: vec![(vec![], vec![("toggleEnabled", vec![int(1)])])], path: "/strategies/toggle", fields: f(&[("id", "1")]) },
+        Step { label: "address books: create a shared book", user: "hteadmin", page: "/address-books", component: "address-book-manager", rounds: vec![(vec![], vec![("openNewBook", vec![])]), (vec![("bookName", json!("Field techs")), ("bookNote", json!("Shared"))], vec![("createBook", vec![])])], path: "/address-books/act", fields: f(&[("do", "create-book"), ("book_name", "Field techs"), ("book_note", "Shared")]) },
+        Step { label: "settings, Backups: schedule and retention", user: "hteadmin", page: "/settings", component: "backup-manager", rounds: vec![(vec![("enabled", json!(false)), ("keepDaily", int(3)), ("keepWeekly", int(2)), ("keepMonthly", int(1))], vec![("save", vec![])])], path: "/settings/backups/save", fields: f(&[("keep_daily", "3"), ("keep_weekly", "2"), ("keep_monthly", "1")]) },
+        Step { label: "settings, Maintenance: Prune now", user: "hteadmin", page: "/settings", component: "settings-page", rounds: vec![(vec![("logRetentionDays", int(30))], vec![("pruneNow", vec![])])], path: "/settings/prune", fields: f(&[("log_retention_days", "30")]) },
+    ];
+    let mut phase = 0;
+    let mut steps = steps;
+    loop {
+        for st in steps.drain(..) {
+            *total += 1;
+            if !rust_only {
+                let cookie = cookie_for(cfg, crypt, st.user, now);
+                flag_error(diffs, &format!("{} (PHP)", st.label), livewire(c, php, &cookie, st.page, st.component, st.rounds).await);
+            }
+            match rust_form(st.user, st.path.to_string(), st.fields).await {
+                Ok(r) if ok(r.status) => {}
+                Ok(r) => diffs.push(format!("{}: hte-console answered {} to POST {}", st.label, r.status, st.path)),
+                Err(e) => diffs.push(format!("{}: {e}", st.label)),
+            }
+        }
+        if phase == 1 {
+            break;
+        }
+        phase = 1;
+    // the Settings form: PHP saves the page as it loaded with one field changed; hte-console posts the form it rendered, the same field changed
+        let rust_page = match fetch(c, rust, &cookie_for(cfg, crypt, "hteadmin", now), "GET", "/settings", None, String::new(), &[]).await {
+            Ok(p) => p,
+            Err(e) => {
+                diffs.push(format!("settings: cannot read hte-console's page: {e}"));
+                return;
+            }
+        };
+        let mut form = scrape_form(&rust_page.body, "/settings/save");
+        for (k, v) in form.iter_mut() {
+            if k == "online_window" {
+                *v = "45".into();
+            }
+        }
+        if !form.iter().any(|(k, _)| k == "online_window") {
+            diffs.push("settings: hte-console's form has no online_window field".into());
+        }
+            steps.push(Step { label: "settings: save the server tab", user: "hteadmin", page: "/settings", component: "settings-page", rounds: vec![(vec![("onlineWindow", int(45))], vec![("save", vec![])])], path: "/settings/save", fields: form });
+
+    }
+    // an API token: the plaintext and the hash are random, so only that both sides made one, with the same name,
+    // permissions and expiry, is compared (the caller masks token_hash, token_prefix and the date it computes)
+    *total += 1;
+    if !rust_only {
+        let cookie = cookie_for(cfg, crypt, "hteadmin", now);
+        flag_error(
+            diffs,
+            "api tokens: create (PHP)",
+            livewire(c, php, &cookie, "/api-tokens", "api-token-manager", vec![(vec![], vec![("create", vec![])]), (vec![("name", json!("ci")), ("expiresDays", int(30)), ("permissions.device", json!("rw")), ("permissions.audit", json!("r"))], vec![("save", vec![])])]).await,
+        );
+    }
+    match rust_form("hteadmin", "/api-tokens".into(), f(&[("name", "ci"), ("expires_days", "30"), ("perm_device", "rw"), ("perm_audit", "r")])).await {
+        Ok(r) if r.status == 200 && r.body.contains("cdk_") => {}
+        Ok(r) => diffs.push(format!("api tokens: hte-console answered {} to the create post", r.status)),
+        Err(e) => diffs.push(format!("api tokens: {e}")),
+    }
 }
 
 #[cfg(test)]

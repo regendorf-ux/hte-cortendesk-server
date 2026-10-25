@@ -797,10 +797,14 @@ async fn the_web_client() {
     std::env::remove_var("APP_URL");
 }
 
+/// The backup and prune code reads the environment as the CLI does: the tests that set it take turns.
+static ENV: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
 /// Backups, Prune now and the API tokens page. The backup code reads the environment as the CLI does, so this one test
 /// owns HTE_CONSOLE_DATABASE and friends for the whole process.
 #[tokio::test]
 async fn backups_prune_and_api_tokens() {
+    let _env = ENV.lock().await;
     let h = harness().await;
     let keep = tempfile::tempdir().unwrap();
     let backups = keep.path().join("backups");
@@ -907,4 +911,31 @@ async fn backups_prune_and_api_tokens() {
     assert_eq!(h.text("select summary from console_audits where action = 'api-token.revoke'"), "Revoked API token ci");
     assert_eq!(h.post_form("/api-tokens", &erin, &[tok(), ("name", "x"), ("perm_device", "rw")]).await.status, 302);
     assert_eq!(h.count("api_tokens"), 0);
+}
+
+/// The Rust half of the page replay's writes (the replay on the server pairs each with PHP's Livewire call and compares the
+/// two databases): every form post must be taken, the reads equal themselves, and the writes must leave their rows.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_replay_writes_run_on_hte_console() {
+    let _env = ENV.lock().await;
+    let h = harness().await;
+    let keep = tempfile::tempdir().unwrap();
+    std::env::set_var("HTE_CONSOLE_DATABASE", &h.db_path);
+    std::env::set_var("APP_KEY", APP_KEY);
+    std::env::set_var("HTE_CONSOLE_BACKUPS_DIR", keep.path().join("backups"));
+    std::env::set_var("HTE_CONSOLE_RUSTDESK_DIR", keep.path().join("rustdesk"));
+    std::env::set_var("HTE_PAGEREPLAY_RUST_ONLY", "1");
+    h.sql(&hte_console::pagereplay::seed_sql(NOW).unwrap());
+    let r = hte_console::pagereplay::run_with(&h.url, &h.url, APP_KEY, "hte-remote-session", NOW, true).await.unwrap();
+    std::env::remove_var("HTE_PAGEREPLAY_RUST_ONLY");
+    assert!(r.differences.is_empty(), "{}", r.differences.join("\n"));
+    assert_eq!(h.count("devices where id = 4 and status = 'active'"), 1);
+    assert_eq!(h.count("device_groups where name = 'Lab'"), 1);
+    assert_eq!(h.count("device_groups where id = 2"), 0);
+    assert_eq!(h.count("address_books where name = 'Field techs'"), 1);
+    assert_eq!(h.count("api_tokens where name = 'ci'"), 1);
+    assert_eq!(h.text("select value from settings where key = 'online_window'"), "45");
+    assert_eq!(h.text("select value from settings where key = 'backup_keep_daily'"), "3");
+    assert_eq!(h.text("select value from settings where key = 'log_retention_days'"), "30");
+    assert_eq!(h.text("select note from devices where id = 1"), "Reception desk, left monitor");
 }

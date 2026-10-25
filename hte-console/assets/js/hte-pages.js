@@ -89,6 +89,16 @@
         }
     }, true);
 
+    // Prune now: the retention as typed in the form goes with it (SettingsPage::pruneNow saves it first).
+    document.addEventListener('click', function (event) {
+        var el = event.target.closest ? event.target.closest('[data-rd-prune]') : null;
+        var src = document.querySelector('input[name="log_retention_days"]');
+        var dst = document.getElementById('prune-days');
+        if (el && src && dst) {
+            dst.value = src.value;
+        }
+    }, false);
+
     // wire:model.live on a select or a ticked box: the form it belongs to is sent as soon as it changes.
     document.addEventListener('change', function (event) {
         var el = event.target;

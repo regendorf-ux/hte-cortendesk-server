@@ -7,6 +7,7 @@
 //! `time()`); phase 2 adds what sign-in mints at random (`token`, `access_token`, and `code`, `state`, `nonce`,
 //! `verifier` of `oidc_auth_requests`), a bcrypt hash (`$2y$...`, salted) and `totp_last_timestep` (the 30-second step
 //! the run happened in). A masked value still shows whether it is null.
+//! `HTE_SNAPSHOT_MASK_TOKENS=1` (the page replay) also masks `token_hash` and `token_prefix`.
 //! Phase 3: of Laravel's `cache` table only the two keys hte-console writes as PHP does (the policy-pull marker and
 //! the scheduler heartbeat: their timestamps and `expiration` masked); PHP's other cache rows (rate limiters, OIDC
 //! discovery, the TOTP step) are process memory in hte-console by design. `cache_locks`: owner and expiry masked.
@@ -47,6 +48,7 @@ fn masked(col: &str) -> Option<&'static str> {
 }
 
 fn cell(col: &str, v: ValueRef<'_>) -> Value {
+    let mask_tokens = std::env::var("HTE_SNAPSHOT_MASK_TOKENS").map_or(false, |v| v == "1");
     let (class, shown) = match v {
         ValueRef::Null => return Value::Null,
         ValueRef::Integer(i) => ("integer", i.to_string()),
@@ -59,7 +61,9 @@ fn cell(col: &str, v: ValueRef<'_>) -> Value {
         ValueRef::Text(t) => ("text", String::from_utf8_lossy(t).into_owned()),
         ValueRef::Blob(b) => ("blob", hex::encode(b)),
     };
-    Value::String(format!("{class}:{}", masked(col).map(str::to_string).unwrap_or(shown)))
+    // phase 7b: a console-made API token is random (the replay creates one on each side); every other run compares the hash
+    let hidden = masked(col).or_else(|| (mask_tokens && matches!(col, "token_hash" | "token_prefix")).then_some("<random>"));
+    Value::String(format!("{class}:{}", hidden.map(str::to_string).unwrap_or(shown)))
 }
 
 pub fn snapshot(path: &Path) -> Result<String, String> {

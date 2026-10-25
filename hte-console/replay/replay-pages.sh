@@ -55,7 +55,7 @@ state() { # state <sqlite-dir> [uid]: the data as comparable text (sessions are 
   # the directory hte-console served is in WAL mode: it is opened writable, as the uid that owns it, never read-only
   local mode=ro user=0
   [ "${2:-}" = rust ] && { mode=rw; user=82:82; }
-  docker run --rm -u "$user" --network none -v "$1:/data:$mode" "$CONSOLE_IMAGE" snapshot /data/cortendesk.sqlite </dev/null \
+  docker run --rm -u "$user" --network none -e HTE_SNAPSHOT_MASK_TOKENS=1 -v "$1:/data:$mode" "$CONSOLE_IMAGE" snapshot /data/cortendesk.sqlite </dev/null \
     | grep -vE '^(cache|cache_locks|sqlite_sequence|jobs|job_batches|failed_jobs|oidc_auth_requests|password_reset_tokens|password_resets|migrations)[ :]' \
     | grep -vE '^sessions[ :]' | sed -E 's/text:\$2y\$[^"]*/text:<bcrypt>/' || true
 }

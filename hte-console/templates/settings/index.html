@@ -594,9 +594,9 @@
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save</button>
-                        <button type="submit" form="prune-form" class="btn btn-light"{{ '' if can_manage else ' disabled' }} data-rd-confirm="Delete the log rows older than the saved retention now?"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
+                        <button type="submit" form="prune-form" data-rd-prune class="btn btn-light"{{ '' if can_manage else ' disabled' }} data-rd-confirm="Save this retention and delete the log rows older than it now?"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
                     </div>
-                    <div class="form-text">Pruning also runs nightly on its own. "Prune now" uses the retention as last saved: Save first to change it.</div>
+                    <div class="form-text">Pruning also runs nightly on its own. "Prune now" saves the retention shown here, then prunes.</div>
                     {% if backups.prune %}<div class="alert alert-info py-2 mt-2 mb-0" style="white-space: pre-line;">{{ backups.prune }}</div>{% endif %}
                 </div>
             </div>
@@ -673,7 +673,7 @@
 </div>
 </form>
 <form id="snooze-form" method="post" action="/settings/snooze"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
-<form id="prune-form" method="post" action="/settings/prune"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="prune-form" method="post" action="/settings/prune"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="log_retention_days" id="prune-days" value=""></form>
 <form id="backup-run-form" method="post" action="/settings/backups/run"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="backup-save-form" method="post" action="/settings/backups/save"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="backup-delete-form" method="post" action="/settings/backups/delete"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
