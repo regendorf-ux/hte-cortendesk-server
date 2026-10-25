@@ -253,7 +253,7 @@
             </div>
             <div class="card">
                 <div class="card-header"><h5 class="card-title mb-0">API tokens</h5></div>
-                <div class="card-body"><p class="text-muted mb-0">API tokens are not available yet in this version of the console; they keep working and are managed in the previous console.</p></div>
+                <div class="card-body"><p class="text-muted mb-0">Create, list and revoke tokens for the automation API on the <a href="/api-tokens">API tokens</a> page.</p></div>
             </div>
         </div></div>
     </div>
@@ -594,9 +594,10 @@
                     </div>
                     <div class="d-flex gap-2">
                         <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save</button>
-                        <button type="button" class="btn btn-light" disabled title="Not available yet in this version of the console"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
+                        <button type="submit" form="prune-form" class="btn btn-light"{{ '' if can_manage else ' disabled' }} data-rd-confirm="Delete the log rows older than the saved retention now?"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
                     </div>
-                    <div class="form-text">Pruning runs nightly on its own; "Prune now" is not available yet here.</div>
+                    <div class="form-text">Pruning also runs nightly on its own. "Prune now" uses the retention as last saved: Save first to change it.</div>
+                    {% if backups.prune %}<div class="alert alert-info py-2 mt-2 mb-0" style="white-space: pre-line;">{{ backups.prune }}</div>{% endif %}
                 </div>
             </div>
             <div class="card">
@@ -613,14 +614,69 @@
 
     {# =========================== BACKUPS =========================== #}
     <div class="tab-pane {{ 'show active' if tab == 'backups' else '' }}" data-rd-pane="backups">
-        <div class="card">
-            <div class="card-header"><h5 class="card-title mb-0">Backups</h5></div>
-            <div class="card-body"><p class="text-muted mb-0">Backups are not available yet in this version of the console. Nightly backups keep running on their own, and the archives are untouched.</p></div>
+        {% if backups.notice %}<div class="alert alert-{{ backups.notice.tone }} py-2 mb-3" style="white-space: pre-line;">{{ backups.notice.text }}</div>{% endif %}
+        {% if backups.saved %}<div class="alert alert-success py-2 mb-3">Backup settings saved.</div>{% endif %}
+        <div class="row">
+            <div class="col-lg-7">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                        <div><h5 class="card-title mb-1">Backups</h5>
+                            <p class="text-muted fs-13 mb-0">Each archive holds the whole database, every setting, the app key{% if backups.server_files %} and the ID server's key pair and peer database{% endif %} &mdash; everything needed to rebuild this install. Treat it like a password.</p></div>
+                        <button type="submit" form="backup-run-form" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-archive-line me-1"></i>Back up now</button>
+                    </div>
+                    {% if backups.error %}<div class="alert alert-danger py-2 mx-3 mt-3">{{ backups.error }}</div>{% endif %}
+                    <div class="table-responsive">
+                        <table class="table table-hover table-centered mb-0">
+                            <thead><tr><th>Taken</th><th>Size</th><th>Version</th><th>Trigger</th><th class="text-end">Action</th></tr></thead>
+                            <tbody>
+                            {% for b in backups.items %}
+                            <tr>
+                                <td><span class="fw-semibold">{{ b.taken }}</span><span class="d-block rd-mono fs-13 text-muted text-break">{{ b.name }}</span></td>
+                                <td>{{ b.size }}</td>
+                                <td class="rd-mono">{{ b.version }}</td>
+                                <td><span class="badge bg-secondary-subtle text-secondary">{{ b.trigger }}</span></td>
+                                <td class="text-end text-nowrap">
+                                    {% if can_manage %}
+                                    <a class="btn btn-sm btn-light" href="/settings/backups/download?name={{ b.name }}" hx-boost="false" title="Download"><i class="ri-download-2-line"></i></a>
+                                    <button type="submit" form="backup-restore-form" name="name" value="{{ b.name }}" class="btn btn-sm btn-light text-warning" title="Restore" data-rd-confirm="Restore {{ b.name }}? This OVERWRITES every setting, user, device, address book and log in this install with what the backup holds. Anything changed since it was taken is lost. There is no undo."><i class="ri-history-line"></i></button>
+                                    <button type="submit" form="backup-delete-form" name="name" value="{{ b.name }}" class="btn btn-sm btn-light text-danger" title="Delete" data-rd-confirm="Delete {{ b.name }}?"><i class="ri-delete-bin-6-line"></i></button>
+                                    {% endif %}
+                                </td>
+                            </tr>
+                            {% else %}
+                            <tr><td colspan="5" class="text-center text-muted py-4">No backups yet.</td></tr>
+                            {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% if backups.last %}<div class="card-body border-top fs-13 text-muted">Last run: {{ backups.last.message or backups.last.status or '' }}{% if backups.last.at %} <span class="rd-mono">{{ backups.last.at }}</span>{% endif %}</div>{% endif %}
+                </div>
+            </div>
+            <div class="col-lg-5">
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Schedule and retention</h5></div>
+                    <div class="card-body">
+                        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="bk-enabled" name="enabled" value="1" form="backup-save-form"{{ ' checked' if backups.enabled else '' }}{{ '' if can_manage else ' disabled' }}><label class="form-check-label" for="bk-enabled">Back up daily</label></div>
+                        <div class="row g-2">
+                            <div class="col-4"><label class="form-label">Keep daily</label><input type="number" class="form-control" name="keep_daily" min="0" max="365" form="backup-save-form" value="{{ backups.keep_daily }}"{{ '' if can_manage else ' disabled' }}></div>
+                            <div class="col-4"><label class="form-label">Keep weekly</label><input type="number" class="form-control" name="keep_weekly" min="0" max="365" form="backup-save-form" value="{{ backups.keep_weekly }}"{{ '' if can_manage else ' disabled' }}></div>
+                            <div class="col-4"><label class="form-label">Keep monthly</label><input type="number" class="form-control" name="keep_monthly" min="0" max="365" form="backup-save-form" value="{{ backups.keep_monthly }}"{{ '' if can_manage else ' disabled' }}></div>
+                        </div>
+                        <button type="submit" form="backup-save-form" class="btn btn-primary mt-3"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save backup settings</button>
+                        <div class="form-text mt-2">Archives are kept in {{ backups.dir }}. The off-site FTP and S3 copy ({{ 'off' if backups.target == 'none' else backups.target }}), its test button and restoring from an uploaded file are not available yet in this version of the console.</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
 </div>
 </form>
 <form id="snooze-form" method="post" action="/settings/snooze"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="prune-form" method="post" action="/settings/prune"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="backup-run-form" method="post" action="/settings/backups/run"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="backup-save-form" method="post" action="/settings/backups/save"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="backup-delete-form" method="post" action="/settings/backups/delete"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="backup-restore-form" method="post" action="/settings/backups/restore"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 </div>
 {% endblock %}

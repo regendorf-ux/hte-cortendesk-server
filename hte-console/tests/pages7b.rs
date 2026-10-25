@@ -796,3 +796,115 @@ async fn the_web_client() {
     assert!(r.status().is_redirection(), "{}", r.status());
     std::env::remove_var("APP_URL");
 }
+
+/// Backups, Prune now and the API tokens page. The backup code reads the environment as the CLI does, so this one test
+/// owns HTE_CONSOLE_DATABASE and friends for the whole process.
+#[tokio::test]
+async fn backups_prune_and_api_tokens() {
+    let h = harness().await;
+    let keep = tempfile::tempdir().unwrap();
+    let backups = keep.path().join("backups");
+    std::env::set_var("HTE_CONSOLE_DATABASE", &h.db_path);
+    std::env::set_var("APP_KEY", APP_KEY);
+    std::env::set_var("HTE_CONSOLE_BACKUPS_DIR", &backups);
+    std::env::set_var("HTE_CONSOLE_RUSTDESK_DIR", keep.path().join("rustdesk"));
+    std::env::set_var("HTE_CONSOLE_SERVER_SECRET_FILE", keep.path().join("none"));
+    let admin = h.login(&sid("bk1"), 1, json!({}));
+    let erin = h.login(&sid("bk2"), 3, json!({}));
+
+    let r = h.get("/settings?tab=backups", &admin).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("No backups yet.") && r.body.contains("Back up now"));
+
+    // a person without the setting area gets nothing, and nothing is written
+    for p in ["/settings/backups/run", "/settings/prune", "/settings/backups/save"] {
+        let r = h.post_form(p, &erin, &[tok()]).await;
+        assert_eq!(r.status, 302, "{p}");
+    }
+    assert_eq!(h.count("console_audits"), 0);
+
+    // Back up now: the archive, the "system" log line, the flash
+    let r = h.post_form("/settings/backups/run", &admin, &[tok()]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(r.path(), "/settings?tab=backups");
+    let names: Vec<String> = std::fs::read_dir(&backups).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.ends_with(".tar")).collect();
+    assert_eq!(names.len(), 1, "{names:?}");
+    let name = names[0].clone();
+    assert_eq!(h.count("console_audits where action = 'backup.create' and username = 'system'"), 1);
+    assert!(h.text("select value from settings where key = 'backup_last_result'").contains("Wrote cortendesk-backup-"));
+    let r = h.get("/settings?tab=backups", &admin).await;
+    assert!(r.body.contains(&name) && r.body.contains("Wrote cortendesk-backup-"));
+
+    // schedule and retention
+    let r = h.post_form("/settings/backups/save", &admin, &[tok(), ("keep_daily", "3"), ("keep_weekly", "2"), ("keep_monthly", "1")]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.text("select value from settings where key = 'backup_enabled'"), "0");
+    assert_eq!(h.text("select value from settings where key = 'backup_keep_daily'"), "3");
+    assert_eq!(h.text("select value from settings where key = 'backup_keep_monthly'"), "1");
+    assert_eq!(h.text("select summary from console_audits where action = 'backup.settings'"), "Updated backup settings (off, keep 3/2/1, copy: none)");
+    let before = h.count("settings");
+    h.post_form("/settings/backups/save", &admin, &[tok(), ("enabled", "1"), ("keep_daily", "999"), ("keep_weekly", "2"), ("keep_monthly", "1")]).await;
+    assert_eq!(h.count("settings"), before);
+    assert_eq!(h.text("select value from settings where key = 'backup_enabled'"), "0");
+
+    // download: the archive as stored, and only a real backup name
+    let r = h.get(&format!("/settings/backups/download?name={name}"), &admin).await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.headers.get("content-type").unwrap(), "application/x-tar");
+    assert_eq!(r.headers.get("cache-control").unwrap(), "no-store, private");
+    assert_eq!(h.get("/settings/backups/download?name=../../etc/passwd", &admin).await.status, 404);
+
+    // restore: what changed since is undone, and the log says so
+    h.sql("insert into settings (key, value) values ('marker', 'after the backup')");
+    let r = h.post_form("/settings/backups/restore", &admin, &[tok(), ("name", &name)]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.count("settings where key = 'marker'"), 0);
+    assert_eq!(h.count("console_audits where action = 'backup.restore' and summary = 'Restored backup ' || target_id"), 1);
+    let r = h.post_form("/settings/backups/restore", &admin, &[tok(), ("name", "cortendesk-backup-20250101-000000.tar")]).await;
+    assert_eq!(r.status, 302);
+
+    // delete
+    let r = h.post_form("/settings/backups/delete", &admin, &[tok(), ("name", &name)]).await;
+    assert_eq!(r.status, 302);
+    assert!(!backups.join(&name).exists());
+    assert_eq!(h.count("console_audits where action = 'backup.delete'"), 1);
+    h.post_form("/settings/backups/delete", &admin, &[tok(), ("name", "../x")]).await;
+    assert_eq!(h.count("console_audits where action = 'backup.delete'"), 1);
+
+    // Prune now: rows older than the saved window go, newer stay
+    h.sql("insert into settings (key, value) values ('log_retention_days', '30')");
+    h.sql(&format!("insert into login_logs (username, created_at) values ('old', '{}'), ('new', '{}')", ago(40 * 86_400), ago(86_400)));
+    let r = h.post_form("/settings/prune", &admin, &[tok()]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.count("login_logs where username = 'old'"), 0);
+    assert_eq!(h.count("login_logs where username = 'new'"), 1);
+    assert_eq!(h.text("select summary from console_audits where action = 'logs.prune'"), "Pruned logs older than 30 days");
+
+    // API tokens: shown once, stored as a hash, clamped to what the creator holds, revoked
+    let r = h.get("/api-tokens", &admin).await;
+    assert_eq!(r.status, 200);
+    assert!(r.body.contains("No API tokens yet."));
+    let r = h.post_form("/api-tokens", &admin, &[tok(), ("name", "ci"), ("expires_days", "30"), ("perm_device", "rw"), ("perm_audit", "r")]).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let plain = r.body.split("value=\"cdk_").nth(1).and_then(|t| t.split('"').next()).map(|t| format!("cdk_{t}")).expect("plaintext shown");
+    assert_eq!(plain.len(), 44);
+    use sha2::{Digest, Sha256};
+    assert_eq!(h.text("select token_hash from api_tokens"), hex::encode(Sha256::digest(plain.as_bytes())));
+    assert_eq!(h.text("select token_prefix from api_tokens"), &plain[..12]);
+    assert_eq!(h.text("select permissions from api_tokens"), r#"{"device":"rw","user":"none","group":"none","strategy":"none","address_book":"none","audit":"r"}"#);
+    assert_eq!(h.text("select expires_at from api_tokens"), laravel::ts(NOW + 30 * 86_400));
+    assert_eq!(h.text("select summary from console_audits where action = 'api-token.create'"), "Created API token ci");
+    let r = h.get("/api-tokens", &admin).await;
+    assert!(!r.body.contains(&plain) && r.body.contains(&plain[..12]));
+    let r = h.post_form("/api-tokens", &admin, &[tok(), ("name", "empty")]).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("Grant at least one resource permission."));
+    assert_eq!(h.count("api_tokens"), 1);
+    let id = h.text("select cast(id as text) from api_tokens");
+    let r = h.post_form("/api-tokens/revoke", &admin, &[tok(), ("id", &id)]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.count("api_tokens"), 0);
+    assert_eq!(h.text("select summary from console_audits where action = 'api-token.revoke'"), "Revoked API token ci");
+    assert_eq!(h.post_form("/api-tokens", &erin, &[tok(), ("name", "x"), ("perm_device", "rw")]).await.status, 302);
+    assert_eq!(h.count("api_tokens"), 0);
+}

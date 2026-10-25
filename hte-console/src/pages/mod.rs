@@ -22,6 +22,8 @@ pub mod logs;
 pub mod overview;
 pub mod paginate;
 pub mod session;
+pub mod api_tokens;
+pub mod backups;
 pub mod settings;
 pub mod strategies;
 pub mod unavailable;
@@ -124,6 +126,8 @@ pub enum Reply {
     NoContent,
     Json(u16, String),
     Csv { filename: String, body: String },
+    /// A stored file handed out as it is (a backup archive).
+    Bytes { filename: String, body: Vec<u8> },
 }
 
 pub type Handler = for<'a> fn(&Ctx<'a>, &Connection, &Req) -> Result<Reply, Fault>;
@@ -579,6 +583,13 @@ fn reply_to_response(ctx: &Ctx, r: Reply, head: bool) -> Response<Body> {
             .header(header::CACHE_CONTROL, "no-cache, private")
             .body(if head { Body::empty() } else { Body::from(body) })
             .unwrap(),
+        Reply::Bytes { filename, body } => Response::builder()
+            .status(StatusCode::OK)
+            .header(header::CONTENT_TYPE, "application/x-tar")
+            .header(header::CONTENT_DISPOSITION, format!("attachment; filename={filename}"))
+            .header(header::CACHE_CONTROL, "no-store, private")
+            .body(if head { Body::empty() } else { Body::from(body) })
+            .unwrap(),
     }
 }
 
@@ -719,9 +730,16 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },
     Route { path: "/settings/relay", methods: &["POST"], need: Some(("setting", "r")), handler: settings::relay },
     Route { path: "/settings/snooze", methods: &["POST"], need: Some(("setting", "r")), handler: settings::snooze },
+    Route { path: "/settings/prune", methods: &["POST"], need: Some(("setting", "r")), handler: backups::prune },
+    Route { path: "/settings/backups/run", methods: &["POST"], need: Some(("setting", "r")), handler: backups::run },
+    Route { path: "/settings/backups/save", methods: &["POST"], need: Some(("setting", "r")), handler: backups::save },
+    Route { path: "/settings/backups/delete", methods: &["POST"], need: Some(("setting", "r")), handler: backups::delete },
+    Route { path: "/settings/backups/restore", methods: &["POST"], need: Some(("setting", "r")), handler: backups::restore },
+    Route { path: "/settings/backups/download", methods: &["GET"], need: Some(("setting", "rw")), handler: backups::download },
     Route { path: "/roles", methods: &["GET"], need: None, handler: unavailable::roles },
     Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: unavailable::invitations },
-    Route { path: "/api-tokens", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::api_tokens },
+    Route { path: "/api-tokens", methods: &["GET", "POST"], need: Some(("token", "r")), handler: api_tokens::index },
+    Route { path: "/api-tokens/revoke", methods: &["POST"], need: Some(("token", "r")), handler: api_tokens::revoke },
     Route { path: "/client-downloads", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::client_downloads },
     Route { path: "/setup", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::setup },
     Route { path: "/account", methods: &["GET"], need: None, handler: account::show },

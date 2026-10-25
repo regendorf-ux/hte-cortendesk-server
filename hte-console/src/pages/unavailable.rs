@@ -29,7 +29,3 @@ pub fn setup(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
 pub fn invitations(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
     show(ctx, c, "users", "Invitations", "Manage")
 }
-
-pub fn api_tokens(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
-    show(ctx, c, "settings", "API tokens", "System")
-}

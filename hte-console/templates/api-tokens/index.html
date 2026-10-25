@@ -1,0 +1,61 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+{% if plaintext %}
+<div class="alert alert-success">
+    <strong><i class="ri-check-line me-1"></i>Token created.</strong>
+    <div class="fs-13">Copy it now — it is shown only once and cannot be retrieved later.</div>
+    <div class="input-group input-group-sm mt-2"><input type="text" class="form-control font-monospace" readonly value="{{ plaintext }}" onfocus="this.select()"></div>
+</div>
+{% endif %}
+{% if error %}<div class="alert alert-danger py-2"><i class="ri-error-warning-line me-1"></i>{{ error }}</div>{% endif %}
+<div class="card">
+    <div class="card-header"><h4 class="header-title">API Tokens</h4>
+        <p class="rd-card-sub mb-0">Scoped Bearer tokens for the automation REST API (<code>/api/v1/…</code>). Grant each token only the resources your scripts need.</p></div>
+    <div class="table-responsive">
+        <table class="table table-hover table-centered mb-0">
+            <thead><tr><th>Name</th><th>Permissions</th><th>Created by</th><th>Last used</th><th>Expires</th><th class="text-end">Action</th></tr></thead>
+            <tbody>
+            {% for t in tokens %}
+            <tr>
+                <td><span class="rd-cell-title">{{ t.name }}</span><span class="d-block rd-mono fs-13 text-muted">{{ t.prefix }}…</span></td>
+                <td>{% for p in t.perms %}<span class="badge {{ 'bg-primary-subtle text-primary' if p.rw else 'bg-secondary-subtle text-secondary' }}">{{ p.label }}: {{ p.level }}</span> {% endfor %}</td>
+                <td>{{ t.creator }}</td>
+                <td>{% if t.last_used %}<span title="{{ t.last_used_title }}">{{ t.last_used }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
+                <td>{% if t.expires %}<span class="{{ 'text-danger' if t.expired else '' }}">{{ t.expires }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
+                <td class="text-end">{% if can_write %}<form method="post" action="/api-tokens/revoke" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ t.id }}"><button class="btn btn-link p-0 text-danger" type="submit" data-rd-confirm="Revoke token “{{ t.name }}”? Any script using it stops working immediately.">Revoke</button></form>{% endif %}</td>
+            </tr>
+            {% else %}
+            <tr><td colspan="6" class="text-center text-muted py-4">No API tokens yet. A token lets a script talk to the console API without a password.</td></tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% if can_write %}
+<div class="card">
+    <div class="card-header"><h5 class="card-title mb-0">New token</h5></div>
+    <div class="card-body">
+        <form method="post" action="/api-tokens" autocomplete="off">
+            <input type="hidden" name="_token" value="{{ csrf }}">
+            <div class="row g-3">
+                <div class="col-md-6"><label class="form-label">Name</label><input class="form-control" name="name" maxlength="255" value="{{ name }}" required></div>
+                <div class="col-md-3"><label class="form-label">Expires after (days)</label><input class="form-control" type="number" name="expires_days" min="1" max="3650" value="{{ days }}" placeholder="never"></div>
+            </div>
+            <div class="row g-3 mt-1">
+                {% for r in resources %}
+                <div class="col-md-4"><label class="form-label">{{ r.label }}</label>
+                    <select class="form-select" name="perm_{{ r.key }}">
+                        <option value="none"{{ ' selected' if r.level == 'none' else '' }}>None</option>
+                        <option value="r"{{ ' selected' if r.level == 'r' else '' }}>Read</option>
+                        <option value="rw"{{ ' selected' if r.level == 'rw' else '' }}>Read/Write</option>
+                    </select></div>
+                {% endfor %}
+            </div>
+            <button class="btn btn-primary mt-3" type="submit"><i class="ri-add-line me-1"></i>Create token</button>
+        </form>
+    </div>
+</div>
+{% endif %}
+</div>
+{% endblock %}

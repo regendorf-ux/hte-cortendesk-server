@@ -6,8 +6,9 @@
 //! page that failed validation; a blank field keeps the stored value, a filled one is stored with `Crypt::encryptString`
 //! (the APP_KEY's AES-256-CBC payload), and only "is one stored" reaches a template.
 //!
-//! Not ported here, and shown as not available: the Test connection, Send test email and Send test notification
-//! buttons, Prune now, and the Backups tab and API tokens card (their data stays as it is).
+//! Prune now and the Backups tab are in `backups`, the API tokens page in `api_tokens`. Not ported here, and shown as
+//! not available: the Test connection, Send test email and Send test notification buttons (they call out over the
+//! network, which a handler holding the database lock must not do).
 
 use super::kit::*;
 use super::{Ctx, Reply, Req};
@@ -649,7 +650,7 @@ fn render(ctx: &Ctx, c: &Connection, p: Page) -> Result<Reply, Fault> {
         "default_groups": opt(&default_groups), "user_groups": opt(&user_groups), "all_groups": opt(&all_groups), "devices": dev_opts, "events": events,
         "mail_enabled": mail_on, "mail_broken": mail_broken.0, "mail_error": mail_broken.1, "mail_flash": ctx.flashed.get("mail_broken").and_then(|v| v.as_str()).unwrap_or(""),
         "no_email": no_email, "snoozes": snoozes, "snooze": Value::Object(p.snooze.clone()), "deliveries": delivery_items,
-        "about": {"version": ctx.p.n.api_version},
+        "about": {"version": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
     });
     Ok(Reply::Html(p.status, ctx.render("settings/index.html", layout, page)?))
 }
