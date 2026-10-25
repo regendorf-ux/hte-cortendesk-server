@@ -280,7 +280,7 @@ pub fn mount(r: Router<Arc<Native>>) -> Router<Arc<Native>> {
 
 /// The largest body an admin route reads (`HTE_CONSOLE_ADMIN_MAX_BODY_BYTES`, default 1 MiB).
 fn max_body() -> usize {
-    std::env::var("HTE_CONSOLE_ADMIN_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(1024 * 1024)
+    crate::envvar::var("HTE_CONSOLE_ADMIN_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(1024 * 1024)
 }
 
 /// An answer: Laravel's JSON, or `--assign`'s plain text (an empty 200 is success).
@@ -859,9 +859,9 @@ impl Cx<'_> {
         }
     }
 
-    /// `Device::onlineWindow()`: the `online_window` setting, else `CORTENDESK_ONLINE_WINDOW`, else 60; 0 means 60.
+    /// `Device::onlineWindow()`: the `online_window` setting, else `HTE_REMOTE_ONLINE_WINDOW`, else 60; 0 means 60.
     pub fn online_window(&self) -> Result<i64, Fault> {
-        let default = std::env::var("CORTENDESK_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
+        let default = crate::envvar::var("HTE_REMOTE_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
         let v = db::setting(self.c, "online_window", &default)?;
         Ok(if v.is_empty() || v == b"0" { 60 } else { php::str_to_int(&v) })
     }

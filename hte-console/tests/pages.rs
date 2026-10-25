@@ -302,7 +302,7 @@ async fn every_page_renders_for_an_administrator_with_the_console_markup() {
         assert!(r.body.contains(&format!("<title>{title} | HTE Remote</title>")), "{path}: {}", &r.body[..400.min(r.body.len())]);
         assert!(r.body.contains(needle), "{path} lacks {needle}");
         assert!(r.body.contains(r#"name="csrf-token" content="TOKENtokenTOKENtokenTOKENtokenTOKENtoken""#), "{path}");
-        assert!(r.body.contains("/assets/css/hte-brand.css?v=1.15.0-hte.1"), "{path}");
+        assert!(r.body.contains(concat!("/assets/css/hte-brand.css?v=", env!("CARGO_PKG_VERSION"))), "{path}");
         assert!(r.body.contains("/assets/vendor/htmx/htmx.min.js"), "{path}");
         // the administrator's sidebar: every group
         assert!(r.body.contains("Build Installers") || r.body.contains("Client Downloads"), "{path}");
@@ -542,7 +542,7 @@ async fn the_theme_is_saved_and_validated() {
 #[tokio::test(flavor = "multi_thread")]
 async fn assets_are_served_and_the_server_refuses_anything_else() {
     let h = harness().await;
-    let r = h.go("GET", "/assets/css/cortendesk.css", None, None, "", &[]).await;
+    let r = h.go("GET", "/assets/css/hte-remote.css", None, None, "", &[]).await;
     assert_eq!(r.status, 200);
     assert_eq!(r.headers.get("content-type").unwrap(), "text/css; charset=utf-8");
     assert!(r.body.contains(".rd-toolbar"));
@@ -551,7 +551,7 @@ async fn assets_are_served_and_the_server_refuses_anything_else() {
     assert!(r.body.contains("htmx"));
     assert_eq!(h.go("GET", "/assets/nope.css", None, None, "", &[]).await.status, 404);
     assert_eq!(h.go("GET", "/assets/%2e%2e/Cargo.toml", None, None, "", &[]).await.status, 404);
-    assert_eq!(h.go("POST", "/assets/css/cortendesk.css", None, None, "", &[]).await.status, 405);
+    assert_eq!(h.go("POST", "/assets/css/hte-remote.css", None, None, "", &[]).await.status, 405);
 }
 
 #[tokio::test(flavor = "multi_thread")]

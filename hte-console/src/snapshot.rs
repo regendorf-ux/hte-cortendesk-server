@@ -48,7 +48,7 @@ fn masked(col: &str) -> Option<&'static str> {
 }
 
 fn cell(col: &str, v: ValueRef<'_>) -> Value {
-    let mask_tokens = std::env::var("HTE_SNAPSHOT_MASK_TOKENS").map_or(false, |v| v == "1");
+    let mask_tokens = crate::envvar::var("HTE_SNAPSHOT_MASK_TOKENS").map_or(false, |v| v == "1");
     let (class, shown) = match v {
         ValueRef::Null => return Value::Null,
         ValueRef::Integer(i) => ("integer", i.to_string()),

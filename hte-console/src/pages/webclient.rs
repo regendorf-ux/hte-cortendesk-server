@@ -148,12 +148,12 @@ pub fn respond(name: &str, query: Option<&str>, headers: &HeaderMap, head: bool)
 // ----------------------------------------------------------------------------------------------------- the page ---
 
 fn env(name: &str) -> String {
-    std::env::var(name).unwrap_or_default().trim().to_string()
+    crate::envvar::var(name).unwrap_or_default().trim().to_string()
 }
 
 /// `WebClientPageController::wsBase`: `ws(s)://host[:port]` from APP_URL (PHP's default `http://localhost`), the request's own address when APP_URL has no host.
 fn ws_base(headers: &HeaderMap) -> String {
-    let app_url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost".into());
+    let app_url = crate::envvar::var("APP_URL").unwrap_or_else(|_| "http://localhost".into());
     let host_of = |u: &str| -> Option<(bool, String, Option<u16>)> {
         let (scheme, rest) = u.split_once("://")?;
         let auth = rest.split(['/', '?', '#']).next().unwrap_or("");
@@ -201,12 +201,12 @@ fn server_key(c: &Connection) -> Result<String, Fault> {
     if !saved.is_empty() {
         return Ok(saved);
     }
-    Ok(["HTE_CONSOLE_PUBLIC_KEY", "CORTENDESK_PUBLIC_KEY"].iter().map(|e| env(e)).find(|v| !v.is_empty()).unwrap_or_default())
+    Ok(["HTE_CONSOLE_PUBLIC_KEY", "HTE_REMOTE_PUBLIC_KEY"].iter().map(|e| env(e)).find(|v| !v.is_empty()).unwrap_or_default())
 }
 
 /// GET /webclient[?id=...]
 pub fn show(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
-    let (mut ws_id, mut ws_relay) = (env("CORTENDESK_WS_ID_URL"), env("CORTENDESK_WS_RELAY_URL"));
+    let (mut ws_id, mut ws_relay) = (env("HTE_REMOTE_WS_ID_URL"), env("HTE_REMOTE_WS_RELAY_URL"));
     if ws_id.is_empty() || ws_relay.is_empty() {
         let base = ws_base(&req.headers);
         if ws_id.is_empty() && !base.is_empty() {
@@ -224,7 +224,7 @@ pub fn show(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     } else if !username.is_empty() && username != "0" {
         username
     } else {
-        "CortenDesk".to_string()
+        "HTE Remote".to_string()
     };
     let peer = q(req, "id");
     let v = version();

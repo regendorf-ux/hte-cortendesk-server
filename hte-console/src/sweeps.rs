@@ -86,7 +86,7 @@ impl Job {
 
 /// `HTE_CONSOLE_SWEEPS`
 pub fn from_env() -> Result<Vec<Job>, String> {
-    let v = std::env::var("HTE_CONSOLE_SWEEPS").unwrap_or_default();
+    let v = crate::envvar::var("HTE_CONSOLE_SWEEPS").unwrap_or_default();
     let mut jobs = vec![];
     for part in v.split(',').map(str::trim).filter(|p| !p.is_empty()) {
         if part == "all" {

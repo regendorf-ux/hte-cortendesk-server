@@ -1,6 +1,9 @@
 # hte-console
 
-HTE Remote's console, step by step in Rust (plan: `PHPLESS-PLAN.md` in HTE's private notes). Changes: `CHANGES.md`.
+HTE Remote's console, in Rust: the pages, the client and admin APIs, the link with the ID server and the scheduled jobs of HTE Remote. Since
+2.0.0 it runs inside HTE Remote's server image, `ghcr.io/regendorf-ux/hte-rd-server` (section "Phase 9" at the end). Changes: `CHANGES.md`;
+credits and licences: `NOTICE`. It was written phase by phase to replace the PHP console it took over from (plan: `PHPLESS-PLAN.md` in HTE's
+private notes); the list below is that history, and "the PHP console" in it is the archived PHP source.
 
 - **Phase 0, a shadow proxy.** In front of the PHP console: forwards every request, returns PHP's answer unchanged,
   records sanitised fixtures.
@@ -434,10 +437,13 @@ remaining pages: `notes/phase8/NOTES.md`. Off unless `HTE_CONSOLE_SIGNIN=1`.
 | a guest page | a session row per visit | one row per browser (GET only), at most 600 new rows a minute per address |
 | `SESSION_SECURE_COOKIE=true` on plain http | the cookie is dropped, the post fails (419), back to `/login` | no sign-in completed: back to `/login` (the page shows PHP's https note) |
 
-## Phase 9: the PHP-free image
+## Phase 9: HTE Remote 2.0.0, the PHP-free image
 
-`Dockerfile.hte` (tag `v1.1.1-hte.4`) puts hbbs, hbbr and hte-console in one container under supervisord, uid 82, no PHP. Environment defaults are
-in the Dockerfile; `HTE_CONSOLE_MIGRATE=1` checks the schema at start (41 PHP migrations recorded, else it refuses to start) and applies hte-console's
-own additive tables. CLI: `hte-console version | migrate [--check] | status | release-locks | db-copy <dest> | backup [--no-copy] | restore ...`.
-`docker exec cortendesk hte-console status` prints name=value lines (migrations, devices, scheduler heartbeat, policy pull age and agent).
-Scripts and checklist for the cutover: `phase9/` (private notes).
+`Dockerfile.hte` (git tag `hte-rd-server-v<x.y.z>`, image `ghcr.io/regendorf-ux/hte-rd-server:<x.y.z>`, the version of this crate) puts hbbs,
+hbbr and hte-console in one container under supervisord, uid 82, no PHP. Environment defaults are in the Dockerfile; `HTE_CONSOLE_MIGRATE=1`
+checks the schema at start (41 migrations of the archived PHP console recorded, else it refuses to start) and applies hte-console's own
+additive tables. Settings that were `CORTENDESK_<X>` are `HTE_REMOTE_<X>` (the old names still work, with a warning: `src/envvar.rs`).
+The sidebar's release check reads this repository's `hte-rd-server-v*` tags once a day (`src/update_check.rs`; `HTE_REMOTE_UPDATE_CHECK=0` turns it off).
+CLI: `hte-console version | migrate [--check] | status | release-locks | db-copy <dest> | backup [--no-copy] | restore ...`.
+`docker exec cortendesk hte-console status` prints name=value lines (migrations, devices, scheduler heartbeat, policy pull age and agent, old
+variable names in use, release check). Scripts and checklist for the cutover: `phase9/` (private notes).

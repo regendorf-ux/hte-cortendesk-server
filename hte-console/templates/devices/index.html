@@ -274,11 +274,11 @@
                             {% endif %}
                         {% else %}
                             {% if native_webclient %}
-                                <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
+                                <a href="/webclient?id={{ d.rustdesk_id }}" target="hte-remote-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
                                    title="Connect in the browser (native client)"><i class="ri-remote-control-line me-1"></i>Connect</a>
                             {% endif %}
                             {% if webclient_url %}
-                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
+                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="hte-remote-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
                                    title="Connect in the browser">Web Client</a>
                             {% endif %}
                             <a href="/devices/{{ d.id }}" class="rd-act me-2" title="View details"><i class="ri-eye-line"></i></a>
@@ -368,11 +368,11 @@
                             {% endif %}
                         {% else %}
                             {% if native_webclient %}
-                                <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
+                                <a href="/webclient?id={{ d.rustdesk_id }}" target="hte-remote-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
                                    title="Connect in the browser (native client)"><i class="ri-remote-control-line"></i></a>
                             {% endif %}
                             {% if webclient_url %}
-                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
+                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="hte-remote-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
                                    title="Connect in the browser"><i class="ri-global-line"></i></a>
                             {% endif %}
                             <a href="/devices/{{ d.id }}" class="rd-iconbtn" title="View details"><i class="ri-eye-line"></i></a>

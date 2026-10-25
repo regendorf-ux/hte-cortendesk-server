@@ -6,6 +6,9 @@
 //! Phase 5: the admin automation API (`/api/v1/*`, token-guarded) and the client's `--assign` answered natively.
 //! Phase 7: the console pages (Laravel session, CSRF, templates, htmx), one group of pages at a time.
 //! Phase 6: local backups (PHP's archive format), restore, log and invitation pruning, and their daily scheduler entries.
+/// HTE Remote's version: the console's crate version is the version of the whole server image (`hte-rd-server:<this>`).
+pub const REMOTE_VERSION: &str = env!("CARGO_PKG_VERSION");
+
 pub mod admin;
 pub mod admin_ctl;
 pub mod api;
@@ -20,6 +23,8 @@ pub mod config;
 pub mod device_cli;
 pub mod duplicates;
 pub mod email;
+pub mod envvar;
+pub mod update_check;
 pub mod fake_idp;
 pub mod sqlite;
 pub mod fixture;

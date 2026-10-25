@@ -6,7 +6,7 @@
 //!
 //! behind `VerifyServerSecret` (404 while no secret is set, 401 for a wrong one, `hash_equals`) and
 //! `throttle:600,1,server-link`. hbbs runs inside the PHP container and reaches the console at
-//! `CORTENDESK_CONSOLE_URL` (loopback by default), so these move when that URL points here, not through Caddy.
+//! `HTE_REMOTE_CONSOLE_URL` (loopback by default), so these move when that URL points here, not through Caddy.
 //! The policy is ETag'd as PHP does it (sha256 of the body, quoted; `If-None-Match` answered 304), and every pull
 //! is recorded in Laravel's cache (`ServerLink::recordPull`) for Settings and Fleet Diagnostics.
 //!
@@ -41,32 +41,32 @@ impl Link {
         Link { secret: secret.trim().to_string(), store, limiter: Mutex::new(Limiter::default()) }
     }
 
-    /// As the PHP image gets it: `CORTENDESK_SERVER_SECRET`, else the file the entrypoint generates
+    /// As the PHP image gets it: `HTE_REMOTE_SERVER_SECRET`, else the file the entrypoint generates
     /// (`HTE_CONSOLE_SERVER_SECRET_FILE`, default `/data/.server_secret`), trimmed.
     pub fn from_env() -> Result<Link, String> {
         let secret = server_secret();
         let link = Link::new(&secret, Store::from_env()?);
         if link.secret.is_empty() {
-            tracing::warn!("server link: no secret (CORTENDESK_SERVER_SECRET or the secret file): /api/server/* answer 404 as PHP does unlinked");
+            tracing::warn!("server link: no secret (HTE_REMOTE_SERVER_SECRET or the secret file): /api/server/* answer 404 as PHP does unlinked");
         }
         Ok(link)
     }
 }
 
-/// The shared secret the ID server and the console sign with: `CORTENDESK_SERVER_SECRET`, else the secret file; empty = the link is off.
+/// The shared secret the ID server and the console sign with: `HTE_REMOTE_SERVER_SECRET`, else the secret file; empty = the link is off.
 /// Never logged.
 pub fn server_secret() -> String {
     {
-        match std::env::var("CORTENDESK_SERVER_SECRET").ok().filter(|s| !s.trim().is_empty()) {
+        match crate::envvar::var("HTE_REMOTE_SERVER_SECRET").ok().filter(|s| !s.trim().is_empty()) {
             Some(s) => s,
             None => {
-                let path = std::env::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into());
+                let path = crate::envvar::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into());
                 match std::fs::read_to_string(&path) {
                     Ok(s) => s,
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
                     Err(e) => {
                         // the PHP image writes it root-only; the deploy passes it in the environment instead
-                        tracing::warn!("server link: cannot read {path} ({e}); set CORTENDESK_SERVER_SECRET");
+                        tracing::warn!("server link: cannot read {path} ({e}); set HTE_REMOTE_SERVER_SECRET");
                         String::new()
                     }
                 }
@@ -322,7 +322,7 @@ const REFUSAL_RULES: &[(&str, &[Rule])] = &[
 /// `HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES` (default 4 MiB): 500 refusals of the longest values allowed, written with
 /// JSON escapes, stay below it.
 fn max_body() -> usize {
-    std::env::var("HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(4 * 1024 * 1024)
+    crate::envvar::var("HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(4 * 1024 * 1024)
 }
 
 /// POST /api/server/local-addrs, on the validated data

@@ -58,7 +58,7 @@ struct CopyLock(Option<std::fs::File>);
 impl CopyLock {
     fn take(env: &Env) -> Result<CopyLock, String> {
         use std::os::unix::io::AsRawFd;
-        for path in [env.backups_dir.join(".backup-copy.lock"), std::env::temp_dir().join("cortendesk-backup-copy.lock")] {
+        for path in [env.backups_dir.join(".backup-copy.lock"), std::env::temp_dir().join("hte-remote-backup-copy.lock")] {
             let f = std::fs::OpenOptions::new().create(true).write(true).open(&path).or_else(|_| std::fs::File::open(&path));
             if let Ok(f) = f {
                 if unsafe { libc::flock(f.as_raw_fd(), libc::LOCK_EX | libc::LOCK_NB) } != 0 {

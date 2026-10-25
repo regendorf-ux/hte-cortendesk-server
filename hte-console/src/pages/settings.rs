@@ -87,11 +87,11 @@ pub(crate) fn server_value(c: &Connection, name: &str, envs: &[&str]) -> Result<
     if !saved.is_empty() {
         return Ok(saved);
     }
-    Ok(envs.iter().filter_map(|e| std::env::var(e).ok()).map(|v| v.trim().to_string()).find(|v| !v.is_empty()).unwrap_or_default())
+    Ok(envs.iter().filter_map(|e| crate::envvar::var(e).ok()).map(|v| v.trim().to_string()).find(|v| !v.is_empty()).unwrap_or_default())
 }
 
 fn env_or(name: &str, default: &str) -> String {
-    std::env::var(name).ok().filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string())
+    crate::envvar::var(name).ok().filter(|v| !v.is_empty()).unwrap_or_else(|| default.to_string())
 }
 
 fn int_of(s: &str) -> i64 {
@@ -107,15 +107,15 @@ fn load(ctx: &Ctx, c: &Connection) -> Result<(Values, Vec<(String, String)>), Fa
     let b = |v: &mut Values, k: &str, x: bool| {
         v.insert(k.to_string(), json!(x));
     };
-    s(&mut v, "id_server", server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"])?);
-    s(&mut v, "relay_server", server_value(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "CORTENDESK_RELAY_SERVER"])?);
-    s(&mut v, "public_key", server_value(c, "public_key", &["HTE_CONSOLE_PUBLIC_KEY", "CORTENDESK_PUBLIC_KEY"])?);
-    let window = txt(c, "online_window", &env_or("CORTENDESK_ONLINE_WINDOW", "60"))?;
+    s(&mut v, "id_server", server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "HTE_REMOTE_ID_SERVER"])?);
+    s(&mut v, "relay_server", server_value(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "HTE_REMOTE_RELAY_SERVER"])?);
+    s(&mut v, "public_key", server_value(c, "public_key", &["HTE_CONSOLE_PUBLIC_KEY", "HTE_REMOTE_PUBLIC_KEY"])?);
+    let window = txt(c, "online_window", &env_or("HTE_REMOTE_ONLINE_WINDOW", "60"))?;
     s(&mut v, "online_window", (if int_of(&window) == 0 { 60 } else { int_of(&window) }).to_string());
     s(&mut v, "rdgen_url", txt(c, "rdgen_url", &ctx.p.config.rdgen_default)?);
     s(&mut v, "client_url_scheme", scheme(c)?);
-    b(&mut v, "downloads_on_login", txt(c, "downloads_on_login", if truthy_env("CORTENDESK_DOWNLOADS_ON_LOGIN", true) { "1" } else { "0" })? == "1");
-    s(&mut v, "log_retention_days", int_of(&txt(c, "log_retention_days", &env_or("CORTENDESK_LOG_RETENTION_DAYS", "365"))?).to_string());
+    b(&mut v, "downloads_on_login", txt(c, "downloads_on_login", if truthy_env("HTE_REMOTE_DOWNLOADS_ON_LOGIN", true) { "1" } else { "0" })? == "1");
+    s(&mut v, "log_retention_days", int_of(&txt(c, "log_retention_days", &env_or("HTE_REMOTE_LOG_RETENTION_DAYS", "365"))?).to_string());
     b(&mut v, "require_device_approval", on(c, "require_device_approval")?);
     b(&mut v, "auto_approve_signed_in", on(c, "auto_approve_signed_in")?);
     let default_group = int_of(&txt(c, "default_device_group_id", "0")?);
@@ -188,7 +188,7 @@ fn value_text(v: Option<&Value>) -> String {
 }
 
 fn truthy_env(name: &str, default: bool) -> bool {
-    match std::env::var(name) {
+    match crate::envvar::var(name) {
         Ok(v) => matches!(v.trim().to_lowercase().as_str(), "1" | "true" | "on" | "yes"),
         Err(_) => default,
     }
@@ -196,7 +196,7 @@ fn truthy_env(name: &str, default: bool) -> bool {
 
 /// `ClientLink::scheme()`
 fn scheme(c: &Connection) -> Result<String, Fault> {
-    let raw = txt(c, "client_url_scheme", &env_or("CORTENDESK_CLIENT_URL_SCHEME", "rustdesk"))?;
+    let raw = txt(c, "client_url_scheme", &env_or("HTE_REMOTE_CLIENT_URL_SCHEME", "rustdesk"))?;
     let n = normalize_scheme(&raw);
     Ok(if n.is_empty() { "rustdesk".into() } else { n })
 }
@@ -419,8 +419,8 @@ pub(crate) fn link(ctx: &Ctx, c: &Connection) -> Result<Link, Fault> {
     let (at, at_raw, has_pull, agent) = pull_marker(ctx, c)?;
     let fresh = at.map_or(false, |a| a > ctx.now - 60);
     let needed = server_mode(c)? == "approved" || count(c, r#"select count(*) as aggregate from "devices" where "status" = ? and "can_initiate" = ? and "devices"."deleted_at" is null"#, &[P(Val::str("active")), P(Val::Bool(false))])? > 0;
-    let configured = std::env::var("CORTENDESK_SERVER_SECRET").map(|s| !s.trim().is_empty()).unwrap_or(false)
-        || std::fs::read_to_string(std::env::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into())).map(|s| !s.trim().is_empty()).unwrap_or(false);
+    let configured = crate::envvar::var("HTE_REMOTE_SERVER_SECRET").map(|s| !s.trim().is_empty()).unwrap_or(false)
+        || std::fs::read_to_string(crate::envvar::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into())).map(|s| !s.trim().is_empty()).unwrap_or(false);
     let note = match (configured, at) {
         (false, _) => "Not configured. Approved-only mode and incoming-only devices are not enforced.".to_string(),
         (true, None) => "Configured, but the ID server has never fetched the policy.".to_string(),
@@ -433,7 +433,7 @@ pub(crate) fn link(ctx: &Ctx, c: &Connection) -> Result<Link, Fault> {
 /// `ScopeSettings::hteScopeStatus()`
 fn scope_status(ctx: &Ctx, c: &Connection, l: &Link) -> Result<(String, String), Fault> {
     let hte = l.agent.contains("-hte.");
-    let version = l.agent.replace("cortendesk-server/", "").trim().to_string();
+    let version = l.agent.replace("hte-rd-server/", "").replace("cortendesk-server/", "").trim().to_string();
     Ok(if !on(c, "hte_scope_enforce")? {
         ("text-muted".into(), "Off: scoping only decides what each person sees.".into())
     } else if !l.configured || l.at.is_none() {
@@ -648,15 +648,15 @@ fn render(ctx: &Ctx, c: &Connection, p: Page) -> Result<Reply, Fault> {
         "tab": p.tab, "tabs": tabs, "v": Value::Object(p.values.clone()), "e": Value::Object(err_all), "relays": relays, "saved": p.saved,
         "form_error": p.form_error, "any_errors": !p.errors.is_empty() || !p.form_error.is_empty(), "can_manage": can_manage, "is_admin": is_admin,
         "set": {"oidc_client_secret": set("oidc_client_secret")?, "smtp_password": set("smtp_password")?, "apprise_endpoint": set("apprise_endpoint")?, "apprise_config_key": set("apprise_config_key")?, "apprise_urls": set("apprise_urls")?},
-        "api_url": std::env::var("APP_URL").unwrap_or_default().trim_end_matches('/').to_string(),
-        "oidc_callback": format!("{}/login/oidc/callback", std::env::var("APP_URL").unwrap_or_default().trim_end_matches('/')),
+        "api_url": crate::envvar::var("APP_URL").unwrap_or_default().trim_end_matches('/').to_string(),
+        "oidc_callback": format!("{}/login/oidc/callback", crate::envvar::var("APP_URL").unwrap_or_default().trim_end_matches('/')),
         "link": {"ok": l.ok, "note": l.note, "tone": match l.ok { Some(true) => "text-success", Some(false) => "text-danger", None => "text-muted" }},
         "scope": {"tone": scope_tone, "text": scope_text}, "pw": {"tone": pw_tone, "text": pw_text},
         "day_choices": DAY_CHOICES.iter().map(|(d, l)| json!({"d": d, "label": l, "suffix": if *d != 0 { format!(" ({d})") } else { String::new() }})).collect::<Vec<_>>(),
         "default_groups": opt(&default_groups), "user_groups": opt(&user_groups), "all_groups": opt(&all_groups), "devices": dev_opts, "events": events,
         "mail_enabled": mail_on, "mail_broken": mail_broken.0, "mail_error": mail_broken.1, "mail_flash": ctx.flashed.get("mail_broken").and_then(|v| v.as_str()).unwrap_or(""),
         "no_email": no_email, "snoozes": snoozes, "snooze": Value::Object(p.snooze.clone()), "deliveries": delivery_items,
-        "tok": super::api_tokens::card(ctx, c)?, "about": {"version": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
+        "tok": super::api_tokens::card(ctx, c)?, "about": {"version": crate::REMOTE_VERSION, "api": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
     });
     Ok(Reply::Html(p.status, ctx.render("settings/index.html", layout, page)?))
 }
@@ -949,6 +949,6 @@ pub(crate) fn relay_pool(c: &Connection) -> Result<Vec<String>, Fault> {
             }
         }
     }
-    let single = server_value(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "CORTENDESK_RELAY_SERVER"])?;
+    let single = server_value(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "HTE_REMOTE_RELAY_SERVER"])?;
     Ok(if single.is_empty() { vec![] } else { vec![single] })
 }

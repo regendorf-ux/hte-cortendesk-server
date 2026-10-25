@@ -64,12 +64,12 @@ mod tests {
 
     #[test]
     fn the_console_files_are_there_and_nothing_escapes() {
-        for f in ["css/cortendesk.css", "css/hte-brand.css", "js/shell.js", "js/theme-init.js", "vendor/bootstrap/bootstrap.min.css", "vendor/htmx/htmx.min.js", "images/hte-remote.png"] {
+        for f in ["css/hte-remote.css", "css/hte-brand.css", "js/shell.js", "js/theme-init.js", "vendor/bootstrap/bootstrap.min.css", "vendor/htmx/htmx.min.js", "images/hte-remote.png"] {
             assert!(find(f).is_some(), "{f}");
         }
         assert!(find("../Cargo.toml").is_none());
-        assert!(find("css/../css/cortendesk.css").is_none());
-        assert!(find("css//cortendesk.css").is_none());
+        assert!(find("css/../css/hte-remote.css").is_none());
+        assert!(find("css//hte-remote.css").is_none());
         assert!(find("").is_none());
         assert_eq!(content_type("fonts/figtree/figtree-latin.woff2"), "font/woff2");
     }

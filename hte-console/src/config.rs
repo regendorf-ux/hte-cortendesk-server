@@ -40,7 +40,7 @@ pub struct NativeConfig {
     pub hbbs_db: PathBuf,
     /// `HTE_CONSOLE_TRUSTED_PROXIES` (else `TRUSTED_PROXIES`, else PHP's default private ranges).
     pub trusted_proxies: String,
-    /// `HTE_CONSOLE_API_VERSION` (else `CORTENDESK_API_VERSION`, else the PHP release this phase ports).
+    /// `HTE_CONSOLE_API_VERSION` (else `HTE_REMOTE_API_VERSION`, else the PHP release this phase ports).
     pub api_version: String,
     /// `HTE_CONSOLE_DEVICE_MAX_BODY_BYTES` (default 1 MiB): largest body on the device endpoints.
     pub device_max_body: usize,
@@ -54,7 +54,7 @@ pub struct NativeConfig {
 pub const PORTED_PHP_VERSION: &str = "1.15.0-hte.1";
 
 fn list(name: &str) -> Vec<String> {
-    std::env::var(name)
+    crate::envvar::var(name)
         .unwrap_or_default()
         .split(',')
         .map(|s| s.trim().to_string())
@@ -64,29 +64,29 @@ fn list(name: &str) -> Vec<String> {
 
 /// A variable that is set and not empty (compose passes `${VAR:-}` as an empty string).
 fn set(name: &str) -> Option<String> {
-    std::env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    crate::envvar::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
 
 fn num(name: &str, default: u64) -> u64 {
-    std::env::var(name).ok().and_then(|v| v.trim().parse().ok()).unwrap_or(default)
+    crate::envvar::var(name).ok().and_then(|v| v.trim().parse().ok()).unwrap_or(default)
 }
 
 impl Config {
     pub fn from_env() -> Result<Config, String> {
-        let native = std::env::var("HTE_CONSOLE_DATABASE").ok().filter(|s| !s.is_empty()).map(|db| NativeConfig {
+        let native = crate::envvar::var("HTE_CONSOLE_DATABASE").ok().filter(|s| !s.is_empty()).map(|db| NativeConfig {
             database: PathBuf::from(db),
-            app_key_file: PathBuf::from(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())),
-            hbbs_db: PathBuf::from(std::env::var("HTE_CONSOLE_HBBS_DB").unwrap_or_else(|_| "/data/rustdesk/db_v2.sqlite3".into())),
+            app_key_file: PathBuf::from(crate::envvar::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())),
+            hbbs_db: PathBuf::from(crate::envvar::var("HTE_CONSOLE_HBBS_DB").unwrap_or_else(|_| "/data/rustdesk/db_v2.sqlite3".into())),
             trusted_proxies: set("HTE_CONSOLE_TRUSTED_PROXIES")
                 .or_else(|| set("TRUSTED_PROXIES"))
                 .unwrap_or_else(|| crate::laravel::DEFAULT_TRUSTED.into()),
-            api_version: set("HTE_CONSOLE_API_VERSION").or_else(|| set("CORTENDESK_API_VERSION")).unwrap_or_else(|| PORTED_PHP_VERSION.into()),
+            api_version: set("HTE_CONSOLE_API_VERSION").or_else(|| set("HTE_REMOTE_API_VERSION")).unwrap_or_else(|| PORTED_PHP_VERSION.into()),
             device_max_body: num("HTE_CONSOLE_DEVICE_MAX_BODY_BYTES", 1024 * 1024) as usize,
             busy: Duration::from_millis(num("HTE_CONSOLE_DB_BUSY_MS", 10_000)),
             wal: num("HTE_CONSOLE_DB_WAL", 1) != 0,
         });
         // The upstream (PHP) is what the shadow forwards to; with native routes it only answers the rest.
-        let upstream = match std::env::var("HTE_CONSOLE_UPSTREAM") {
+        let upstream = match crate::envvar::var("HTE_CONSOLE_UPSTREAM") {
             Ok(u) => u.trim_end_matches('/').to_string(),
             Err(_) if native.is_some() => String::new(),
             Err(_) => return Err("HTE_CONSOLE_UPSTREAM is not set (the PHP console's base URL)".to_string()),
@@ -97,8 +97,8 @@ impl Config {
         }
         Ok(Config {
             upstream,
-            listen: std::env::var("HTE_CONSOLE_LISTEN").unwrap_or_else(|_| "0.0.0.0:8080".into()),
-            fixtures: std::env::var("HTE_CONSOLE_FIXTURES").ok().filter(|s| !s.is_empty()).map(PathBuf::from),
+            listen: crate::envvar::var("HTE_CONSOLE_LISTEN").unwrap_or_else(|_| "0.0.0.0:8080".into()),
+            fixtures: crate::envvar::var("HTE_CONSOLE_FIXTURES").ok().filter(|s| !s.is_empty()).map(PathBuf::from),
             capture_prefixes: prefixes,
             capture_max_bytes: num("HTE_CONSOLE_CAPTURE_MAX_BYTES", 256 * 1024) as usize,
             connect_timeout: Duration::from_secs(num("HTE_CONSOLE_CONNECT_TIMEOUT_SECS", 3)),

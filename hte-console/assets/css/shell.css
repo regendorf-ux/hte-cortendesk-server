@@ -1,5 +1,5 @@
 /* =========================================================================
-   CortenDesk shell: base typography, Bootstrap tuning and the app layout.
+   HTE Remote console shell (from CortenDesk): base typography, Bootstrap tuning and the app layout.
    Static file, no build step. Load order:
 
      vendor/bootstrap/bootstrap.min.css   stock Bootstrap 5.3
@@ -7,9 +7,9 @@
      fonts/figtree/figtree.css            UI typeface
      css/spacing.css                      spacing utilities at a 1.5rem step
      css/shell.css                        this file
-     css/cortendesk.css                   design tokens + components
+     css/hte-remote.css                   design tokens + components
 
-   Colours do not live here. cortendesk.css owns the palette (--rd-* tokens)
+   Colours do not live here. hte-remote.css owns the palette (--rd-* tokens)
    and binds it onto Bootstrap's --bs-* variables for both themes. This file
    sets sizes, spacing and layout, and reads colours from those variables.
 
@@ -48,7 +48,7 @@
     --bs-link-decoration: none;
 }
 
-/* The few palette entries cortendesk.css leaves alone (it binds the brand
+/* The few palette entries hte-remote.css leaves alone (it binds the brand
    and status colours). These keep `text-dark`, `bg-dark-subtle` and the
    *-text-emphasis hover shades in the console's slate range. */
 :root,
@@ -222,9 +222,9 @@ textarea.form-control {
     padding-bottom: calc(0.45rem + var(--bs-border-width));
 }
 
-/* Focus is drawn by cortendesk.css as an accent border. Text fields show no
+/* Focus is drawn by hte-remote.css as an accent border. Text fields show no
    ring: every field is :valid or :invalid, so this covers all of them and
-   outranks the ring cortendesk.css sets on .form-control:focus. */
+   outranks the ring hte-remote.css sets on .form-control:focus. */
 .form-control:focus,
 .form-select:focus,
 .form-check-input:focus {
@@ -282,7 +282,7 @@ textarea.form-control {
     --bs-btn-focus-box-shadow: 0 0 0 0.15rem rgba(var(--bs-btn-focus-shadow-rgb), 0.5);
 }
 
-/* Variants read the theme palette (bound in cortendesk.css) instead of
+/* Variants read the theme palette (bound in hte-remote.css) instead of
    Bootstrap's fixed hexes, so a status colour changes in one place. */
 .btn-primary {
     --bs-btn-bg: var(--bs-primary);
@@ -747,7 +747,7 @@ textarea.form-control {
 }
 
 /* Card heading used across the console. Spacing here; the type itself is
-   set in cortendesk.css (section 5). */
+   set in hte-remote.css (section 5). */
 .header-title {
     margin-top: 0;
     margin-bottom: 0.5rem;
@@ -758,7 +758,7 @@ textarea.form-control {
     margin-bottom: 0;
 }
 
-/* Underline tab strip. Colours in cortendesk.css (section 17). */
+/* Underline tab strip. Colours in hte-remote.css (section 17). */
 .nav-tabs.nav-bordered {
     border-bottom: 2px solid var(--bs-border-color);
 }
@@ -847,7 +847,7 @@ textarea.form-control {
    <html data-rd-sidebar> picks the sidebar form: expanded, condensed or
    offcanvas (theme-init.js / shell.js). The sidebar and topbar sit on the
    dark chrome in both themes; their colours come from the --rd-shell-*
-   tokens in cortendesk.css.
+   tokens in hte-remote.css.
    ========================================================================= */
 
 .rd-app {
@@ -1387,7 +1387,7 @@ html[data-rd-sidebar="offcanvas"].rd-sidebar-open .rd-sidebar {
 /* =========================================================================
    5. AUTH
    Signed-out pages (layouts/guest.blade.php): one centred column over the
-   background image from cortendesk.css.
+   background image from hte-remote.css.
    ========================================================================= */
 
 .rd-auth-page {

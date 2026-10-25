@@ -1,5 +1,5 @@
 /**
- * CortenDesk front-end helpers. Plain script, no build step.
+ * HTE Remote front-end helpers (from CortenDesk). Plain script, no build step.
  */
 (function () {
     'use strict';

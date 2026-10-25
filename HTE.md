@@ -1,25 +1,40 @@
-# HTE's changes to CortenDesk Server
+# HTE Remote server
 
-This fork is HTE's copy of [cortendesk-server](https://github.com/marcpope/cortendesk-server)
-(AGPL-3.0) for HTE Remote. Branch `hte` = the upstream release tag plus the commits below. This
-file is the statement of modifications the AGPL asks for (section 5(a)), kept apart from upstream's
-`CHANGES.md` so merges stay clean.
-
+HTE Remote is HTE's remote-support server: an ID server and relay (hbbs, hbbr) and its console (`hte-console/`, in Rust), shipped
+as ONE image, `ghcr.io/regendorf-ux/hte-rd-server`. This repository is its complete source (AGPL-3.0). This file is the statement of
+modifications the AGPL asks for (section 5(a)); `hte-console/CHANGES.md` lists the console's changes release by release.
 
 **What this repository may hold (owner, 2026-10-16):** HTE's code and placeholders, nothing else. HTE's server addresses, keys, e-mail domain, device IDs and host names live in `/opt/hte-remote/.env` on the server, the Mac's gitignored files, the private apps repository and GitHub secrets. The history was rewritten on 2026-10-16 to take out what had been committed.
 
-## 1.1.1-hte.4 and hte-console 0.9.0 (2026-10-25), phase 9: the PHP-free image
+## Origins
 
-`Dockerfile.hte` builds ONE image, `ghcr.io/regendorf-ux/hte-cortendesk-server:1.1.1-hte.4`, with `hbbs`, `hbbr` and `hte-console` under
-`supervisord` (uid 82, read-only root, no PHP, no nginx). `.github/workflows/hte-image.yml` builds `hte-console` beside hbbs/hbbr on the tag
-`v1.1.1-hte.4` and refuses a tag that differs from `Cargo.toml`'s version. The image carries hbbs/hbbr `c153365` (the web client's relay fix).
-`docker/hte/` holds `supervisord.conf` and `entrypoint.sh`.
+HTE Remote is based on [CortenDesk Server](https://github.com/marcpope/cortendesk-server), a modified
+[rustdesk-server](https://github.com/rustdesk/rustdesk-server) (Purslane Ltd. and contributors), and its console reproduces the pages and
+behaviour of [CortenDesk](https://github.com/marcpope/cortendesk), HTE's copy of which is archived at
+[regendorf-ux/hte-cortendesk](https://github.com/regendorf-ux/hte-cortendesk). All are AGPL-3.0, as is HTE Remote. Branch `hte` = upstream
+CortenDesk Server's release tag plus the commits below; upstream's own files (`CHANGES.md`, `LICENSE`, the `NOTICE` text, source headers)
+are kept, and `NOTICE` / `hte-console/NOTICE` carry the credits. Upstream's `release.yml` stays as it is (it only runs on a GitHub release).
 
-`hte-console` 0.9.0: serves `/assets/*`, `/rdclient/*`, `/robots.txt`, `/favicon.ico` itself; new subcommands `version`, `migrate [--check]`,
-`status`, `release-locks`, `db-copy`; `migrate.rs` checks the PHP fork's 41 migrations are recorded and applies its own additive ones
-(never creates or alters a PHP table); `maintenance.rs` prunes presence snoozes (PHP's `pruneForSweep`). Scripts, checklist and notes:
-`phase9/` in HTE's private notes. The PHP console (`regendorf-ux/hte-cortendesk`, branch `hte`, last PHP version 1.15.0-hte.1) is archived source:
-it is no longer built into the server image; its AGPL source stays available at that repository for as long as the service runs.
+## HTE Remote 2.0.0 (2026-10-25), phase 9: one image, no PHP, its own name
+
+`Dockerfile.hte` builds `ghcr.io/regendorf-ux/hte-rd-server:2.0.0`: `hbbs`, `hbbr` and `hte-console` under `supervisord` (uid 82, read-only
+root, no PHP, no nginx). `.github/workflows/hte-rd-server.yml` builds it on the git tag `hte-rd-server-v<x.y.z>`, which must equal
+`hte-console/Cargo.toml`'s version (HTE Remote's version from now on); tags are never reused. The upstream versions are image labels
+(`com.hte.remote.hbbs-version` 1.1.1-hte.4, `com.hte.remote.upstream.rustdesk-server` 1.1.17, `...cortendesk-server` 1.1.1, `...cortendesk` 1.15.0).
+The image carries hbbs/hbbr `c153365` (the web client's relay fix). `docker/hte/` holds `supervisord.conf` and `entrypoint.sh`.
+`.github/workflows/hte-image.yml` (the plain hbbs/hbbr image `hte-cortendesk-server`, tag `v<upstream>-hte.<n>`) is unchanged and stays for the
+PHP stack's rollback; so do the `hte-cortendesk` and `hte-console` images.
+
+- hte-console serves `/assets/*`, `/rdclient/*`, `/robots.txt`, `/favicon.ico` itself; new subcommands `version`, `migrate [--check]`, `status`,
+  `release-locks`, `db-copy`; `migrate.rs` checks the 41 migrations of the archived PHP console are recorded and applies its own additive ones
+  (never creates or alters one of those tables); `maintenance.rs` prunes presence snoozes.
+- The name: "HTE Remote" on every page, message and `--help` text (`src/main.rs`, `src/common.rs`, `src/hbbr.rs` changed for that); upstream is
+  credited in Settings > About, `NOTICE` (an HTE section added on top) and `hte-console/NOTICE` (new). The release check reads this repository's
+  `hte-rd-server-v*` tags (`hte-console/src/update_check.rs`); hbbs's policy pull says `hte-rd-server/<version>` (`src/policy.rs`).
+- The settings are `HTE_REMOTE_*`; the old `CORTENDESK_*` names are still read, with a warning (`src/policy.rs`, `hte-console/src/envvar.rs`,
+  `docker/hte/entrypoint.sh`). New backup archives are `hte-remote-backup-*.tar` (same format); both names are accepted.
+- Left as they are on purpose (the archived PHP image reads them on a rollback): the database file and tables, cache and lock keys, the archive
+  manifest; the container name `cortendesk` and `/opt/hte-remote` (host scripts); upstream's crate and binary names.
 
 ## hte-console 0.1.0 (2026-10-24), phase 1: the device endpoints without PHP
 

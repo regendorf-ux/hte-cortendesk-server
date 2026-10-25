@@ -68,7 +68,7 @@ pub struct OwnConfig {
 
 impl OwnConfig {
     pub fn from_env() -> OwnConfig {
-        let get = |n: &str| std::env::var(n).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        let get = |n: &str| crate::envvar::var(n).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
         let flag = |n: &str, d: bool| get(n).map_or(d, |v| matches!(v.to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"));
         let num = |n: &str, d: i64, max: i64| get(n).and_then(|v| v.parse::<i64>().ok()).filter(|v| *v > 0 && *v <= max).unwrap_or(d);
         OwnConfig {

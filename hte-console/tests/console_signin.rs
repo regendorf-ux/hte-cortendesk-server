@@ -254,7 +254,7 @@ async fn the_sign_in_page_is_hte_remote_s_and_opens_a_guest_session() {
         "class=\"msbtn\"",
         "Sign in with Microsoft",
         "Use the console password instead",
-        "/assets/css/hte-auth.css?v=1.15.0-hte.1",
+        concat!("/assets/css/hte-auth.css?v=", env!("CARGO_PKG_VERSION")),
         "<input type=\"hidden\" name=\"_token\" value=\"",
     ] {
         assert!(r.body.contains(want), "missing {want}");

@@ -48,7 +48,7 @@
 
             {% if native_webclient %}
                 <li class="rd-nav-item">
-                    <a href="/webclient" target="cortendesk-webclient" rel="noopener" class="rd-nav-link">
+                    <a href="/webclient" target="hte-remote-webclient" rel="noopener" class="rd-nav-link">
                         <i class="ri-global-line"></i>
                         <span> Web Client </span>
                     </a>
@@ -163,24 +163,18 @@
         <div class="rd-sidebar-version">
             {% if update.enabled %}
             <span class="rd-sidebar-status {{ 'rd-sidebar-status-warn' if update.upgrade else ('rd-sidebar-status-ok' if update.checked else 'rd-sidebar-status-unknown') }}"
-                  title="The console compares the running version against the latest published release.">
+                  title="{{ 'Running the latest HTE Remote release.' if update.checked and not update.upgrade else ('Release check unavailable.' if not update.checked else 'A newer HTE Remote release is tagged.') }} Checked once a day against the release tags of {{ update.repo }}.">
                 <i class="rd-dot rd-dot-lg"></i>
                 <span class="rd-sidebar-status-label">
-                    {% if update.upgrade %}
-                        Update available
-                    {% elif update.checked %}
-                        Running the latest release
-                    {% else %}
-                        Release check unavailable
-                    {% endif %}
+                    HTE Remote console{% if update.upgrade %} · update available: {{ update.upgrade }}{% endif %}
                 </span>
             </span>
             {% endif %}
             <span class="rd-sidebar-version-num">v{{ version }}</span>
             {% if update.upgrade %}
-                <a href="https://github.com/marcpope/cortendesk/releases/tag/v{{ update.upgrade }}" target="_blank" rel="noopener"
+                <a href="https://github.com/{{ update.repo }}/releases/tag/{{ update.tag_prefix }}{{ update.upgrade }}" target="_blank" rel="noopener"
                    class="rd-shell-badge"
-                   title="Version {{ update.upgrade }} is available. Opens the release notes."><i class="ri-download-cloud-2-line"></i>Update to v{{ update.upgrade }}</a>
+                   title="HTE Remote {{ update.upgrade }} is tagged. Opens the tag; phase9/upgrade.sh installs it."><i class="ri-download-cloud-2-line"></i>Update to v{{ update.upgrade }}</a>
             {% endif %}
         </div>
     {% endif %}

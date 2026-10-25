@@ -183,7 +183,7 @@ pub fn mount(r: Router<Arc<Native>>) -> Router<Arc<Native>> {
 /// The largest body a client endpoint reads (`HTE_CONSOLE_CLIENT_MAX_BODY_BYTES`, default 2 MiB: a whole legacy
 /// address book is pushed at once).
 fn max_body() -> usize {
-    std::env::var("HTE_CONSOLE_CLIENT_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(2 * 1024 * 1024)
+    crate::envvar::var("HTE_CONSOLE_CLIENT_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(2 * 1024 * 1024)
 }
 
 fn page(status: u16, html: String, head: bool) -> Response<Body> {
@@ -441,7 +441,7 @@ fn filled(input: &Input, key: &str) -> Result<bool, Fault> {
 }
 
 fn env_trim(name: &str) -> String {
-    std::env::var(name).map(|v| String::from_utf8_lossy(php::trim(v.as_bytes())).into_owned()).unwrap_or_default()
+    crate::envvar::var(name).map(|v| String::from_utf8_lossy(php::trim(v.as_bytes())).into_owned()).unwrap_or_default()
 }
 
 impl Cx<'_> {
@@ -1112,8 +1112,8 @@ impl Cx<'_> {
             peers += &format!("{}:{}", jstr(&e.val("rustdesk_id").to_php_string()?)?, enc(&card)?);
         }
         peers.push('}');
-        let id_server = jstr(self.server_value("id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"])?.as_bytes())?;
-        let key = jstr(self.server_value("public_key", &["HTE_CONSOLE_PUBLIC_KEY", "CORTENDESK_PUBLIC_KEY"])?.as_bytes())?;
+        let id_server = jstr(self.server_value("id_server", &["HTE_CONSOLE_ID_SERVER", "HTE_REMOTE_ID_SERVER"])?.as_bytes())?;
+        let key = jstr(self.server_value("public_key", &["HTE_CONSOLE_PUBLIC_KEY", "HTE_REMOTE_PUBLIC_KEY"])?.as_bytes())?;
         Ok(Reply::Json(200, format!(r#"{{"code":0,"message":"success","data":{{"id_server":{id_server},"key":{key},"peers":{peers}}}}}"#)))
     }
 
@@ -1161,9 +1161,9 @@ impl Cx<'_> {
         Ok(Reply::Json(200, format!(r#"{{"total":{total},"data":[{}]}}"#, data.join(","))))
     }
 
-    /// `Device::onlineWindow()`: the `online_window` setting, else `CORTENDESK_ONLINE_WINDOW`, else 60; 0 means 60.
+    /// `Device::onlineWindow()`: the `online_window` setting, else `HTE_REMOTE_ONLINE_WINDOW`, else 60; 0 means 60.
     fn online_window(&self) -> Result<i64, Fault> {
-        let default = std::env::var("CORTENDESK_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
+        let default = crate::envvar::var("HTE_REMOTE_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
         let v = db::setting(self.c, "online_window", &default)?;
         Ok(if v.is_empty() || v == b"0" { 60 } else { php::str_to_int(&v) })
     }

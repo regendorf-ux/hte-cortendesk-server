@@ -99,7 +99,7 @@ impl Settings {
         !self.discovery_url.is_empty() && !self.client_id.is_empty() && !self.client_secret.is_empty()
     }
 
-    /// `isEnabled()`: the environment's kill switch first (`CORTENDESK_OIDC_DISABLED`), then the settings.
+    /// `isEnabled()`: the environment's kill switch first (`HTE_REMOTE_OIDC_DISABLED`), then the settings.
     pub fn is_enabled(&self, env_disabled: bool) -> bool {
         !env_disabled && self.enabled == "1" && self.is_configured()
     }
@@ -135,9 +135,9 @@ impl Settings {
     }
 }
 
-/// `CORTENDESK_OIDC_DISABLED` read as `filter_var(..., FILTER_VALIDATE_BOOL)`.
+/// `HTE_REMOTE_OIDC_DISABLED` read as `filter_var(..., FILTER_VALIDATE_BOOL)`.
 pub fn env_disabled() -> bool {
-    std::env::var("CORTENDESK_OIDC_DISABLED").map_or(false, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
+    crate::envvar::var("HTE_REMOTE_OIDC_DISABLED").map_or(false, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
 }
 
 /// PHP's `empty()` of a value.
@@ -191,7 +191,7 @@ impl Oidc {
     }
 
     pub fn from_env() -> Oidc {
-        Oidc::new(std::env::var("HTE_CONSOLE_OIDC_ALLOW_HTTP").map_or(false, |v| v.trim() == "1"), env_disabled())
+        Oidc::new(crate::envvar::var("HTE_CONSOLE_OIDC_ALLOW_HTTP").map_or(false, |v| v.trim() == "1"), env_disabled())
     }
 
     pub(crate) fn url_allowed(&self, u: &str) -> bool {

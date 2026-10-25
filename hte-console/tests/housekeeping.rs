@@ -163,7 +163,7 @@ fn gunzip(p: &Path) -> String {
 fn archive_has_php_layout() {
     let w = world(KEY_A);
     let made = backup::create(&w.env, "manual", NOW).unwrap();
-    assert_eq!(made.name, "cortendesk-backup-20261024-041030.tar");
+    assert_eq!(made.name, "hte-remote-backup-20261024-041030.tar");
     assert!(backup::is_backup_name(&made.name));
     // modes, as PHP: archive and sidecar 0600
     use std::os::unix::fs::PermissionsExt;
@@ -478,9 +478,9 @@ fn damaged_archives_are_refused_before_anything_is_touched() {
         e
     };
     // not a tar at all, and one cut in half
-    assert_eq!(bad("junk.tar", vec![b'x'; 4096]), "That file is not a CortenDesk backup.");
+    assert_eq!(bad("junk.tar", vec![b'x'; 4096]), "That file is not an HTE Remote backup.");
     let e = bad("cut.tar", bytes[..bytes.len() / 2].to_vec());
-    assert!(e.contains("not a CortenDesk backup") || e.contains("cut short") || e.contains("damaged"), "{e}");
+    assert!(e.contains("not an HTE Remote backup") || e.contains("cut short") || e.contains("damaged"), "{e}");
     // a tar that is not ours, and a format from the future
     let other = w.dir.path().join("o");
     std::fs::create_dir(&other).unwrap();
@@ -501,7 +501,7 @@ fn damaged_archives_are_refused_before_anything_is_touched() {
         tar
     };
     for (manifest, want) in [
-        (r#"{"app":"other","format":1,"tables":{}}"#, "That file is not a CortenDesk backup."),
+        (r#"{"app":"other","format":1,"tables":{}}"#, "That file is not an HTE Remote backup."),
         (r#"{"app":"cortendesk","format":2,"tables":{}}"#, "format this version cannot read"),
         (r#"{"app":"cortendesk","format":1,"app_version":"9.9","tables":{"brand_new_table":1}}"#, "contains tables this install does not have (brand_new_table)"),
     ] {
@@ -710,28 +710,28 @@ fn scheduled_backup_runs_once_a_day_and_records_like_php() {
 
     let o = housekeeping::backup_command(&w.env, true, NOW).unwrap();
     assert!(o.ok);
-    assert!(o.lines[0].starts_with("Wrote cortendesk-backup-20261024-041030.tar ("), "{:?}", o.lines);
+    assert!(o.lines[0].starts_with("Wrote hte-remote-backup-20261024-041030.tar ("), "{:?}", o.lines);
     let last = result(&c);
     assert_eq!(last["at"], "2026-10-24T04:10:30+00:00");
-    assert_eq!((last["ok"].clone(), last["trigger"].clone(), last["message"].clone(), last["name"].clone()), (true.into(), "scheduled".into(), "Wrote cortendesk-backup-20261024-041030.tar".into(), "cortendesk-backup-20261024-041030.tar".into()));
+    assert_eq!((last["ok"].clone(), last["trigger"].clone(), last["message"].clone(), last["name"].clone()), (true.into(), "scheduled".into(), "Wrote hte-remote-backup-20261024-041030.tar".into(), "hte-remote-backup-20261024-041030.tar".into()));
     let raw: String = c.query_row("select value from settings where key = 'backup_last_result'", [], |r| r.get(0)).unwrap();
     assert!(raw.starts_with("{\"at\":\"2026-10-24T04:10:30+00:00\",\"ok\":true,\"trigger\":\"scheduled\",\"message\":"), "{raw}");
     assert_eq!(c.query_row::<String, _, _>("select value from settings where key = 'backup_last_scheduled_at'", [], |r| r.get(0)).unwrap(), "2026-10-24T04:10:30+00:00");
     let (user, name, action, summary, ttype, tid): (Option<i64>, String, String, String, String, String) =
         c.query_row("select user_id, username, action, summary, target_type, target_id from console_audits order by id desc limit 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?, r.get(5)?))).unwrap();
     assert_eq!((user, name.as_str(), action.as_str(), ttype.as_str()), (None, "system", "backup.create", "backup"));
-    assert_eq!(summary, "Scheduled backup: Wrote cortendesk-backup-20261024-041030.tar");
-    assert_eq!(tid, "cortendesk-backup-20261024-041030.tar");
+    assert_eq!(summary, "Scheduled backup: Wrote hte-remote-backup-20261024-041030.tar");
+    assert_eq!(tid, "hte-remote-backup-20261024-041030.tar");
 
     // the same day again: not due; the next day: due
     let o = housekeeping::backup_command(&w.env, true, NOW + 3600).unwrap();
     assert_eq!(o.lines, ["Not due (last 2026-10-24 04:10:30)."]);
     assert_eq!(backup::list(&w.env).unwrap().len(), 1);
     let o = housekeeping::backup_command(&w.env, true, NOW + 86_400).unwrap();
-    assert!(o.lines[0].starts_with("Wrote cortendesk-backup-20261025-041030.tar"));
+    assert!(o.lines[0].starts_with("Wrote hte-remote-backup-20261025-041030.tar"));
     // a manual run is never gated and does not touch the schedule marker
     let o = housekeeping::backup_command(&w.env, false, NOW + 86_400 + 5).unwrap();
-    assert!(o.lines[0].starts_with("Wrote cortendesk-backup-20261025-041035.tar"));
+    assert!(o.lines[0].starts_with("Wrote hte-remote-backup-20261025-041035.tar"));
     assert_eq!(result(&c)["trigger"], "manual");
     assert_eq!(c.query_row::<String, _, _>("select value from settings where key = 'backup_last_scheduled_at'", [], |r| r.get(0)).unwrap(), "2026-10-25T04:10:30+00:00");
 }
@@ -746,8 +746,8 @@ fn retention_runs_after_each_backup_and_a_failure_is_recorded() {
         housekeeping::backup_command(&w.env, false, NOW + d * 86_400).unwrap();
     }
     let names: Vec<String> = backup::list(&w.env).unwrap().into_iter().map(|l| l.name).collect();
-    assert_eq!(names, ["cortendesk-backup-20261029-041030.tar", "cortendesk-backup-20261028-041030.tar", "cortendesk-backup-20261027-041030.tar"]);
-    assert!(!w.env.backups_dir.join("cortendesk-backup-20261024-041030.tar.json").exists(), "the sidecar goes with the archive");
+    assert_eq!(names, ["hte-remote-backup-20261029-041030.tar", "hte-remote-backup-20261028-041030.tar", "hte-remote-backup-20261027-041030.tar"]);
+    assert!(!w.env.backups_dir.join("hte-remote-backup-20261024-041030.tar.json").exists(), "the sidecar goes with the archive");
 
     // an off-site target that cannot be reached: the archive is kept, the failure is said where Settings shows it, exit not ok
     c.execute("insert into settings (key, value) values ('backup_target', 's3'), ('backup_s3_bucket', 'bk'), ('backup_s3_endpoint', 'http://127.0.0.1:1')", []).unwrap();

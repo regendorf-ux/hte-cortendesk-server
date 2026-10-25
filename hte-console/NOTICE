@@ -1,0 +1,22 @@
+hte-console (HTE Remote's console)
+==================================
+
+hte-console is new code by HTE (AGPL-3.0, see ../LICENSE) that answers what the CortenDesk console answered,
+on the same database:
+
+    CortenDesk, https://github.com/marcpope/cortendesk, GNU Affero General Public License v3.0.
+    HTE's modified copy of it (the archived PHP source): https://github.com/regendorf-ux/hte-cortendesk
+
+Its templates (templates/), static files (assets/) and the web client (rdclient/) are derived from or copied out of
+CortenDesk's views, public/assets and webclient, with HTE's changes; they are covered by the AGPL-3.0 as in CortenDesk.
+
+Third-party files under assets/, each under its own licence (the licence text sits next to the files):
+
+  vendor/bootstrap/    Bootstrap 5.3.8, MIT License, (c) The Bootstrap Authors
+  vendor/remixicon/    Remix Icon 4.8.0, Apache License 2.0, (c) Remix Design (remixicon.css is modified; its header says how)
+  vendor/apexcharts/   ApexCharts 3.35.4, MIT License, (c) ApexCharts
+  vendor/htmx/         htmx, BSD Zero-Clause License, (c) Big Sky Software
+  fonts/figtree/       Figtree, SIL Open Font License 1.1, (c) The Figtree Project Authors
+
+The RustDesk protocol definitions used by the web client originate from the RustDesk project (AGPL-3.0).
+RustDesk is a trademark of its owners; HTE Remote is not affiliated with or endorsed by the RustDesk project.

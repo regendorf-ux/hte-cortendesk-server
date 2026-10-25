@@ -706,7 +706,7 @@ impl<'a> Client<'a> {
         let where_ = self.where_();
         if self.cfg.tls {
             if reply.contains("handshake failed") {
-                return format!("The TLS handshake with {where_} failed. CortenDesk needs TLS 1.2 or later; check that the FTP server offers it.");
+                return format!("The TLS handshake with {where_} failed. HTE Remote needs TLS 1.2 or later; check that the FTP server offers it.");
             }
             if reply.contains("SSL read failed") || reply.contains("SSL write failed") || reply.contains("connection closed") {
                 return format!("{where_} closed the TLS session during login ({reply}). Two common causes: the server failing right after login, such as vsftpd refusing a writable chroot directory (\"500 OOPS\"), or a server that requires a client certificate, which is not supported.");
@@ -798,7 +798,7 @@ impl<'a> Client<'a> {
         let name = format!("cortendesk-write-test-{}.tmp", hex::encode(rand::random::<[u8; 3]>()));
         let dir = std::env::temp_dir();
         let file = dir.join(format!("ftp-test-{}", hex::encode(rand::random::<[u8; 6]>())));
-        std::fs::write(&file, "CortenDesk connection test. Safe to delete.\n").map_err(|e| format!("cannot write a temporary file: {}", io_text(&e)))?;
+        std::fs::write(&file, "HTE Remote connection test. Safe to delete.\n").map_err(|e| format!("cannot write a temporary file: {}", io_text(&e)))?;
         let up = self.upload(conn, &file, &name, false, TIMEOUT);
         let _ = std::fs::remove_file(&file);
         if !up? {

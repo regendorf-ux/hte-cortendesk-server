@@ -42,7 +42,7 @@ pub struct SessionConfig {
 impl SessionConfig {
     /// From the environment as the PHP image has it: `SESSION_COOKIE`, else the slug of `APP_NAME` + `-session`.
     pub fn from_env(app_name: &str) -> SessionConfig {
-        let set = |n: &str| std::env::var(n).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        let set = |n: &str| crate::envvar::var(n).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
         let cookie = set("HTE_CONSOLE_SESSION_COOKIE")
             .or_else(|| set("SESSION_COOKIE"))
             .unwrap_or_else(|| format!("{}-session", crate::cache::slug(app_name)));
@@ -142,7 +142,7 @@ pub fn valid_id(id: &str) -> bool {
 /// percent-encoded as Symfony does, `HttpOnly`, `SameSite=Lax` (or `SESSION_SAME_SITE`), `Secure` as asked.
 pub fn set_cookie(cfg: &SessionConfig, crypt: &Encrypter, id: &str, secure: bool, now: i64) -> String {
     let value = crypt.encrypt_string(format!("{}{id}", prefix(&cfg.cookie, crypt.key_bytes())).as_bytes());
-    let same_site = std::env::var("SESSION_SAME_SITE").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "lax".into());
+    let same_site = crate::envvar::var("SESSION_SAME_SITE").ok().filter(|v| !v.trim().is_empty()).unwrap_or_else(|| "lax".into());
     let max = cfg.lifetime_min * 60;
     let expires = chrono::DateTime::<chrono::Utc>::from_timestamp(now + max, 0).unwrap_or_default().format("%a, %d-%b-%Y %H:%M:%S GMT");
     let mut c = format!(

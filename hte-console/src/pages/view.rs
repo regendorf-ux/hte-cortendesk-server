@@ -108,7 +108,7 @@ fn pluralise(w: &str) -> String {
 
 impl View {
     pub fn from_env() -> Result<View, String> {
-        match std::env::var("HTE_CONSOLE_TEMPLATES").ok().filter(|d| !d.trim().is_empty()) {
+        match crate::envvar::var("HTE_CONSOLE_TEMPLATES").ok().filter(|d| !d.trim().is_empty()) {
             Some(d) => {
                 let dir = std::path::PathBuf::from(d);
                 let v = View { env: build(Self::from_disk(&dir)?)?, dir: Some(dir) };

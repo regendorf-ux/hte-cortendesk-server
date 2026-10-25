@@ -30,7 +30,7 @@ pub fn prune_snoozes(c: &Connection, now: i64) -> Result<usize, String> {
 
 /// `HTE_CONSOLE_SNOOZE_PRUNE=1`: a task that runs `prune_snoozes` every minute.
 pub fn start(n: Arc<Native>) {
-    if std::env::var("HTE_CONSOLE_SNOOZE_PRUNE").map_or(true, |v| v.trim() != "1") {
+    if crate::envvar::var("HTE_CONSOLE_SNOOZE_PRUNE").map_or(true, |v| v.trim() != "1") {
         return;
     }
     tokio::spawn(async move {
@@ -75,6 +75,16 @@ pub fn status(c: &Connection, cache_prefix: &str, now: i64) -> Result<String, St
         _ => String::new(),
     }).unwrap_or_else(|_| "?".into()) };
     let mut out = vec![format!("version={}", env!("CARGO_PKG_VERSION"))];
+    let old = crate::envvar::old_names_in_use();
+    out.push(format!("env_old_names={}", if old.is_empty() { "none".to_string() } else { old.join(",") }));
+    out.push(format!("update_check={}", if crate::update_check::enabled() { crate::update_check::repo() } else { "off".into() }));
+    let latest = crate::cache::Store { prefix: cache_prefix.to_string() }
+        .get_raw(c, crate::update_check::CACHE_KEY, now)
+        .ok()
+        .flatten()
+        .and_then(|b| crate::pages::unserialize_string(&b))
+        .unwrap_or_else(|| "unknown".into());
+    out.push(format!("update_latest={latest}"));
     match crate::migrate::check(c) {
         Ok(r) => {
             out.push(format!("migrations_php={}/{}", r.php_recorded, crate::migrate::PHP_MIGRATIONS.len()));

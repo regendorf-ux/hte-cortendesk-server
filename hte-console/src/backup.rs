@@ -5,14 +5,14 @@
 //! The archive is PHP's, byte layout and all, so one made by PHP restores here and one made here restores in PHP:
 //!
 //! ```text
-//!   cortendesk-backup-YYYYMMDD-HHMMSS[-tag].tar      plain tar (tarfile.rs), no directory entries
+//!   hte-remote-backup-YYYYMMDD-HHMMSS[-tag].tar      plain tar (tarfile.rs), no directory entries
 //!     manifest.json                  {"format":1,"app":"cortendesk","app_version","created_at","trigger","app_url",
 //!                                     "db_driver":"sqlite","tables":{name:rows},"files":[...]}  (pretty, 4 spaces)
 //!     db/<table>.ndjson.gz           one JSON object per row, columns in table order
 //!     files/app_key                  the Laravel APP_KEY as the container has it
 //!     files/server_secret            when the server link is on
 //!     files/rustdesk/{id_ed25519,id_ed25519.pub,db_v2.sqlite3}
-//!   cortendesk-backup-....tar.json   the manifest again (the Settings page lists from it)
+//!   hte-remote-backup-....tar.json   the manifest again (the Settings page lists from it)
 //! ```
 //!
 //! Differences from PHP, all invisible to its reader: the rows are dumped from one `VACUUM INTO` snapshot of the
@@ -41,7 +41,10 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub const FORMAT: i64 = 1;
-pub const PREFIX: &str = "cortendesk-backup-";
+/// New archives (phase 9). The content is unchanged (PHP's format, manifest `"app": "cortendesk"`), so an archive restores into the
+/// PHP image too once renamed to `OLD_PREFIX...`; restore and the lists here accept both names.
+pub const PREFIX: &str = "hte-remote-backup-";
+pub const OLD_PREFIX: &str = "cortendesk-backup-";
 /// Per-process or per-request state, not data: neither backed up nor touched on restore.
 /// (`hte_console_sessions`: phase 8's own console sessions, the same kind of state as `sessions`.)
 pub const SKIP_TABLES: [&str; 10] = ["cache", "cache_locks", "sessions", "jobs", "job_batches", "failed_jobs", "oidc_auth_requests", "password_reset_tokens", "password_resets", "hte_console_sessions"];
@@ -63,11 +66,16 @@ const LOCK_SECONDS: i64 = 3600;
 /// `readRows`: longest line accepted.
 const MAX_LINE: usize = 16 * 1024 * 1024;
 
-static NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^cortendesk-backup-\d{8}-\d{6}(?:-[a-z0-9]{1,16})?\.tar$").unwrap());
+static NAME_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^(?:hte-remote|cortendesk)-backup-\d{8}-\d{6}(?:-[a-z0-9]{1,16})?\.tar$").unwrap());
 static IDENT_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"^[A-Za-z0-9_]{1,128}$").unwrap());
 
 pub fn is_backup_name(name: &str) -> bool {
     NAME_RE.is_match(name)
+}
+
+/// The `YYYYMMDD-HHMMSS[-tag].tar` part of a backup name, whichever prefix it has: the time order of names.
+pub fn stamp_of(name: &str) -> &str {
+    name.strip_prefix(PREFIX).or_else(|| name.strip_prefix(OLD_PREFIX)).unwrap_or(name)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -241,7 +249,7 @@ pub struct Listed {
 pub fn directory(env: &Env) -> Result<PathBuf, String> {
     let dir = &env.backups_dir;
     if dir.as_os_str().is_empty() {
-        return Err("No backup directory is configured (CORTENDESK_BACKUPS_PATH).".into());
+        return Err("No backup directory is configured (HTE_REMOTE_BACKUPS_PATH).".into());
     }
     if !dir.is_dir() {
         let _ = fs::DirBuilder::new().recursive(true).mode_0700().create(dir);
@@ -267,7 +275,7 @@ impl DirMode for fs::DirBuilder {
     }
 }
 
-/// `list()`: local backups, newest first (the timestamp is in the name, so a name sort is a time sort).
+/// `list()`: local backups, newest first (the timestamp is in the name after either prefix, so a stamp sort is a time sort).
 pub fn list(env: &Env) -> Result<Vec<Listed>, String> {
     let dir = directory(env)?;
     let mut rows = vec![];
@@ -289,7 +297,7 @@ pub fn list(env: &Env) -> Result<Vec<Listed>, String> {
             manifest,
         });
     }
-    rows.sort_by(|a, b| b.name.as_bytes().cmp(a.name.as_bytes()));
+    rows.sort_by(|a, b| stamp_of(&b.name).cmp(stamp_of(&a.name)).then_with(|| b.name.as_bytes().cmp(a.name.as_bytes())));
     Ok(rows)
 }
 
@@ -570,7 +578,7 @@ fn collect_files(env: &Env, dir: &Path) -> Result<Vec<String>, String> {
 
 /// `readManifest()`
 pub fn read_manifest(path: &Path) -> Result<serde_json::Value, String> {
-    let not_ours = || "That file is not a CortenDesk backup.".to_string();
+    let not_ours = || "That file is not an HTE Remote backup.".to_string();
     let bytes = tarfile::read_entry(path, "manifest.json", 8 << 20).ok().flatten().ok_or_else(not_ours)?;
     let m: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| not_ours())?;
     if m.get("app").and_then(|v| v.as_str()) != Some("cortendesk") {
@@ -582,7 +590,7 @@ pub fn read_manifest(path: &Path) -> Result<serde_json::Value, String> {
         _ => 0,
     });
     if format.unwrap_or(0) != FORMAT {
-        return Err("That backup was written in a format this version cannot read. Upgrade CortenDesk first.".into());
+        return Err("That backup was written in a format this version cannot read. Upgrade HTE Remote first.".into());
     }
     Ok(m)
 }
@@ -725,7 +733,7 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
             _ => n.strip_prefix("files/rustdesk/").filter(|f| RUSTDESK_FILES.contains(f)).map(|f| work.join("rustdesk").join(f)),
         }
     })
-    .map_err(|e| format!("That file is not a CortenDesk backup. ({})", e.0))?;
+    .map_err(|e| format!("That file is not an HTE Remote backup. ({})", e.0))?;
     hook(Stage::Extracted)?;
 
     let old_key = fs::read_to_string(work.join("app_key")).unwrap_or_default().trim().to_string();
@@ -748,7 +756,7 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
     let unknown: Vec<&str> = restore_tables.iter().map(|(t, _)| t.as_str()).filter(|t| !live.iter().any(|l| l == t)).collect();
     if !unknown.is_empty() {
         return Err(format!(
-            "The backup was made with CortenDesk {} and contains tables this install does not have ({}). Upgrade first, then restore.",
+            "The backup was made with console version {} and contains tables this install does not have ({}). Upgrade first, then restore.",
             manifest.get("app_version").and_then(|v| v.as_str()).unwrap_or("?"),
             unknown.join(", ")
         ));
@@ -952,6 +960,11 @@ mod tests {
         assert!(!is_backup_name("cortendesk-backup-20261024-033000.tar.json"));
         assert!(!is_backup_name("../cortendesk-backup-20261024-033000.tar"));
         assert!(!is_backup_name("cortendesk-backup-20261024-033000-UP.tar"));
+        assert!(is_backup_name("hte-remote-backup-20261024-033000.tar"));
+        assert!(is_backup_name("hte-remote-backup-20261024-033000-upload.tar"));
+        assert!(!is_backup_name("hte-remote-backup-20261024-033000.tar.json"));
+        assert!(!is_backup_name("other-backup-20261024-033000.tar"));
+        assert_eq!(stamp_of("hte-remote-backup-20261024-033000.tar"), stamp_of("cortendesk-backup-20261024-033000.tar"));
     }
 
     #[test]

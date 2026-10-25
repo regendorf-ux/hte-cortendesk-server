@@ -13,7 +13,7 @@
     var platforms = read("chart-platforms");
     var charts = [];
 
-    // The palette lives in cortendesk.css as custom properties, which ApexCharts cannot read itself: they are resolved
+    // The palette lives in hte-remote.css as custom properties, which ApexCharts cannot read itself: they are resolved
     // off the root element on every render, which is also how the light/dark flip stays in sync.
     function theme() {
         var css = getComputedStyle(document.documentElement);

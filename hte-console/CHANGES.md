@@ -2,13 +2,27 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## 0.9.0 (2026-10-25): phase 9, the PHP-free image
-- One image with hbbs, hbbr and hte-console (`Dockerfile.hte`, tag `v1.1.1-hte.4`); hte-console serves `/assets/*`, `/rdclient/*`,
-  `/robots.txt` and `/favicon.ico` itself (`tests/phpfree.rs`: every embedded asset, health, sign-in and 404s with no upstream).
-- `migrate.rs`: `HTE_CONSOLE_MIGRATE=1` (set in the image) checks that the 41 PHP migrations are recorded in `migrations` and refuses
-  an empty or older database; applies its own additive idempotent migrations (first: `hte_console_sessions`), batch = max+1. Never creates or alters a PHP table.
-- `maintenance.rs`: `HTE_CONSOLE_SNOOZE_PRUNE=1` prunes expired presence snoozes every minute (PHP's `pruneForSweep`); `status` and `release-locks` helpers.
+## 2.0.0 (2026-10-25): phase 9, HTE Remote's own console in the PHP-free image
+Version 2.0.0 is HTE Remote's version from now on: the version of the image `ghcr.io/regendorf-ux/hte-rd-server` (git tag `hte-rd-server-v2.0.0`).
+(0.9.0 was this release before the rename and was never tagged.)
+- One image with hbbs, hbbr and hte-console (`Dockerfile.hte`); hte-console serves `/assets/*`, `/rdclient/*`, `/robots.txt` and `/favicon.ico`
+  itself (`tests/phpfree.rs`: every embedded asset, health, sign-in and 404s with no upstream).
+- `migrate.rs`: `HTE_CONSOLE_MIGRATE=1` (set in the image) checks that the 41 migrations of the archived PHP console are recorded in `migrations`
+  and refuses an empty or older database; applies its own additive idempotent migrations (first: `hte_console_sessions`), batch = max+1.
+- `maintenance.rs`: `HTE_CONSOLE_SNOOZE_PRUNE=1` prunes expired presence snoozes every minute; `status` (now with `env_old_names`, `update_check`,
+  `update_latest`) and `release-locks` helpers.
 - Subcommands: `version`, `migrate [--check]`, `status`, `release-locks`, `db-copy <dest>` (online copy, refuses to overwrite).
+- The name: "HTE Remote" wherever a person reads it (the `APP_NAME` fallback, backup and FTP messages, Diagnostics, the web client's fallback name,
+  Settings' link and Apprise notes); Settings > About shows HTE Remote's version, the client API level and the "Based on CortenDesk and RustDesk
+  Server" credit. `assets/css/hte-remote.css` and `assets/js/hte-remote.js` (were `cortendesk.*`), the web client window `hte-remote-webclient`,
+  the diagnostics download `hte-remote-diagnostics.json`. New `NOTICE`.
+- `update_check.rs`: once a day, the newest `hte-rd-server-v<x.y.z>` tag of `regendorf-ux/hte-cortendesk-server` (public GitHub API, no token),
+  cached as `hte_remote.latest_version`; the sidebar line is "HTE Remote console", plus "update available: x.y.z" when newer. PHP's
+  `cortendesk.latest_version` is no longer read. `HTE_REMOTE_UPDATE_CHECK` (old: `CORTENDESK_UPDATE_CHECK`), `HTE_REMOTE_UPDATE_REPO`.
+- `envvar.rs`: every `CORTENDESK_<X>` setting is read as `HTE_REMOTE_<X>`, falling back to the old name (unset or empty new name) with one
+  warning per old name.
+- Backups: new archives are `hte-remote-backup-<stamp>.tar` (format and manifest unchanged); list, remote copy, retention and restore accept
+  `cortendesk-backup-*` too.
 - The image defaults: SIGNIN=1, LARAVEL_SESSIONS=0, PHP_SESSION_BRIDGE=0, SWEEPS=reach,passwords,stale,diagnostics, JOBS=backup,prune-logs,prune-invitations.
   `HTE_CONSOLE_UPSTREAM` is not set: nothing is forwarded to PHP any more.
 

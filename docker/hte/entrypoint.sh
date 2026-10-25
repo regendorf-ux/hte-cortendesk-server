@@ -36,19 +36,36 @@ fi
 mkdir -p "$RD_DIR" /data/backups
 [ -w "$RD_DIR" ] || die "$RD_DIR is not writable by uid $(id -u) (it must belong to 82:82)."
 
+# --- the environment's names --------------------------------------------------
+# HTE Remote's settings are HTE_REMOTE_<X>. The PHP image's names, CORTENDESK_<X>, are still read when the new one is unset or empty
+# (an .env from before the rename), with a warning per old name; the old name is then removed from the environment, so hbbs, hbbr
+# and hte-console see only the new one. (`docker exec ... hte-console` does not go through here: hte-console has the same fallback.)
+for _old in $(env | sed -n 's/^\(CORTENDESK_[A-Za-z0-9_]*\)=.*/\1/p'); do
+    _new="HTE_REMOTE_${_old#CORTENDESK_}"
+    eval "_nv=\${$_new:-}; _ov=\${$_old:-}"
+    if [ -z "$_nv" ] && [ -n "$_ov" ]; then
+        export "$_new=$_ov"
+        log "WARNING: $_old is the old name of $_new; it is read for now, rename it in .env"
+    elif [ -n "$_ov" ]; then
+        log "WARNING: $_old is ignored: $_new is set (remove the old name from .env)"
+    fi
+    unset "$_old"
+done
+unset _old _new _nv _ov
+
 # --- log levels --------------------------------------------------------------
-# CORTENDESK_LOG_LEVEL (the PHP image's one knob) sets hbbs and hbbr; the console has its own, HTE_CONSOLE_LOG, because the
+# HTE_REMOTE_LOG_LEVEL (CORTENDESK_LOG_LEVEL in the PHP image, its one knob) sets hbbs and hbbr; the console has its own, HTE_CONSOLE_LOG, because the
 # checklists read its info lines (sign-ins, jobs) while hbbs runs at warn on the server. hbbs and hbbr only know off, error,
 # warn, info, debug and trace, and an unknown word silences them, so map onto those.
 _rl=info
-if [ -n "${CORTENDESK_LOG_LEVEL:-}" ]; then
-    _ll="$(echo "$CORTENDESK_LOG_LEVEL" | tr 'A-Z' 'a-z')"
+if [ -n "${HTE_REMOTE_LOG_LEVEL:-}" ]; then
+    _ll="$(echo "$HTE_REMOTE_LOG_LEVEL" | tr 'A-Z' 'a-z')"
     case "$_ll" in
         debug)                          _rl=info,hbbs=debug,hbbr=debug,hbb_common=debug ;;
         info|notice)                    _rl=info ;;
         warn|warning)                   _rl=warn ;;
         error|critical|alert|emergency) _rl=error ;;
-        *) log "WARNING: CORTENDESK_LOG_LEVEL='$CORTENDESK_LOG_LEVEL' is not one of debug, info, notice, warning, error, critical; ignoring it" ;;
+        *) log "WARNING: HTE_REMOTE_LOG_LEVEL='$HTE_REMOTE_LOG_LEVEL' is not one of debug, info, notice, warning, error, critical; ignoring it" ;;
     esac
 fi
 export HBBS_RUST_LOG="${HBBS_RUST_LOG:-$_rl}"
@@ -69,7 +86,7 @@ done
 if [ ! -f "$RD_DIR/id_ed25519" ]; then
     _n=0
     while [ "$_n" -lt 300 ]; do
-        _pair="$(cortendesk-utils genkeypair)"
+        _pair="$(hte-rd-utils genkeypair)"
         _pub="$(echo "$_pair" | awk '/Public Key:/ {print $3}')"
         _sec="$(echo "$_pair" | awk '/Secret Key:/ {print $3}')"
         case "$_pub" in *[/:]*) _n=$((_n + 1)); continue ;; esac
@@ -84,17 +101,17 @@ fi
 
 # The link between hbbs and the console: hbbs pulls the device policy with this secret and the console signs web client
 # tickets with it. /data/.server_secret is the PHP image's file; kept, never rewritten when it exists.
-if [ -z "${CORTENDESK_SERVER_SECRET:-}" ]; then
+if [ -z "${HTE_REMOTE_SERVER_SECRET:-}" ]; then
     if [ ! -s /data/.server_secret ]; then
         od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > /data/.server_secret
         chmod 600 /data/.server_secret
         log "generated the server link secret (persisted in the /data volume)"
     fi
-    CORTENDESK_SERVER_SECRET="$(cat /data/.server_secret)"
+    HTE_REMOTE_SERVER_SECRET="$(cat /data/.server_secret)"
 fi
-export CORTENDESK_SERVER_SECRET
+export HTE_REMOTE_SERVER_SECRET
 # hbbs and the console are in this container now: loopback, no network hop
-export CORTENDESK_CONSOLE_URL="${CORTENDESK_CONSOLE_URL:-http://127.0.0.1:8080}"
+export HTE_REMOTE_CONSOLE_URL="${HTE_REMOTE_CONSOLE_URL:-http://127.0.0.1:8080}"
 
 # --- what clients are told ----------------------------------------------------
 # The public address clients use to reach this host; the relay address hbbs hands out derives from it unless set.
@@ -109,10 +126,10 @@ HOST="$(_public_host)"
 case "$HOST" in
     localhost|127.0.0.1|"") die "APP_URL has no public hostname, so clients would be told the relay is at '${HOST:-?}:21117' and every session that needs it would hang. Set APP_URL to the address clients reach." ;;
 esac
-export CORTENDESK_ID_SERVER="${CORTENDESK_ID_SERVER:-$HOST:21116}"
-export CORTENDESK_RELAY_SERVER="${CORTENDESK_RELAY_SERVER:-$HOST:21117}"
-export RUSTDESK_RELAY_ADVERTISED="$CORTENDESK_RELAY_SERVER"
-export HTE_CONSOLE_ID_SERVER="${HTE_CONSOLE_ID_SERVER:-$CORTENDESK_ID_SERVER}"
+export HTE_REMOTE_ID_SERVER="${HTE_REMOTE_ID_SERVER:-$HOST:21116}"
+export HTE_REMOTE_RELAY_SERVER="${HTE_REMOTE_RELAY_SERVER:-$HOST:21117}"
+export RUSTDESK_RELAY_ADVERTISED="$HTE_REMOTE_RELAY_SERVER"
+export HTE_CONSOLE_ID_SERVER="${HTE_CONSOLE_ID_SERVER:-$HTE_REMOTE_ID_SERVER}"
 export HTE_CONSOLE_PUBLIC_KEY="${HTE_CONSOLE_PUBLIC_KEY:-$(cat "$RD_DIR/id_ed25519.pub")}"
 export HTE_CONSOLE_PUBLIC_URL="${HTE_CONSOLE_PUBLIC_URL:-$APP_URL}"
 

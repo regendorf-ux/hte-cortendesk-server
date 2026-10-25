@@ -144,7 +144,7 @@ struct Pace {
 
 impl Pace {
     fn from_env() -> Pace {
-        let per_minute = std::env::var("HTE_CONSOLE_REPLAY_PER_MINUTE").ok().and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(110);
+        let per_minute = crate::envvar::var("HTE_CONSOLE_REPLAY_PER_MINUTE").ok().and_then(|v| v.trim().parse().ok()).filter(|&n| n > 0).unwrap_or(110);
         Pace::new(per_minute, std::time::Duration::from_secs(61))
     }
 

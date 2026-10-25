@@ -273,7 +273,7 @@ async fn fleet_diagnostics() {
     let b = &r.body;
     assert!(b.contains("<title>Fleet diagnostics | HTE Remote</title>"));
     assert!(b.contains("Bounded probes and fleet signals. No test email is sent automatically."));
-    assert!(card(b, "Application").contains("text-success\">Ok</span> </div> <p class=\"text-muted fs-13 mb-0 mt-2\">CortenDesk v1.15.0-hte.1</p>"), "{}", card(b, "Application"));
+    assert!(card(b, "Application").contains(concat!("text-success\">Ok</span> </div> <p class=\"text-muted fs-13 mb-0 mt-2\">HTE Remote v", env!("CARGO_PKG_VERSION"), "</p>")), "{}", card(b, "Application"));
     assert!(card(b, "ID server").contains(&format!(">Ok</span> </div> <p class=\"text-muted fs-13 mb-0 mt-2\">configured IP address on port {port}</p>")), "{}", card(b, "ID server"));
     assert!(card(b, "Relay server").contains(&format!("text-danger\">Failed</span> </div> <p class=\"text-muted fs-13 mb-0 mt-2\">configured hostname on port {closed}</p>")), "{}", card(b, "Relay server"));
     assert!(card(b, "Scheduler").contains(">Ok</span>") && card(b, "Scheduler").contains("Heartbeat is fresh."));
@@ -297,7 +297,7 @@ async fn fleet_diagnostics() {
     let r = h.get("/diagnostics/export", &admin).await;
     assert_eq!(r.status, 200);
     assert_eq!(r.headers["content-type"], "application/json");
-    assert_eq!(r.headers["content-disposition"], "attachment; filename=cortendesk-diagnostics.json");
+    assert_eq!(r.headers["content-disposition"], "attachment; filename=hte-remote-diagnostics.json");
     assert_eq!(r.headers["cache-control"], "no-store, private");
     assert!(r.body.starts_with("{\n    \"generated_at\": \"2025-10-25T03:20:00+00:00\",\n    \"application\": {\n        \"ok\": true,"), "{}", r.body);
     assert!(!r.body.contains("localhost") && !r.body.contains("127.0.0.1") && !r.body.contains("host_label"));

@@ -70,7 +70,7 @@ impl H {
 async fn the_files_nginx_served_are_served_here() {
     let h = harness().await;
     for (path, ctype) in [
-        ("/assets/css/cortendesk.css", "text/css"),
+        ("/assets/css/hte-remote.css", "text/css"),
         ("/assets/css/hte-brand.css", "text/css"),
         ("/assets/js/shell.js", "text/javascript"),
         ("/assets/vendor/bootstrap/bootstrap.min.css", "text/css"),

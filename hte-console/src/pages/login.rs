@@ -320,17 +320,17 @@ fn show_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     let error = flashed.get("errors").and_then(|e| e.as_object()).and_then(|m| m.values().next()).and_then(|v| v.get(0)).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let old = flashed.get("_old_input").and_then(|o| o.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let sso = settings.is_enabled(env_off);
-    let downloads_default = std::env::var("CORTENDESK_DOWNLOADS_ON_LOGIN").map_or(true, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"));
+    let downloads_default = crate::envvar::var("HTE_REMOTE_DOWNLOADS_ON_LOGIN").map_or(true, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"));
     let show_downloads = flag(c, "downloads_on_login", if downloads_default { "1" } else { "0" })?
         && db::first(c, r#"select 1 as "exists" from "client_downloads" where "is_published" = 1 limit 1"#, &[]).ok().flatten().is_some();
-    let domain = std::env::var("HTE_SIGNIN_DOMAIN").unwrap_or_default().trim_matches(|ch| " \t@".contains(ch)).to_string();
+    let domain = crate::envvar::var("HTE_SIGNIN_DOMAIN").unwrap_or_default().trim_matches(|ch| " \t@".contains(ch)).to_string();
     let page = p
         .view
         .render(
             "auth/login.html",
             json!({
                 "app_name": p.n.signin.app_name,
-                "version": p.n.api_version,
+                "version": crate::REMOTE_VERSION,
                 "root": w.root,
                 "csrf": s.token().unwrap_or(""),
                 "title": "Sign In",
@@ -359,7 +359,7 @@ fn unavailable(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     }
     let page = p
         .view
-        .render("auth/unavailable.html", json!({"app_name": p.n.signin.app_name, "version": p.n.api_version, "root": w.root, "title": "Not available", "csrf": ""}))
+        .render("auth/unavailable.html", json!({"app_name": p.n.signin.app_name, "version": crate::REMOTE_VERSION, "root": w.root, "title": "Not available", "csrf": ""}))
         .map_err(Fault::Other)?;
     Ok(Out::new(html(404, page, false)))
 }

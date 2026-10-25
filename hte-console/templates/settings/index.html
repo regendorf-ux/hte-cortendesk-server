@@ -137,7 +137,7 @@
 
                         <div class="form-text {{ link.tone }}" id="server-link-status">
                             <i class="{{ 'ri-error-warning-line' if link.ok == false else 'ri-link' }} me-1"></i>ID server link: {{ link.note }}
-                            {% if link.ok == false %} Needs CortenDesk Server 1.1.0 or later linked to this console.{% endif %}
+                            {% if link.ok == false %} Needs HTE Remote's ID server (hbbs 1.1.0 or later) linked to this console.{% endif %}
                         </div>
                     </div>
                     <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
@@ -460,7 +460,7 @@
                         <label class="form-label">Apprise API endpoint</label>
                         <input type="url" class="form-control{{ ' is-invalid' if e.apprise_endpoint else '' }}" name="apprise_endpoint" value="" autocomplete="off" data-1p-ignore data-lpignore="true" placeholder="{{ 'Stored — leave blank to keep' if set.apprise_endpoint else 'https://apprise.example.com' }}">
                         {% if e.apprise_endpoint %}<div class="invalid-feedback">{{ e.apprise_endpoint }}</div>{% endif %}
-                        <div class="form-text">Base URL only. CortenDesk appends <code>/notify</code>.</div>
+                        <div class="form-text">Base URL only. HTE Remote appends <code>/notify</code>.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Delivery mode</label>
@@ -599,9 +599,13 @@
                 <div class="card-header"><h5 class="card-title mb-0">About</h5></div>
                 <div class="card-body">
                     <dl class="rd-deflist">
-                        <div class="rd-def"><dt>CortenDesk</dt><dd class="rd-mono">v{{ about.version }}</dd></div>
-                        <div class="rd-def"><dt>Console</dt><dd class="rd-mono">hte-console {{ version }}</dd></div>
+                        <div class="rd-def"><dt>HTE Remote</dt><dd class="rd-mono">v{{ about.version }}</dd></div>
+                        <div class="rd-def"><dt>Client API level</dt><dd class="rd-mono">{{ about.api }}</dd></div>
                     </dl>
+                    <p class="text-muted small mb-0 mt-2">Based on <a href="https://github.com/marcpope/cortendesk" target="_blank" rel="noopener">CortenDesk</a>
+                        and <a href="https://github.com/rustdesk/rustdesk-server" target="_blank" rel="noopener">RustDesk Server</a> (Purslane Ltd. and contributors),
+                        both under the GNU AGPL-3.0, as is HTE Remote. Source:
+                        <a href="https://github.com/regendorf-ux/hte-cortendesk-server" target="_blank" rel="noopener">regendorf-ux/hte-cortendesk-server</a>.</p>
                 </div>
             </div>
         </div></div>

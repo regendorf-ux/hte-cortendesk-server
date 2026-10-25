@@ -29,7 +29,7 @@
                 {% if not d.trashed %}
                     <a href="{{ d.link }}" class="btn btn-sm btn-outline-light" title="Connect with RustDesk" hx-boost="false"><i class="ri-links-line me-1"></i>RustDesk</a>
                     {% if native_webclient %}
-                        <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="btn btn-sm btn-primary" hx-boost="false">
+                        <a href="/webclient?id={{ d.rustdesk_id }}" target="hte-remote-webclient" rel="noopener" class="btn btn-sm btn-primary" hx-boost="false">
                             <i class="ri-remote-control-line me-1"></i>Connect</a>
                     {% endif %}
                     {% if can_edit %}

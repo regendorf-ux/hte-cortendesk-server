@@ -49,14 +49,14 @@ impl Native {
 
     /// Whether the clock was set with HTE_CONSOLE_CLOCK_START (the local page comparison), not the wall clock.
     pub fn clock_is_set(&self) -> bool {
-        std::env::var("HTE_CONSOLE_CLOCK_START").map_or(false, |v| !v.trim().is_empty())
+        crate::envvar::var("HTE_CONSOLE_CLOCK_START").map_or(false, |v| !v.trim().is_empty())
     }
 
     /// Open everything phase 1 needs, or say exactly what is missing. Nothing secret is logged.
     pub fn open(cfg: &crate::config::NativeConfig) -> Result<Native, String> {
         check_owner(&cfg.database)?;
         // As the PHP image's entrypoint: APP_KEY from the environment when set, else the file in /data.
-        let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
+        let key = match crate::envvar::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
             Some(k) => k,
             None => std::fs::read_to_string(&cfg.app_key_file).map_err(|e| format!("cannot read the app key ({}): {e}", cfg.app_key_file.display()))?,
         };
@@ -95,7 +95,7 @@ fn real_now() -> i64 {
 /// for the local page comparison against PHP answers captured earlier (`replay/compare-local.sh`), so "5 minutes ago"
 /// and the dates read as they did when PHP answered. Never set in production.
 fn clock_from_env() -> Box<dyn Fn() -> i64 + Send + Sync> {
-    match std::env::var("HTE_CONSOLE_CLOCK_START").ok().and_then(|v| v.trim().parse::<i64>().ok()) {
+    match crate::envvar::var("HTE_CONSOLE_CLOCK_START").ok().and_then(|v| v.trim().parse::<i64>().ok()) {
         Some(start) => {
             let offset = start - real_now();
             tracing::warn!("HTE_CONSOLE_CLOCK_START is set: the console's clock runs from {start}, not the wall clock");
@@ -132,7 +132,7 @@ fn warn_unported(c: &Connection) {
         }
     }
     if let Ok(v) = crate::sqlite::setting(c, "oidc_enabled", "0") {
-        if v == b"1" && std::env::var("HTE_CONSOLE_PUBLIC_URL").map_or(true, |u| u.trim().is_empty()) {
+        if v == b"1" && crate::envvar::var("HTE_CONSOLE_PUBLIC_URL").map_or(true, |u| u.trim().is_empty()) {
             tracing::warn!("SSO is on and HTE_CONSOLE_PUBLIC_URL is not set: the OIDC redirect URI is built from each request's Host header (as PHP does); set it to the console's https origin");
         }
     }
@@ -415,7 +415,7 @@ pub(crate) fn header_str<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
 /// The largest body a sign-in route reads (`HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES`, default 64 KiB): a sign-in is a few
 /// hundred bytes.
 fn signin_max_body() -> usize {
-    std::env::var("HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
+    crate::envvar::var("HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
 }
 
 async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, req: Request<Body>, ep: Endpoint) -> Response<Body> {

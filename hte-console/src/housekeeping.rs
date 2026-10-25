@@ -81,7 +81,7 @@ impl Job {
 
 /// `HTE_CONSOLE_JOBS`
 pub fn from_env() -> Result<Vec<Job>, String> {
-    let v = std::env::var("HTE_CONSOLE_JOBS").unwrap_or_default();
+    let v = crate::envvar::var("HTE_CONSOLE_JOBS").unwrap_or_default();
     let mut jobs = vec![];
     for part in v.split(',').map(str::trim).filter(|p| !p.is_empty()) {
         if part == "all" {
@@ -100,12 +100,12 @@ pub fn from_env() -> Result<Vec<Job>, String> {
 /// What the commands need, read as the PHP image gets it. Returns the backup `Env` and the retention default.
 pub struct Setup {
     pub env: Env,
-    /// `config('cortendesk.log_retention_days')` as a string (`CORTENDESK_LOG_RETENTION_DAYS`, else 365)
+    /// `config('cortendesk.log_retention_days')` as a string (`HTE_REMOTE_LOG_RETENTION_DAYS`, else 365)
     pub retention_default: String,
 }
 
 fn set(name: &str) -> Option<String> {
-    std::env::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
+    crate::envvar::var(name).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty())
 }
 
 impl Setup {
@@ -117,16 +117,16 @@ impl Setup {
             Some(k) => k,
             None => std::fs::read_to_string(&n.app_key_file).map_err(|e| format!("cannot read the app key ({}): {e}", n.app_key_file.display()))?.trim().to_string(),
         };
-        let server_secret = match set("CORTENDESK_SERVER_SECRET") {
+        let server_secret = match set("HTE_REMOTE_SERVER_SECRET") {
             Some(s) => s,
-            None => std::fs::read_to_string(std::env::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into())).map(|s| s.trim().to_string()).unwrap_or_default(),
+            None => std::fs::read_to_string(crate::envvar::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into())).map(|s| s.trim().to_string()).unwrap_or_default(),
         };
         let rustdesk_dir = set("HTE_CONSOLE_RUSTDESK_DIR").map(PathBuf::from).or_else(|| n.hbbs_db.parent().map(|p| p.to_path_buf())).filter(|p| !p.as_os_str().is_empty());
         Ok(Setup {
             env: Env {
                 database: n.database,
                 busy: n.busy,
-                backups_dir: PathBuf::from(set("HTE_CONSOLE_BACKUPS_DIR").or_else(|| set("CORTENDESK_BACKUPS_PATH")).unwrap_or_else(|| "/data/backups".into())),
+                backups_dir: PathBuf::from(set("HTE_CONSOLE_BACKUPS_DIR").or_else(|| set("HTE_REMOTE_BACKUPS_PATH")).unwrap_or_else(|| "/data/backups".into())),
                 rustdesk_dir,
                 app_key,
                 server_secret,
@@ -134,7 +134,7 @@ impl Setup {
                 app_version: n.api_version,
                 store: Store::from_env()?,
             },
-            retention_default: set("HTE_CONSOLE_LOG_RETENTION_DAYS").or_else(|| set("CORTENDESK_LOG_RETENTION_DAYS")).unwrap_or_else(|| "365".into()),
+            retention_default: set("HTE_CONSOLE_LOG_RETENTION_DAYS").or_else(|| set("HTE_REMOTE_LOG_RETENTION_DAYS")).unwrap_or_else(|| "365".into()),
         })
     }
 }
@@ -431,7 +431,7 @@ pub fn cli(args: &[String]) -> i32 {
             Ok(rows) => {
                 for r in rows {
                     let rows_total: i64 = r.manifest.as_ref().and_then(|m| m.get("tables")).and_then(|t| t.as_object()).map(|o| o.values().filter_map(|v| v.as_i64()).sum()).unwrap_or(0);
-                    println!("{}  {}  {}  {} rows  CortenDesk {}", r.name, r.created_at.to_rfc3339(), backup::human_size(r.size), rows_total, r.manifest.as_ref().and_then(|m| m.get("app_version")).and_then(|v| v.as_str()).unwrap_or("?"));
+                    println!("{}  {}  {}  {} rows  version {}", r.name, r.created_at.to_rfc3339(), backup::human_size(r.size), rows_total, r.manifest.as_ref().and_then(|m| m.get("app_version")).and_then(|v| v.as_str()).unwrap_or("?"));
                 }
                 0
             }
@@ -452,7 +452,7 @@ pub fn cli(args: &[String]) -> i32 {
             };
             let total: i64 = manifest.get("tables").and_then(|t| t.as_object()).map(|o| o.values().filter_map(|v| v.as_i64()).sum()).unwrap_or(0);
             println!(
-                "Backup from {}, CortenDesk {}, {} rows.",
+                "Backup from {}, version {}, {} rows.",
                 manifest.get("created_at").and_then(|v| v.as_str()).unwrap_or("?"),
                 manifest.get("app_version").and_then(|v| v.as_str()).unwrap_or("?"),
                 total

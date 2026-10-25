@@ -438,7 +438,7 @@ pub fn str_random(n: usize) -> String {
 
 /// `BCRYPT_ROUNDS`, as Laravel's hashing config reads it (default 12).
 pub fn bcrypt_rounds() -> u32 {
-    std::env::var("BCRYPT_ROUNDS").ok().and_then(|v| v.trim().parse().ok()).filter(|c| (4..=31).contains(c)).unwrap_or(12)
+    crate::envvar::var("BCRYPT_ROUNDS").ok().and_then(|v| v.trim().parse().ok()).filter(|c| (4..=31).contains(c)).unwrap_or(12)
 }
 
 /// `Hash::make($value)`: a `$2y$` bcrypt hash at Laravel's cost.

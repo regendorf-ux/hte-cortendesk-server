@@ -10,7 +10,7 @@ pub const LOG_TABLES: [&str; 6] = ["audit_connections", "audit_file_transfers", 
 const CHUNK: usize = 10_000;
 
 /// The configured window: `(int) (Setting::get('log_retention_days', (string) config('cortendesk.log_retention_days')) ?: 0)`.
-/// `default` is the env-backed config value (`CORTENDESK_LOG_RETENTION_DAYS`, 365 when unset).
+/// `default` is the env-backed config value (`HTE_REMOTE_LOG_RETENTION_DAYS`, 365 when unset).
 pub fn retention_days(c: &Connection, default: &str) -> Result<i64, String> {
     let v = db::setting(c, "log_retention_days", default).map_err(|f| format!("{f:?}"))?;
     // `?: 0`: "", "0" and null are falsy; everything else is cast

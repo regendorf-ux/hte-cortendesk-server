@@ -77,8 +77,8 @@ impl State {
     }
 
     pub fn from_env() -> State {
-        let public = std::env::var("HTE_CONSOLE_PUBLIC_URL").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
-        let app_name = std::env::var("APP_NAME").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "CortenDesk".into());
+        let public = crate::envvar::var("HTE_CONSOLE_PUBLIC_URL").ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
+        let app_name = crate::envvar::var("APP_NAME").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "HTE Remote".into());
         State::new(crate::oidc::Oidc::from_env(), public, app_name)
     }
 }
@@ -746,7 +746,7 @@ pub fn render_page(p: &Page, root: &str, app_name: &str, version: &str) -> Strin
     } else {
         "\n                <p class=\"rd-auth-foot-note mt-3\">\n                    Return to HTE Remote and try again, or contact your administrator.\n                </p>\n".to_string()
     };
-    let css = ["assets/vendor/bootstrap/bootstrap.min.css", "assets/vendor/remixicon/remixicon.css", "assets/fonts/figtree/figtree.css", "assets/css/spacing.css", "assets/css/shell.css", "assets/css/cortendesk.css", "assets/css/hte-brand.css", "assets/css/hte-auth.css"]
+    let css = ["assets/vendor/bootstrap/bootstrap.min.css", "assets/vendor/remixicon/remixicon.css", "assets/fonts/figtree/figtree.css", "assets/css/spacing.css", "assets/css/shell.css", "assets/css/hte-remote.css", "assets/css/hte-brand.css", "assets/css/hte-auth.css"]
         .iter()
         .map(|c| format!("    <link href=\"{}\" rel=\"stylesheet\" type=\"text/css\"/>\n", asset(c)))
         .collect::<String>();

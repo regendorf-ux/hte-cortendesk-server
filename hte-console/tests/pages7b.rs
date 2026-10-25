@@ -867,9 +867,9 @@ async fn backups_prune_and_api_tokens() {
     assert_eq!(names.len(), 1, "{names:?}");
     let name = names[0].clone();
     assert_eq!(h.count("console_audits where action = 'backup.create' and username = 'system'"), 1);
-    assert!(h.text("select value from settings where key = 'backup_last_result'").contains("Wrote cortendesk-backup-"));
+    assert!(h.text("select value from settings where key = 'backup_last_result'").contains("Wrote hte-remote-backup-"));
     let r = h.get("/settings?tab=backups", &admin).await;
-    assert!(r.body.contains(&name) && r.body.contains("Wrote cortendesk-backup-"));
+    assert!(r.body.contains(&name) && r.body.contains("Wrote hte-remote-backup-"));
 
     // schedule and retention
     let r = h.post_form("/settings/backups/save", &admin, &[tok(), ("keep_daily", "3"), ("keep_weekly", "2"), ("keep_monthly", "1")]).await;
@@ -1086,7 +1086,7 @@ async fn backups_off_site_copy_and_upload() {
     assert_eq!(r.status, 302);
     let page = h.get("/settings?tab=backups", &admin).await.body;
     assert!(page.contains("copied to S3 bucket bk"), "{page}");
-    assert!(seen.lock().unwrap().iter().any(|l| l.starts_with("PUT /bk/cortendesk-backup-")), "{:?}", seen.lock().unwrap());
+    assert!(seen.lock().unwrap().iter().any(|l| l.starts_with("PUT /bk/hte-remote-backup-")), "{:?}", seen.lock().unwrap());
 
     // restore from a file: the archive of another moment, checked, stored under its name, restored
     let name = std::fs::read_dir(&backups).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).find(|n| n.ends_with(".tar")).unwrap();
@@ -1105,5 +1105,5 @@ async fn backups_off_site_copy_and_upload() {
     assert!(h.get("/settings?tab=backups", &admin).await.body.contains("Pick a backup archive first."));
     let r = h.post_file("/settings/backups/upload", &admin, "upload", "x.tar", b"not a tar").await;
     assert_eq!(r.status, 302);
-    assert!(h.get("/settings?tab=backups", &admin).await.body.contains("That file is not a CortenDesk backup."));
+    assert!(h.get("/settings?tab=backups", &admin).await.body.contains("That file is not an HTE Remote backup."));
 }

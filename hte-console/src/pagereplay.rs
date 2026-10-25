@@ -206,7 +206,7 @@ enum Side {
 }
 
 fn side() -> Side {
-    let dir = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty()).map(std::path::PathBuf::from);
+    let dir = |k: &str| crate::envvar::var(k).ok().filter(|v| !v.trim().is_empty()).map(std::path::PathBuf::from);
     match (dir("HTE_PAGEREPLAY_PHP_FROM"), dir("HTE_PAGEREPLAY_CAPTURE_TO")) {
         (Some(d), _) => Side::From(d),
         (None, Some(d)) => Side::Save(d),
@@ -506,7 +506,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     // there is no PHP; the comparison with PHP is the server run's
     let side = side();
     let offline = matches!(side, Side::From(_));
-    let rust_only = offline || std::env::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
+    let rust_only = offline || crate::envvar::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
     let cfg = session::SessionConfig { cookie: cookie_name.to_string(), lifetime_min: 120, secure: None };
     let c = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
     let (day, week) = (laravel::ts(now - 90_000)[..10].to_string(), laravel::ts(now - 9_000)[..10].to_string());

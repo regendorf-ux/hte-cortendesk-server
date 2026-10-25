@@ -278,15 +278,15 @@ async fn userinfo(State(s): State<Arc<FakeIdp>>, h: HeaderMap) -> Response {
 /// `hte-console fake-idp`: HTE_FAKE_IDP_LISTEN (default 0.0.0.0:8080), HTE_FAKE_IDP_ISSUER (its own base URL as the
 /// console reaches it), HTE_FAKE_IDP_CLIENT_ID and HTE_FAKE_IDP_CLIENT_SECRET (what the console's settings hold).
 pub async fn serve_from_env() -> Result<(), String> {
-    let issuer = std::env::var("HTE_FAKE_IDP_ISSUER").map_err(|_| "set HTE_FAKE_IDP_ISSUER".to_string())?.trim_end_matches('/').to_string();
+    let issuer = crate::envvar::var("HTE_FAKE_IDP_ISSUER").map_err(|_| "set HTE_FAKE_IDP_ISSUER".to_string())?.trim_end_matches('/').to_string();
     let cfg = Config {
         issuer,
-        client_id: std::env::var("HTE_FAKE_IDP_CLIENT_ID").unwrap_or_else(|_| "client-seed".into()),
-        client_secret: std::env::var("HTE_FAKE_IDP_CLIENT_SECRET").map_err(|_| "set HTE_FAKE_IDP_CLIENT_SECRET".to_string())?,
+        client_id: crate::envvar::var("HTE_FAKE_IDP_CLIENT_ID").unwrap_or_else(|_| "client-seed".into()),
+        client_secret: crate::envvar::var("HTE_FAKE_IDP_CLIENT_SECRET").map_err(|_| "set HTE_FAKE_IDP_CLIENT_SECRET".to_string())?,
         tenant: None,
         clock: Arc::new(|| chrono::Utc::now().timestamp()),
     };
-    let listen = std::env::var("HTE_FAKE_IDP_LISTEN").unwrap_or_else(|_| "0.0.0.0:8080".into());
+    let listen = crate::envvar::var("HTE_FAKE_IDP_LISTEN").unwrap_or_else(|_| "0.0.0.0:8080".into());
     let l = tokio::net::TcpListener::bind(&listen).await.map_err(|e| format!("cannot listen on {listen}: {e}"))?;
     tracing::info!("fake identity provider (TEST ONLY) on {listen}");
     let app = FakeIdp::new(cfg).router().route("/__fake-idp/health", get(|| async { "ok" }));

@@ -1,5 +1,5 @@
 /**
- * CortenDesk console shell: sidebar, theme toggle, fullscreen, password
+ * HTE Remote console shell (from CortenDesk): sidebar, theme toggle, fullscreen, password
  * reveal and Bootstrap tooltips. Plain script, no jQuery, no build step.
  * Needs bootstrap.bundle.min.js loaded first.
  *

@@ -18,8 +18,8 @@
 
             {% if can.settings and update.upgrade %}
                 <li class="rd-topbar-upgrade">
-                    <a class="nav-link" href="https://github.com/marcpope/cortendesk/releases/tag/v{{ update.upgrade }}" target="_blank" rel="noopener"
-                       data-bs-toggle="tooltip" data-bs-placement="bottom" title="Version {{ update.upgrade }} is available. Opens the release notes.">
+                    <a class="nav-link" href="https://github.com/{{ update.repo }}/releases/tag/{{ update.tag_prefix }}{{ update.upgrade }}" target="_blank" rel="noopener"
+                       data-bs-toggle="tooltip" data-bs-placement="bottom" title="HTE Remote {{ update.upgrade }} is tagged. Opens the tag.">
                         <span class="rd-shell-badge">
                             <i class="ri-download-cloud-2-line"></i><span class="d-none d-sm-inline">Update to v{{ update.upgrade }}</span>
                         </span>

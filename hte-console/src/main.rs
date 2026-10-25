@@ -414,6 +414,7 @@ async fn serve() -> i32 {
             }
         }
         hte_console::maintenance::start(x.clone());
+        hte_console::update_check::start(x.clone());
     }
     tracing::info!(
         "hte-console listening on {}; device endpoints {}; other paths {}; recording {}",

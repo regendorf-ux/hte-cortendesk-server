@@ -8,7 +8,7 @@
 //! The console decides which devices may use this server. hbbs pulls that
 //! decision as a snapshot every few seconds and enforces it from memory, so no
 //! signalling request waits on HTTP. Nothing here runs unless both
-//! `CORTENDESK_CONSOLE_URL` and `CORTENDESK_SERVER_SECRET` are set.
+//! `HTE_REMOTE_CONSOLE_URL` and `HTE_REMOTE_SERVER_SECRET` are set (the old `CORTENDESK_*` names are read as a fallback).
 //!
 //! Who is asking: a punch hole or relay request names only the target. The
 //! initiator is identified, in order, by a console-signed web client ticket in
@@ -349,21 +349,33 @@ fn save_cache(body: &str) {
 }
 
 /// Start the console link if it is configured. Call from inside the runtime.
+/// HTE Remote's name (`HTE_REMOTE_<X>`) first; the old `CORTENDESK_<X>` when the new one is unset or empty, with a warning.
+fn setting(rest: &str) -> Option<String> {
+    let new = format!("HTE_REMOTE_{rest}");
+    if let Some(v) = crate::common::get_arg_opt(&new).filter(|v| !v.trim().is_empty()) {
+        return Some(v);
+    }
+    let old = format!("CORTENDESK_{rest}");
+    let v = crate::common::get_arg_opt(&old).filter(|v| !v.trim().is_empty())?;
+    log::warn!("environment: {old} is the old name of {new}; it is read for now, rename it");
+    Some(v)
+}
+
 pub fn start() {
-    let url = crate::common::get_arg_opt("CORTENDESK_CONSOLE_URL")
+    let url = setting("CONSOLE_URL")
         .unwrap_or_default()
         .trim()
         .trim_end_matches('/')
         .to_owned();
-    let secret = crate::common::get_arg_opt("CORTENDESK_SERVER_SECRET")
+    let secret = setting("SERVER_SECRET")
         .unwrap_or_default()
         .trim()
         .to_owned();
     if url.is_empty() || secret.is_empty() {
-        log::info!("Console link off: set CORTENDESK_CONSOLE_URL and CORTENDESK_SERVER_SECRET to enforce device policy");
+        log::info!("Console link off: set HTE_REMOTE_CONSOLE_URL and HTE_REMOTE_SERVER_SECRET to enforce device policy");
         return;
     }
-    let interval = crate::common::get_arg_opt("CORTENDESK_POLICY_INTERVAL")
+    let interval = setting("POLICY_INTERVAL")
         .and_then(|x| x.trim().parse::<u64>().ok())
         .unwrap_or(5)
         .clamp(1, 300);
@@ -389,7 +401,7 @@ pub fn start() {
 async fn run(url: String, secret: String, every: Duration) {
     let client = match reqwest::Client::builder()
         .timeout(Duration::from_secs(10))
-        .user_agent(format!("cortendesk-server/{}", crate::version::VERSION))
+        .user_agent(format!("hte-rd-server/{}", crate::version::VERSION))
         .build()
     {
         Ok(c) => c,

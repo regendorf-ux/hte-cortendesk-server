@@ -82,17 +82,17 @@ pub struct PageConfig {
 
 impl PageConfig {
     pub fn from_env() -> PageConfig {
-        let get = |n: &str| std::env::var(n).ok();
+        let get = |n: &str| crate::envvar::var(n).ok();
         // filter_var(..., FILTER_VALIDATE_BOOL): unset is the default, anything not truthy is false
         let boolean = |n: &str, default: bool| match get(n) {
             None => default,
             Some(v) => matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"),
         };
         PageConfig {
-            update_check: boolean("CORTENDESK_UPDATE_CHECK", true),
-            native_webclient: boolean("CORTENDESK_NATIVE_WEBCLIENT", true),
-            webclient_url: get("CORTENDESK_WEBCLIENT_URL").unwrap_or_default(),
-            rdgen_default: get("CORTENDESK_RDGEN_URL").unwrap_or_else(|| "https://rdgen.crayoneater.org".into()),
+            update_check: crate::update_check::enabled(),
+            native_webclient: boolean("HTE_REMOTE_NATIVE_WEBCLIENT", true),
+            webclient_url: get("HTE_REMOTE_WEBCLIENT_URL").unwrap_or_default(),
+            rdgen_default: get("HTE_REMOTE_RDGEN_URL").unwrap_or_else(|| "https://rdgen.crayoneater.org".into()),
         }
     }
 }
@@ -230,7 +230,7 @@ impl<'a> Ctx<'a> {
             "subtitle": subtitle,
             "csrf": self.session.token().unwrap_or(""),
             "theme": self.theme(),
-            "version": self.p.n.api_version,
+            "version": crate::REMOTE_VERSION,
             "now": self.now,
             "year": chrono::DateTime::<chrono::Utc>::from_timestamp(self.now, 0).map(|d| chrono::Datelike::year(&d)).unwrap_or(2026),
             "user": {
@@ -253,7 +253,7 @@ impl<'a> Ctx<'a> {
             "native_webclient": self.p.config.native_webclient,
             "webclient_url": self.p.config.webclient_url,
             "rdgen_url": String::from_utf8_lossy(&rdgen).into_owned(),
-            "update": {"enabled": self.p.config.update_check, "upgrade": upgrade, "checked": checked},
+            "update": {"enabled": self.p.config.update_check, "upgrade": upgrade, "checked": checked, "repo": crate::update_check::repo(), "tag_prefix": crate::update_check::TAG_PREFIX},
             "flash_denied": self.flashed.get("denied").and_then(|v| v.as_str()).unwrap_or(""),
         }))
     }
@@ -281,15 +281,15 @@ pub fn legacy_level(resource: &str) -> &'static str {
 }
 
 impl Pages {
-    /// `(upgradeAvailable, latestVersion() !== null)` from the cached release check (`cortendesk.latest_version`),
-    /// never fetched from here: PHP's pages refill the cache. No value cached reads as "unavailable".
+    /// `(upgrade available, a release is known)` from the cached release check (`update_check::CACHE_KEY`, filled once a
+    /// day by `update_check::start` from HTE's own release tags), compared with HTE Remote's version. Nothing cached: "unknown".
     fn update_state(&self, c: &Connection, now: i64) -> Result<(Option<String>, bool), Fault> {
         if !self.config.update_check {
             return Ok((None, false));
         }
-        let raw = self.store.get_raw(c, "cortendesk.latest_version", now)?;
+        let raw = self.store.get_raw(c, crate::update_check::CACHE_KEY, now)?;
         let latest = raw.and_then(|b| unserialize_string(&b)).filter(|s| !s.is_empty());
-        let current = self.n.api_version.trim().to_string();
+        let current = crate::REMOTE_VERSION.to_string();
         let upgrade = match &latest {
             Some(l) if !current.is_empty() && version_compare(l, &current) > 0 => Some(l.clone()),
             _ => None,
@@ -643,11 +643,11 @@ fn reply_to_response(ctx: &Ctx, r: Reply, head: bool) -> Response<Body> {
 
 /// Largest form body a page reads: forms here are a few hundred bytes.
 fn max_body() -> usize {
-    std::env::var("HTE_CONSOLE_PAGE_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
+    crate::envvar::var("HTE_CONSOLE_PAGE_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
 }
 
 fn upload_max() -> usize {
-    std::env::var("HTE_CONSOLE_UPLOAD_MAX_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(256 << 20)
+    crate::envvar::var("HTE_CONSOLE_UPLOAD_MAX_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(256 << 20)
 }
 
 async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, req: Request<Body>, idx: usize) -> Response<Body> {

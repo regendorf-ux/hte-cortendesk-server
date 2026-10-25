@@ -1,3 +1,22 @@
+HTE Remote server
+=================
+
+This repository (regendorf-ux/hte-cortendesk-server) builds HTE Remote's server: hbbs and hbbr (the ID and relay
+servers) and hte-console (the console, in hte-console/). HTE's changes are listed in HTE.md and
+hte-console/CHANGES.md (section 5(a) of the AGPL); complete corresponding source is published at:
+
+    https://github.com/regendorf-ux/hte-cortendesk-server
+
+HTE Remote is based on:
+
+  - CortenDesk Server (https://github.com/marcpope/cortendesk-server), itself a modified version of
+    rustdesk-server (https://github.com/rustdesk/rustdesk-server), Purslane Ltd. and contributors;
+  - CortenDesk (https://github.com/marcpope/cortendesk), the PHP console whose pages, assets and behaviour
+    hte-console reproduces (see hte-console/NOTICE).
+
+All of it is licensed under the GNU Affero General Public License, version 3 (LICENSE), and so is HTE Remote.
+The notice of CortenDesk Server follows unchanged.
+
 CortenDesk Server
 =================
 

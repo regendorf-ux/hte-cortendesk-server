@@ -1,9 +1,10 @@
-# HTE (2026-10-25), phase 9: the one image of HTE Remote's server, without PHP and without nginx.
+# HTE (2026-10-25), phase 9: HTE Remote's server image, without PHP and without nginx.
 #   hbbs (ID server) + hbbr (relay) + hte-console (the console: pages, client API, server link, scheduler), under supervisord.
-# Built by .github/workflows/hte-image.yml on a tag `v<upstream>-hte.<n>` as ghcr.io/regendorf-ux/hte-cortendesk-server:<upstream>-hte.<n>
-# (from 1.1.1-hte.4 on this name is the all-in-one image; 1.1.1-hte.1 to .3 are the plain hbbs/hbbr image the PHP console's
-# Dockerfile takes its binaries from, and stay that). The binaries are built ahead of this (static musl, `cross`), per
-# architecture, and dropped in `bin/<target arch>/`; nothing is compiled here.
+# Built by .github/workflows/hte-rd-server.yml on a git tag `hte-rd-server-v<x.y.z>` as ghcr.io/regendorf-ux/hte-rd-server:<x.y.z>
+# (HTE Remote's own version, from 2.0.0; the upstream versions are labels). The binaries are built ahead of this (static musl,
+# `cross`), per architecture, and dropped in `bin/<target arch>/`; nothing is compiled here.
+# Based on CortenDesk (the PHP console, whose pages hte-console reproduces) and CortenDesk Server / RustDesk Server (hbbs, hbbr):
+# AGPL-3.0, see LICENSE, NOTICE and hte-console/NOTICE, all copied into the image.
 #
 # Runs as uid 82 (the owner of /opt/hte-remote/data and ./rustdesk on the server, www-data in the PHP image), so the files it
 # writes stay readable by the old PHP image should it ever come back. No root, no capabilities: compose adds read_only,
@@ -11,18 +12,23 @@
 FROM alpine:3.20
 
 ARG TARGETARCH=amd64
+ARG HTE_REMOTE_VERSION=dev
+ARG HTE_REMOTE_SERVER_VERSION=dev
 
 # supervisor: the same supervisord that ran hbbs and hbbr inside the PHP image (docker/rustdesk-server.conf there), with the
 # same restart behaviour; ca-certificates for the Microsoft sign-in (rustls also ships its own roots, this is belt and braces).
 RUN apk add --no-cache supervisor ca-certificates
 
-COPY bin/${TARGETARCH}/hbbs bin/${TARGETARCH}/hbbr bin/${TARGETARCH}/cortendesk-utils bin/${TARGETARCH}/hte-console /usr/bin/
+COPY bin/${TARGETARCH}/hbbs bin/${TARGETARCH}/hbbr bin/${TARGETARCH}/hte-rd-utils bin/${TARGETARCH}/hte-console /usr/bin/
+COPY LICENSE NOTICE /usr/share/licenses/hte-remote/
+COPY hte-console/NOTICE /usr/share/licenses/hte-remote/NOTICE.hte-console
 COPY docker/hte/supervisord.conf /etc/supervisord.conf
 COPY docker/hte/entrypoint.sh /entrypoint.sh
-RUN chmod +x /usr/bin/hbbs /usr/bin/hbbr /usr/bin/cortendesk-utils /usr/bin/hte-console /entrypoint.sh \
+RUN chmod +x /usr/bin/hbbs /usr/bin/hbbr /usr/bin/hte-rd-utils /usr/bin/hte-console /entrypoint.sh \
     && mkdir -p /data/rustdesk && chown -R 82:82 /data
 
-ENV PYTHONDONTWRITEBYTECODE=1 \
+ENV HTE_REMOTE_VERSION=${HTE_REMOTE_VERSION} \
+    HTE_REMOTE_SERVER_VERSION=${HTE_REMOTE_SERVER_VERSION} \
     HTE_RELAY_GATE_PORT=21120 \
     HTE_CONSOLE_LISTEN=0.0.0.0:8080 \
     HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite \

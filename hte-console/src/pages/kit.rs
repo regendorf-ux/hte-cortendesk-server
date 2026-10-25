@@ -242,7 +242,7 @@ pub fn visible_with_trashed(c: &Connection, user: &Row) -> Result<Where, Fault> 
 
 /// `Device::onlineWindow()`
 pub fn online_window(c: &Connection) -> Result<i64, Fault> {
-    let default = std::env::var("CORTENDESK_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
+    let default = crate::envvar::var("HTE_REMOTE_ONLINE_WINDOW").ok().filter(|v| !v.is_empty()).unwrap_or_else(|| "60".into());
     let v = db::setting(c, "online_window", &default)?;
     Ok(if v.is_empty() || v == b"0" { 60 } else { php::str_to_int(&v) })
 }
@@ -412,7 +412,7 @@ pub fn rawurlencode(s: &str) -> String {
 
 /// `ClientLink::to($id)`
 pub fn client_link(c: &Connection, id: &str) -> Result<String, Fault> {
-    let raw = db::setting(c, "client_url_scheme", &std::env::var("CORTENDESK_CLIENT_URL_SCHEME").unwrap_or_default())?;
+    let raw = db::setting(c, "client_url_scheme", &crate::envvar::var("HTE_REMOTE_CLIENT_URL_SCHEME").unwrap_or_default())?;
     let first = lossy(&raw);
     let scheme = first.trim().split(':').next().unwrap_or("").trim().to_lowercase();
     let ok = !scheme.is_empty()

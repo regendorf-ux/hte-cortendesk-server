@@ -139,14 +139,14 @@ fn setting_s(c: &Connection, key: &str) -> Result<String, Fault> {
 
 /// `config('app.url')` passes `FILTER_VALIDATE_URL` and has a host.
 fn app_host_configured() -> bool {
-    let url = std::env::var("APP_URL").unwrap_or_else(|_| "http://localhost".into());
+    let url = crate::envvar::var("APP_URL").unwrap_or_else(|_| "http://localhost".into());
     let Some((scheme, rest)) = url.split_once("://") else { return false };
     let host = rest.split(['/', '?', '#']).next().unwrap_or("").rsplit('@').next().unwrap_or("");
     !scheme.is_empty() && scheme.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '+' | '-' | '.')) && !host.is_empty() && !url.contains(char::is_whitespace)
 }
 
 fn env_s(name: &str) -> String {
-    std::env::var(name).unwrap_or_default().trim().to_string()
+    crate::envvar::var(name).unwrap_or_default().trim().to_string()
 }
 
 /// `FleetDiagnostics::report()`: everything the page and the download show.
@@ -200,8 +200,8 @@ pub fn report(ctx: &Ctx, c: &Connection) -> Result<Report, Fault> {
     };
 
     let app_host = app_host_configured();
-    let websocket_id = !env_s("CORTENDESK_WS_ID_URL").is_empty() || app_host;
-    let websocket_relay = !env_s("CORTENDESK_WS_RELAY_URL").is_empty() || app_host;
+    let websocket_id = !env_s("HTE_REMOTE_WS_ID_URL").is_empty() || app_host;
+    let websocket_relay = !env_s("HTE_REMOTE_WS_RELAY_URL").is_empty() || app_host;
 
     let smtp_configured = !setting_s(c, "smtp_host")?.is_empty() && !setting_s(c, "smtp_from_address")?.is_empty();
     let smtp_enabled = setting_s(c, "smtp_enabled")? == "1" && smtp_configured;
@@ -230,8 +230,8 @@ pub fn report(ctx: &Ctx, c: &Connection) -> Result<Report, Fault> {
     let latest_heartbeat = db::first(c, &format!(r#"select max("last_online_at") as aggregate from "devices" where {APPROVED}"#), &[active()])?
         .and_then(|r| if r.is_null("aggregate") { None } else { Some(s(&r, "aggregate")) });
 
-    let mut id = server(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"], 21116)?;
-    let mut relay = server(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "CORTENDESK_RELAY_SERVER"], 21117)?;
+    let mut id = server(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "HTE_REMOTE_ID_SERVER"], 21116)?;
+    let mut relay = server(c, "relay_server", &["HTE_CONSOLE_RELAY_SERVER", "HTE_REMOTE_RELAY_SERVER"], 21117)?;
     probe_all(&mut [&mut id, &mut relay]);
 
     let versions = versions
@@ -366,7 +366,7 @@ impl Report {
             json!({"label": label, "status": st, "tone": tone, "detail": detail})
         };
         vec![
-            check("Application", Some(true), format!("CortenDesk v{}", self.version)),
+            check("Application", Some(true), format!("HTE Remote v{}", crate::REMOTE_VERSION)),
             check("Database", Some(self.database), if self.database { "Query completed." } else { "Query failed." }.into()),
             check("ID server", Some(self.id.ok()), srv(&self.id)),
             check("Relay server", Some(self.relay.ok()), srv(&self.relay)),
@@ -403,7 +403,7 @@ pub fn index(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
 pub fn export(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
     let r = report(ctx, c)?;
     let body = json_pretty(&r.to_val(true)).ok_or_else(|| Fault::Other("json_encode of the diagnostics report failed".into()))?;
-    Ok(Reply::Download { filename: "cortendesk-diagnostics.json".into(), content_type: "application/json", body: body.into_bytes() })
+    Ok(Reply::Download { filename: "hte-remote-diagnostics.json".into(), content_type: "application/json", body: body.into_bytes() })
 }
 
 /// `json_encode($v, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)`: four spaces, `": "`, `[]`/`{}` for empty arrays.
@@ -455,7 +455,7 @@ pub fn readiness_targets(c: &Connection) -> (bool, (String, u16), Vec<(String, u
     if !database {
         return (false, (String::new(), 21116), vec![]);
     }
-    let id = super::settings::server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"]).map(|v| parse_server(&v, 21116)).unwrap_or_default();
+    let id = super::settings::server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "HTE_REMOTE_ID_SERVER"]).map(|v| parse_server(&v, 21116)).unwrap_or_default();
     let relays = super::settings::relay_pool(c).unwrap_or_default().iter().map(|r| parse_server(r, 21117)).collect();
     (true, id, relays)
 }

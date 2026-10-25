@@ -68,11 +68,11 @@ impl Store {
     /// builds it). Err for an `APP_NAME` whose slug this crate cannot reproduce (non-ASCII: Laravel transliterates);
     /// the deploy passes PHP's own value, so that only matters by hand.
     pub fn from_env() -> Result<Store, String> {
-        let set = |n: &str| std::env::var(n).ok().filter(|v| !v.is_empty());
+        let set = |n: &str| crate::envvar::var(n).ok().filter(|v| !v.is_empty());
         if let Some(p) = set("HTE_CONSOLE_CACHE_PREFIX").or_else(|| set("CACHE_PREFIX")) {
             return Ok(Store { prefix: p });
         }
-        let name = std::env::var("APP_NAME").ok().unwrap_or_else(|| "laravel".into());
+        let name = crate::envvar::var("APP_NAME").ok().unwrap_or_else(|| "laravel".into());
         if !name.is_ascii() {
             return Err("APP_NAME is not ASCII: set HTE_CONSOLE_CACHE_PREFIX to PHP's cache.prefix".into());
         }

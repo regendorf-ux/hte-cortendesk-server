@@ -192,7 +192,7 @@ async fn scenario(base: &str) -> Result<Vec<(String, Obs)>, String> {
 pub async fn run(php: &str, rust: &str) -> Result<Report, String> {
     let a = scenario(php).await?;
     let mut b = scenario(rust).await?;
-    if std::env::var("HTE_WEBREPLAY_MUTATE").map_or(false, |v| v == "1") {
+    if crate::envvar::var("HTE_WEBREPLAY_MUTATE").map_or(false, |v| v == "1") {
         if let Some((_, o)) = b.first_mut() {
             o.text.push("mutated".into());
         }

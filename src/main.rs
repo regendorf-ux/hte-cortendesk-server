@@ -28,7 +28,7 @@ fn main() -> ResultType<()> {
     init_args(
         &args,
         "hbbs",
-        "CortenDesk Server — ID/rendezvous server for RustDesk clients",
+        "HTE Remote ID server (hbbs) — ID/rendezvous server for RustDesk clients",
     );
     let port = get_arg_or("port", RENDEZVOUS_PORT.to_string()).parse::<i32>()?;
     if port < 3 {

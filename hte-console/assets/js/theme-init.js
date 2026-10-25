@@ -1,5 +1,5 @@
 /**
- * CortenDesk early shell state. Loaded synchronously in <head>, before any
+ * HTE Remote early shell state (from CortenDesk). Loaded synchronously in <head>, before any
  * stylesheet paints, so the page never flashes the wrong theme or sidebar
  * width on load. Plain script, no build step.
  *

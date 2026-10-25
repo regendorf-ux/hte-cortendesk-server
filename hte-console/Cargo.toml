@@ -1,9 +1,9 @@
 [package]
 name = "hte-console"
-version = "0.9.0"
+version = "2.0.0"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database. Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC). Phase 3: the server link (the policy hbbs enforces, with HTE's per-person scope; local addresses; refusals) and the scheduled sweeps (reach, computer passwords, stale sessions, diagnostics heartbeat). Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config). Phase 6: local backups in the PHP archive format, restore, log pruning and the daily scheduler entries. Phase 7: the console pages, one group at a time, behind the Laravel session (minijinja templates, htmx). Phase 8: the console's own sign-in (Microsoft OIDC and the break-glass password) and session cookie. Phase 9: the PHP-free image (schema ownership, static files, the remaining scheduler entry)."
+description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database. Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC). Phase 3: the server link (the policy hbbs enforces, with HTE's per-person scope; local addresses; refusals) and the scheduled sweeps (reach, computer passwords, stale sessions, diagnostics heartbeat). Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config). Phase 6: local backups in the PHP archive format, restore, log pruning and the daily scheduler entries. Phase 7: the console pages, one group at a time, behind the Laravel session (minijinja templates, htmx). Phase 8: the console's own sign-in (Microsoft OIDC and the break-glass password) and session cookie. Phase 9: the PHP-free image (schema ownership, static files, the remaining scheduler entry); from 2.0.0 HTE Remote's own console, its version the version of the image hte-rd-server."
 publish = false
 
 [dependencies]
