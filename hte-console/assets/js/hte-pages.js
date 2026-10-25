@@ -189,6 +189,17 @@
         try { history.replaceState(null, '', link.getAttribute('href')); } catch (e) { /* the address bar is a nicety */ }
     });
 
+    // A form that carries one control set per screen size (the role matrix: radios on a desktop, selects on a phone)
+    // sends only the set that is shown, so the hidden copy cannot override what was chosen. Capture phase: before htmx
+    // reads the form.
+    document.addEventListener('submit', function (event) {
+        var form = event.target;
+        if (!form.matches || !form.matches('[data-rd-visible-only]')) { return; }
+        Array.prototype.forEach.call(form.querySelectorAll('select, input[type="radio"]'), function (f) {
+            f.disabled = f.offsetParent === null;
+        });
+    }, true);
+
     // Escape closes the open dialog (wire:keydown.escape).
     document.addEventListener('keydown', function (event) {
         if (event.key !== 'Escape') { return; }

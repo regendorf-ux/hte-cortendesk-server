@@ -1,0 +1,226 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+            <div>
+                <h4 class="header-title">Roles</h4>
+                <p class="rd-card-sub mb-0">
+                    A role opens console sections for a non-administrator. It never widens which
+                    devices or address books a user can see — that stays with their device-group
+                    and sharing grants, so a role can only ever narrow what they already had.
+                    Administrators are unaffected: they always see everything.
+                </p>
+            </div>
+            <div class="rd-card-actions">
+                <a href="/roles?create=1" class="btn btn-primary">
+                    <i class="ri-add-line"></i>New Role
+                </a>
+            </div>
+        </div>
+
+            <div class="table-responsive d-none d-md-block">
+                <table class="table table-hover table-centered mb-0">
+                    <thead>
+                    <tr>
+                        <th>Role</th>
+                        <th>Permissions</th>
+                        <th>2FA</th>
+                        <th>Users</th>
+                        <th class="text-end">Action</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    {% for role in rows %}
+                        <tr>
+                            <td>
+                                <div class="rd-cell rd-tone-teal">
+                                    <span class="rd-avatar"><i class="ri-shield-user-line"></i></span>
+                                    <div class="min-width-0">
+                                        <span class="rd-cell-title">{{ role.name }}</span>
+                                        <span class="rd-cell-sub">{{ role.description or '—' }}</span>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                {% for g in role.granted %}
+                                    <span class="badge {{ 'bg-primary-subtle text-primary' if g.manage else 'bg-secondary-subtle text-secondary' }}">
+                                        {{ g.label }}: {{ g.level }}
+                                    </span>
+                                {% else %}
+                                    <span class="text-muted">No permissions</span>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if role.two_factor %}
+                                    <span class="badge bg-info-subtle text-info"><i class="ri-shield-keyhole-line"></i> Required</span>
+                                {% else %}
+                                    <span class="text-muted">—</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ role.users }}</td>
+                            <td class="text-end rd-rowact">
+                                <a href="/roles?edit={{ role.id }}" class="rd-act me-2">Edit</a>
+                                <form method="post" action="/roles/delete">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ role.id }}">
+                                    <button type="submit" class="text-danger" data-rd-confirm="Delete this role? {{ role.users }} user(s) will revert to standard user access.">Delete</button>
+                                </form>
+                            </td>
+                        </tr>
+                    {% else %}
+                        <tr>
+                            <td colspan="5" class="rd-empty-cell">
+                                <div class="rd-empty">
+                                    <div class="rd-empty-icon"><i class="ri-shield-user-line"></i></div>
+                                    <p class="rd-empty-title">
+                                        No roles yet. Every non-administrator has standard user access.
+                                    </p>
+                                    <p class="rd-empty-text">Create one to let a colleague run the helpdesk without handing over the whole console.</p>
+                                    <a href="/roles?create=1" class="btn btn-sm btn-outline-light">New Role</a>
+                                </div>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="d-md-none rd-cardlist">
+                {% for role in rows %}
+                    <div class="rd-mini">
+                            <div class="rd-mini-head">
+                                <div class="min-width-0">
+                                    <span class="rd-mini-title text-truncate">{{ role.name }}</span>
+                                    <span class="rd-mini-sub text-truncate">{{ role.description or '—' }}</span>
+                                </div>
+                                <span class="badge bg-secondary-subtle text-secondary flex-shrink-0">
+                                    {{ role.users }} {{ role.users_word }}
+                                </span>
+                            </div>
+                            <div class="mt-2">
+                                {% for g in role.granted %}
+                                    <span class="badge {{ 'bg-primary-subtle text-primary' if g.manage else 'bg-secondary-subtle text-secondary' }}">
+                                        {{ g.label }}: {{ g.level }}
+                                    </span>
+                                {% else %}
+                                    <small class="text-muted">No permissions</small>
+                                {% endfor %}
+                                {% if role.two_factor %}
+                                    <span class="badge bg-info-subtle text-info"><i class="ri-shield-keyhole-line"></i> 2FA</span>
+                                {% endif %}
+                            </div>
+                            <div class="rd-mini-acts justify-content-end mt-2">
+                                <a href="/roles?edit={{ role.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                                <form method="post" action="/roles/delete" style="display:contents">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ role.id }}">
+                                    <button type="submit" class="rd-iconbtn text-danger" title="Delete" data-rd-confirm="Delete this role? {{ role.users }} user(s) will revert to standard user access."><i class="ri-delete-bin-line"></i></button>
+                                </form>
+                            </div>
+                    </div>
+                {% else %}
+                    <div class="rd-empty">
+                        <div class="rd-empty-icon"><i class="ri-shield-user-line"></i></div>
+                        <p class="rd-empty-title">
+                            No roles yet. Every non-administrator has standard user access.
+                        </p>
+                        <a href="/roles?create=1" class="btn btn-sm btn-outline-light">New Role</a>
+                    </div>
+                {% endfor %}
+            </div>
+    </div>
+
+    {% if modal.kind == "edit" %}
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+                <div class="modal-content">
+                    <form method="post" action="/roles/save" data-rd-visible-only>
+                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ modal.id }}">
+                        <div class="modal-header">
+                            <h5 class="modal-title">{{ 'Edit Role' if modal.editing else 'New Role' }}</h5>
+                            <a href="/roles" class="btn-close" aria-label="Close" data-rd-close></a>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label" for="rl-name">Name <span class="text-danger">*</span></label>
+                                <input type="text" id="rl-name" name="name" value="{{ modal.name }}" class="form-control{{ ' is-invalid' if modal.errors.name else '' }}"
+                                       autocomplete="off" placeholder="Helpdesk">
+                                {% if modal.errors.name %}<div class="invalid-feedback">{{ modal.errors.name }}</div>{% endif %}
+                            </div>
+
+                            <div class="mb-3">
+                                <label class="form-label" for="rl-description">Description</label>
+                                <input type="text" id="rl-description" name="description" value="{{ modal.description }}" class="form-control{{ ' is-invalid' if modal.errors.description else '' }}"
+                                       autocomplete="off" placeholder="Optional">
+                                {% if modal.errors.description %}<div class="invalid-feedback">{{ modal.errors.description }}</div>{% endif %}
+                            </div>
+
+                            <label class="form-label">Permissions</label>
+                            {% if modal.errors.permissions %}<div class="text-danger fs-13 mb-1">{{ modal.errors.permissions }}</div>{% endif %}
+
+                            <div class="table-responsive d-none d-md-block">
+                                <table class="table table-sm table-centered mb-0">
+                                    <thead>
+                                    <tr>
+                                        <th>Area</th>
+                                        {% for lvl in levels %}
+                                            <th class="text-center">{{ lvl.label }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                    </thead>
+                                    <tbody>
+                                    {% for a in modal.areas %}
+                                        <tr>
+                                            <td>
+                                                {{ a.label }}
+                                                <small class="text-muted d-block">{{ a.hint }}</small>
+                                            </td>
+                                            {% for lvl in levels %}
+                                                <td class="text-center">
+                                                    <input class="form-check-input" type="radio"
+                                                           aria-label="{{ a.label }} {{ lvl.label }}"
+                                                           name="permissions[{{ a.key }}]" value="{{ lvl.key }}"{{ ' checked' if a.level == lvl.key else '' }}>
+                                                </td>
+                                            {% endfor %}
+                                        </tr>
+                                    {% endfor %}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            <div class="d-md-none">
+                                {% for a in modal.areas %}
+                                    <div class="mb-2">
+                                        <label class="form-label mb-1" for="rl-perm-{{ a.key }}">{{ a.label }}</label>
+                                        <select id="rl-perm-{{ a.key }}" class="form-select" name="permissions[{{ a.key }}]">
+                                            {% for lvl in levels %}
+                                                <option value="{{ lvl.key }}"{{ ' selected' if a.level == lvl.key else '' }}>{{ lvl.label }}</option>
+                                            {% endfor %}
+                                        </select>
+                                        <small class="text-muted d-block">{{ a.hint }}</small>
+                                    </div>
+                                {% endfor %}
+                            </div>
+
+                            <div class="form-check form-switch mt-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="rl-2fa" name="require_two_factor" value="1"{{ ' checked' if modal.require_two_factor else '' }}>
+                                <label class="form-check-label" for="rl-2fa">Require two-factor authentication</label>
+                                <small class="text-muted d-block">
+                                    Holders of this role must enrol an authenticator before they can use the console.
+                                    Accounts that sign in through the identity provider are exempt, as everywhere else.
+                                </small>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <a href="/roles" class="btn btn-light">Cancel</a>
+                            <button type="submit" class="btn btn-primary">
+                                <span><i class="ri-save-line me-1"></i>{{ 'Save Role' if modal.editing else 'Create Role' }}</span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    {% endif %}
+</div>
+{% endblock %}

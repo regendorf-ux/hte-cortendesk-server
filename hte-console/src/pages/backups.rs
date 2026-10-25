@@ -364,6 +364,15 @@ pub fn upload(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
 }
 
 /// GET /settings/backups/download
+/// `GET /settings/backups/{name}`: PHP's own download URL (`BackupController::download`), the same file as `?name=`.
+pub fn download_by_path(_: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
+    let name = req.path.rsplit('/').next().unwrap_or("");
+    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')) {
+        return Ok(abort(404));
+    }
+    Ok(Reply::Redirect(format!("/settings/backups/download?name={name}")))
+}
+
 pub fn download(ctx: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
     let _ = ctx;
     let name = q(req, "name");

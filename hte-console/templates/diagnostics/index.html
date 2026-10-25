@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block content %}
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+        <p class="text-muted mb-0">Bounded probes and fleet signals. No test email is sent automatically.</p>
+        <a href="/diagnostics/export" class="btn btn-sm btn-outline-light">
+            <i class="ri-download-2-line me-1"></i>Sanitized JSON
+        </a>
+    </div>
+
+    <div class="row g-3">
+        {% for check in checks %}
+            <div class="col-md-6 col-xl-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between gap-2">
+                            <strong>{{ check.label }}</strong>
+                            <span class="badge bg-{{ check.tone }}-subtle text-{{ check.tone }}">{{ check.status }}</span>
+                        </div>
+                        <p class="text-muted fs-13 mb-0 mt-2">{{ check.detail }}</p>
+                    </div>
+                </div>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="card mt-3">
+        <div class="card-header"><h5 class="card-title mb-0">Fleet summary</h5></div>
+        <div class="card-body">
+            <div class="row g-3 mb-3">
+                {% for f in fleet %}
+                    <div class="col-6 col-lg">
+                        <div class="text-muted fs-13">{{ f.label }}</div>
+                        <div class="fs-4 fw-semibold">
+                            {% if f.key == 'possible_duplicates' and f.value > 0 %}
+                                <a href="/devices?status=duplicates" title="List them on the Devices page">{{ f.value }}</a>
+                            {% else %}
+                                {{ f.value }}
+                            {% endif %}
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+
+            <p class="text-muted fs-13">
+                Version status is relative to the newest client currently reporting in this fleet, not a vendor release feed.
+            </p>
+
+            {% if versions %}
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Client version</th><th>Devices</th><th>Status</th></tr></thead>
+                        <tbody>
+                            {% for version in versions %}
+                                <tr>
+                                    <td class="rd-mono">{{ version.version }}</td>
+                                    <td>{{ version.count }}</td>
+                                    <td>{{ version.status }}</td>
+                                </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            {% else %}
+                <p class="text-muted mb-0">No client versions have been reported.</p>
+            {% endif %}
+        </div>
+    </div>
+{% endblock %}
