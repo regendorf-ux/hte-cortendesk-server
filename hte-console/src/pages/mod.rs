@@ -405,6 +405,9 @@ fn hstr<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
 /// Everything the gate decides before a handler runs. Err(Out) ends the request.
 fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, body: &[u8], peer: SocketAddr, route: &Route) -> Result<(Ctx<'a>, Req), Out> {
     let now = p.n.now();
+    // the local page comparison (`replay/compare-local.sh`) renders each page at the second PHP answered it; only while
+    // the console runs on a set clock (HTE_CONSOLE_CLOCK_START), never in production
+    let now = if p.n.clock_is_set() { hstr(&parts.headers, "x-hte-replay-clock").and_then(|v| v.trim().parse::<i64>().ok()).unwrap_or(now) } else { now };
     let fault = |f: Fault| {
         tracing::error!("page: {}", match &f {
             Fault::Other(m) => m.as_str(),

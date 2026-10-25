@@ -2,7 +2,14 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed
+## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP
+- The replay keeps PHP's answer to every page and dialog of run A, with the starting database, the throwaway app key and the
+  moment, in `/tmp/hte-replay-capture.tgz` on the server (`HTE_REPLAY_CAPTURE` to put it elsewhere; placeholder data only).
+  `replay/compare-local.sh <that file>` then compares a local build with them on a Mac, no PHP and no image build: the
+  pages and dialogs exactly as run A compares them (same code: `page-replay` with `HTE_PAGEREPLAY_PHP_FROM`). The local
+  console runs on the captured clock (`HTE_CONSOLE_CLOCK_START`, and each page at the second PHP answered it, via a header
+  honoured only while that clock is set), so "N minutes ago" and dates read alike. CSV exports, writes and databases still
+  need the server run.
 Three differences, two causes: "Stored in <directory>." was empty on the Settings tabs that are not Backups (PHP prints it always); and PHP's "Uploading…" line under the file field (a Livewire loading `<div>`) was compared (the replay now ignores loading `<div>`s as it ignores loading `<span>`s).
 
 ## 0.7.17 (2026-10-25): the rest of the 0.7.15 dialog list, and the Backups tab

@@ -180,12 +180,63 @@ pub fn seed_sql(now: i64) -> Result<String, String> {
 
 // ------------------------------------------------------------------------------------------------ the replay ---
 
+#[derive(Debug)]
 struct Out {
+    /// when it was asked (unix seconds): kept in a capture, so a local run can render its side at the same second
+    at: i64,
     status: u16,
     ctype: String,
     location: String,
     disposition: String,
     body: String,
+}
+
+/// Where PHP's half comes from. `HTE_PAGEREPLAY_CAPTURE_TO=<dir>`: the live PHP, and each answer the comparison uses is
+/// also saved there. `HTE_PAGEREPLAY_PHP_FROM=<dir>`: no PHP at all, the answers saved by an earlier run are read back,
+/// so a build can be compared on a machine without PHP (`replay/compare-local.sh`): pages and dialogs only (the CSV
+/// exports and the writes need PHP's Livewire).
+#[derive(Clone)]
+enum Side {
+    Live,
+    Save(std::path::PathBuf),
+    From(std::path::PathBuf),
+}
+
+fn side() -> Side {
+    let dir = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty()).map(std::path::PathBuf::from);
+    match (dir("HTE_PAGEREPLAY_PHP_FROM"), dir("HTE_PAGEREPLAY_CAPTURE_TO")) {
+        (Some(d), _) => Side::From(d),
+        (None, Some(d)) => Side::Save(d),
+        _ => Side::Live,
+    }
+}
+
+fn save_out(dir: &std::path::Path, key: &str, label: &str, o: &Out) -> Result<(), String> {
+    let v = serde_json::json!({"label": label, "at": o.at, "status": o.status, "ctype": o.ctype, "location": o.location, "disposition": o.disposition, "body": o.body});
+    std::fs::write(dir.join(format!("{key}.json")), serde_json::to_vec(&v).unwrap_or_default()).map_err(|e| format!("cannot save PHP's answer in {}: {e}", dir.display()))
+}
+
+fn load_out(dir: &std::path::Path, key: &str, label: &str) -> Result<Out, String> {
+    let path = dir.join(format!("{key}.json"));
+    let v: serde_json::Value = serde_json::from_slice(&std::fs::read(&path).map_err(|e| format!("{}: {e} (capture from an older replay? take a new one)", path.display()))?).map_err(|e| format!("{}: {e}", path.display()))?;
+    let s = |k: &str| v.get(k).and_then(|x| x.as_str()).unwrap_or("").to_string();
+    if s("label") != label {
+        return Err(format!("{}: saved for «{}», asked for «{label}»: the capture is from another version of the replay; take a new one", path.display(), s("label")));
+    }
+    Ok(Out { at: v.get("at").and_then(|x| x.as_i64()).unwrap_or(0), status: v.get("status").and_then(|x| x.as_u64()).unwrap_or(0) as u16, ctype: s("ctype"), location: s("location"), disposition: s("disposition"), body: s("body") })
+}
+
+/// PHP's answer to a page request, live, live and saved, or read back.
+async fn php_get(side: &Side, key: &str, label: &str, c: &reqwest::Client, php: &str, cookie: &str, path: &str) -> Result<Out, String> {
+    match side {
+        Side::From(d) => load_out(d, key, label),
+        Side::Live => fetch(c, php, cookie, "GET", path, None, String::new(), &[]).await,
+        Side::Save(d) => {
+            let a = fetch(c, php, cookie, "GET", path, None, String::new(), &[]).await?;
+            save_out(d, key, label, &a)?;
+            Ok(a)
+        }
+    }
 }
 
 fn cookie_for(cfg: &session::SessionConfig, crypt: &Encrypter, user: &str, now: i64) -> String {
@@ -210,6 +261,7 @@ fn update_uri(page: &str) -> String {
 }
 
 async fn fetch(c: &reqwest::Client, base: &str, cookie: &str, method: &str, path: &str, ct: Option<&str>, body: String, extra: &[(&str, &str)]) -> Result<Out, String> {
+    let at = chrono::Utc::now().timestamp();
     let mut rq = c.request(method.parse().map_err(|_| "method")?, format!("{base}{path}")).header("cookie", cookie).header("x-forwarded-for", "198.18.9.1");
     if let Some(ct) = ct {
         rq = rq.header("content-type", ct);
@@ -225,7 +277,7 @@ async fn fetch(c: &reqwest::Client, base: &str, cookie: &str, method: &str, path
         // "http://host" is the same place as "http://host/"
         location = location[i + 3..].find('/').map(|j| location[i + 3 + j..].to_string()).unwrap_or_else(|| "/".into());
     }
-    Ok(Out { status, ctype, location, disposition, body: r.text().await.map_err(|e| e.to_string())? })
+    Ok(Out { at, status, ctype, location, disposition, body: r.text().await.map_err(|e| e.to_string())? })
 }
 
 static TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<!--.*?-->|<(/?)([A-Za-z][A-Za-z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)>"#).unwrap());
@@ -441,7 +493,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     let crypt = Encrypter::from_app_key(key)?;
     // HTE_PAGEREPLAY_RUST_ONLY=1: the writes run on hte-console alone (no Livewire), so the Rust half can be checked where
     // there is no PHP; the comparison with PHP is the server run's
-    let rust_only = std::env::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
+    let side = side();
+    let offline = matches!(side, Side::From(_));
+    let rust_only = offline || std::env::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
     let cfg = session::SessionConfig { cookie: cookie_name.to_string(), lifetime_min: 120, secure: None };
     let c = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
     let (day, week) = (laravel::ts(now - 90_000)[..10].to_string(), laravel::ts(now - 9_000)[..10].to_string());
@@ -492,10 +546,12 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             cases.push((user, path.clone()));
         }
     }
-    for (user, path) in &cases {
+    for (i, (user, path)) in cases.iter().enumerate() {
         let cookie = cookie_for(&cfg, &crypt, user, now);
-        let a = fetch(&c, php, &cookie, "GET", path, None, String::new(), &[]).await?;
-        let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), &[]).await?;
+        let a = php_get(&side, &format!("p{i:03}"), &format!("{user} GET {path}"), &c, php, &cookie, path).await?;
+        let clock = a.at.to_string();
+        let at: &[(&str, &str)] = if offline { &[("x-hte-replay-clock", clock.as_str())] } else { &[] };
+        let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), at).await?;
         *total += 1;
         let label = format!("{user} GET {path}");
         if FRAGMENTS.contains(&path.as_str()) && a.status == 404 && b.status == 200 {
@@ -675,8 +731,11 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("POST /account/theme without a token on {side}: {}, not 419", r.status));
         }
     }
-    if writes && !rust_only {
-        dialogs(&c, php, rust, &cfg, &crypt, now, diffs, by_design, total).await;
+    if (writes && !rust_only) || offline {
+        dialogs(&c, php, rust, &side, &cfg, &crypt, now, diffs, by_design, total).await;
+    }
+    if offline {
+        return Ok(());
     }
     write_steps(&c, php, rust, &cfg, &crypt, now, rust_only, diffs, total).await;
     Ok(())
@@ -729,7 +788,7 @@ fn dialog_of(html: &str) -> Option<&str> {
 
 /// Dialogs: PHP opens them with a Livewire call on the component (their state is not in the URL), hte-console with a query
 /// on the same page; what each shows (text and classes) is compared like a page.
-async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) {
+async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, side: &Side, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) {
     let mut layout = 0usize;
     let mut helper = 0usize;
     use serde_json::json;
@@ -753,17 +812,37 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::Sess
         ("device 1: delete", "/devices/1", "device-detail", "confirmDelete", vec![], "?delete=1"),
     ];
     let cookie = cookie_for(cfg, crypt, "hteadmin", now);
-    for (what, page, component, method, params, query) in cases {
+    for (i, (what, page, component, method, params, query)) in cases.into_iter().enumerate() {
         *total += 1;
         let label = format!("hteadmin dialog {what}");
-        let php_html = match livewire_html(c, php, &cookie, page, component, vec![(vec![], vec![(method, params)])]).await {
+        let key = format!("d{i:02}");
+        let mut clock = String::new();
+        let got = match side {
+            Side::From(d) => load_out(d, &key, &label).map(|o| {
+                clock = o.at.to_string();
+                o.body
+            }),
+            _ => {
+                let at = chrono::Utc::now().timestamp();
+                let h = livewire_html(c, php, &cookie, page, component, vec![(vec![], vec![(method, params)])]).await;
+                if let (Side::Save(d), Ok(body)) = (side, &h) {
+                    let o = Out { at, status: 200, ctype: String::new(), location: String::new(), disposition: String::new(), body: body.clone() };
+                    if let Err(e) = save_out(d, &key, &label, &o) {
+                        diffs.push(e);
+                    }
+                }
+                h
+            }
+        };
+        let php_html = match got {
             Ok(h) => h,
             Err(e) => {
                 diffs.push(format!("{label} (PHP): {e}"));
                 continue;
             }
         };
-        let ours = match fetch(c, rust, &cookie, "GET", &format!("{page}{query}"), None, String::new(), &[]).await {
+        let at: &[(&str, &str)] = if clock.is_empty() { &[] } else { &[("x-hte-replay-clock", clock.as_str())] };
+        let ours = match fetch(c, rust, &cookie, "GET", &format!("{page}{query}"), None, String::new(), at).await {
             Ok(r) if r.status == 200 => r.body,
             Ok(r) => {
                 diffs.push(format!("{label}: hte-console answered {} to GET {page}{query}", r.status));
@@ -949,6 +1028,18 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_saved_php_answer_reads_back_only_for_the_same_request() {
+        let dir = tempfile::tempdir().unwrap();
+        let o = Out { at: 1_761_400_000, status: 302, ctype: "text/html".into(), location: "/login".into(), disposition: String::new(), body: "<p>é</p>".into() };
+        save_out(dir.path(), "p007", "dana GET /devices", &o).unwrap();
+        let back = load_out(dir.path(), "p007", "dana GET /devices").unwrap();
+        assert_eq!((back.at, back.status, back.location.as_str(), back.body.as_str()), (1_761_400_000, 302, "/login", "<p>é</p>"));
+        // another request at that place: the capture belongs to another version of the replay
+        assert!(load_out(dir.path(), "p007", "erin GET /devices").unwrap_err().contains("take a new one"));
+        assert!(load_out(dir.path(), "p008", "dana GET /users").unwrap_err().contains("take a new one"));
+    }
 
     #[test]
     fn hidden_groups_are_cut_whole_and_shown_ones_kept() {

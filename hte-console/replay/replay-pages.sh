@@ -13,6 +13,10 @@
 #
 #   HTE_CONSOLE_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.0 [HTE_REPLAY_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.1] bash replay-pages.sh
 #
+# PHP's answers to every page and dialog of run A are also kept, with the starting database, in
+# ${HTE_REPLAY_CAPTURE:-/tmp/hte-replay-capture.tgz} (placeholder data and a throwaway app key only): on a machine without
+# PHP, `replay/compare-local.sh <that file>` compares a local build against them (no image build needed).
+#
 # Every section always runs (a difference in A or B does not stop the script), and the last line is always printed.
 # Exit 0 = every comparison equal and the mutation caught, 1 = a difference (printed), 2 = could not run.
 # Every docker command reads </dev/null so the script can also be piped through `ssh host 'bash -s'`.
@@ -27,6 +31,7 @@ TAG="hte-pg-$$"
 WORK="$(mktemp -d)"
 NOW="$(date +%s)"
 FAIL=0
+CAPTURE_OUT="${HTE_REPLAY_CAPTURE:-/tmp/hte-replay-capture.tgz}"
 
 cleanup() {
   docker rm -f "$TAG-php" "$TAG-rust" </dev/null >/dev/null 2>&1 || true
@@ -96,11 +101,23 @@ chmod 755 "$WORK/state-before"; chmod 644 "$WORK/state-before/cortendesk.sqlite"
 state "$WORK/state-before" > "$WORK/before-php.txt"
 if cmp -s "$WORK/before-php.txt" "$WORK/before-rust.txt"; then echo "   the two databases start equal ($(wc -l < "$WORK/before-php.txt") lines)"; else echo "   the copies differ before any request: cannot judge" >&2; exit 2; fi
 
+# what a local comparison needs: the starting database, the app key, the moment and the cookie name; PHP's answers follow in A
+mkdir -p "$WORK/capture"; chmod 777 "$WORK/capture"
+cp "$WORK/rdata/cortendesk.sqlite" "$WORK/rdata/.app_key" "$WORK/capture/" 2>/dev/null \
+  || docker run --rm -u 0 --network none -v "$WORK/rdata:/r:ro" -v "$WORK/capture:/c" --entrypoint sh "$CONSOLE_IMAGE" -c 'cp /r/cortendesk.sqlite /r/.app_key /c/ && chmod 644 /c/*' </dev/null
+printf '{"now": %s, "cookie": "%s", "php_image": "%s", "console_image": "%s"}\n' "$NOW" "$COOKIE" "$PHP_IMAGE" "$CONSOLE_IMAGE" > "$WORK/capture/meta.json"
+
 start_rust
 
 echo "== A. every page and write, both sides"
 # the report lists the deliberate differences ("by design: ...", not counted) and the real ones ("DIFFERENCE: ...")
-if replay; then echo "   equal: pages, redirects, text, classes, CSV (the 'by design' lines above are the deliberate differences)"; else echo "   DIFFERENT (see the DIFFERENCE lines above)" >&2; FAIL=1; fi
+if replay -v "$WORK/capture:/capture" -e HTE_PAGEREPLAY_CAPTURE_TO=/capture; then echo "   equal: pages, redirects, text, classes, CSV (the 'by design' lines above are the deliberate differences)"; else echo "   DIFFERENT (see the DIFFERENCE lines above)" >&2; FAIL=1; fi
+
+if tar -C "$WORK/capture" -czf "$CAPTURE_OUT" . 2>/dev/null; then
+  echo "   PHP's answers kept for a local comparison: $CAPTURE_OUT ($(ls "$WORK/capture" | grep -c '^[pd][0-9]') answers)"
+else
+  echo "   (could not keep PHP's answers in $CAPTURE_OUT)" >&2
+fi
 
 echo "== B. the database after the writes, both sides"
 docker stop "$TAG-rust" </dev/null >/dev/null

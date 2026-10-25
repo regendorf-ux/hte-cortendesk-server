@@ -47,6 +47,11 @@ impl Native {
         (self.clock)()
     }
 
+    /// Whether the clock was set with HTE_CONSOLE_CLOCK_START (the local page comparison), not the wall clock.
+    pub fn clock_is_set(&self) -> bool {
+        std::env::var("HTE_CONSOLE_CLOCK_START").map_or(false, |v| !v.trim().is_empty())
+    }
+
     /// Open everything phase 1 needs, or say exactly what is missing. Nothing secret is logged.
     pub fn open(cfg: &crate::config::NativeConfig) -> Result<Native, String> {
         check_owner(&cfg.database)?;
@@ -77,8 +82,26 @@ impl Native {
             limiter: Mutex::new(Limiter::default()),
             nonces: Mutex::new(Nonces::default()),
             signin: crate::signin::State::from_env(),
-            clock: Box::new(|| std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)),
+            clock: clock_from_env(),
         })
+    }
+}
+
+fn real_now() -> i64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs() as i64).unwrap_or(0)
+}
+
+/// The wall clock, or with `HTE_CONSOLE_CLOCK_START=<unix>` a clock that starts at that moment and runs on from there:
+/// for the local page comparison against PHP answers captured earlier (`replay/compare-local.sh`), so "5 minutes ago"
+/// and the dates read as they did when PHP answered. Never set in production.
+fn clock_from_env() -> Box<dyn Fn() -> i64 + Send + Sync> {
+    match std::env::var("HTE_CONSOLE_CLOCK_START").ok().and_then(|v| v.trim().parse::<i64>().ok()) {
+        Some(start) => {
+            let offset = start - real_now();
+            tracing::warn!("HTE_CONSOLE_CLOCK_START is set: the console's clock runs from {start}, not the wall clock");
+            Box::new(move || real_now() + offset)
+        }
+        None => Box::new(real_now),
     }
 }
 
