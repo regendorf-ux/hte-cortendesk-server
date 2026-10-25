@@ -324,7 +324,7 @@ own (its lists assume only its own people and computers).
 
 | | PHP 1.15.0-hte.1 | hte-console |
 |---|---|---|
-| failed token guesses | only the `throttle` after a valid token | additionally a per-address limit of 300 failed authentications a minute (429), so a guessing run is slowed before it reaches the 120/min owner limit that needs a valid token |
+| failed token guesses | only the `throttle` after a valid token | additionally a per-address limit of 300 failed authentications a minute (429), so a guessing run is slowed before it reaches the 120/min owner limit that needs a valid token; callers sharing one egress address with a script that keeps retrying a revoked token share its 300 a minute |
 | request bodies | PHP's limit | 1 MiB (`HTE_CONSOLE_ADMIN_MAX_BODY_BYTES`), 413 over it |
 | `email` validation | egulias/email-validator (RFC) | a narrower check (local part and dotted domain; no quoted strings, comments or IP literals) |
 | `multipart/form-data` bodies | parsed | not parsed (the automation sends JSON); JSON and `application/x-www-form-urlencoded` are read as Laravel reads them |
@@ -334,4 +334,6 @@ own (its lists assume only its own people and computers).
 - Produced by PHP's exceptions, not by input: a 500 renders as `{"message":"Server Error"}` (Laravel without debug); a
   database constraint failure (a duplicate peer or tag, a null `owner_user_id`, a re-used `rustdesk_id` of a disabled
   device through `--assign`) is that 500 here too, and nothing is written.
+- `Authorization: bearer <token>` (other case) is accepted, as in phases 2-4's shared helper (`laravel::bearer_token`); a valid token is still required. Whether Laravel 13's `bearerToken()` is case-sensitive could not be checked (no vendor tree here); the replay against PHP settles it.
+- `POST /api/devices/cli/` (trailing slash) is not a native route and goes to PHP; `/api/v1/*` accepts it as Laravel does.
 - `last_used_at` is stamped with whole seconds, as the models cast it.
