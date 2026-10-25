@@ -225,7 +225,7 @@ async fn a_request_without_a_session_goes_to_the_sign_in_page() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn an_expired_session_a_disabled_person_and_the_middlewares_that_redirect_are_left_to_php() {
+async fn an_expired_session_a_disabled_person_and_the_middlewares_that_redirect() {
     let h = harness().await;
     // expired: last_activity older than the lifetime
     let cookie = h.login(&sid("expired"), 1, json!({}));
@@ -238,19 +238,28 @@ async fn an_expired_session_a_disabled_person_and_the_middlewares_that_redirect_
     let cookie = h.login(&sid("twofactor"), 2, json!({}));
     assert_eq!(h.get("/account", &cookie).await.status, 200);
     h.sql("insert into settings (key, value) values ('two_factor_required', '1')");
-    assert_eq!(h.get("/account", &cookie).await.status, 302);
+    // phase 8 (0.8.2): answered here, to the enrolment page
+    let r = h.get("/account", &cookie).await;
+    assert_eq!((r.status, r.path()), (302, "/account/two-factor".to_string()));
     // ... but not for a session signed in through SSO
     let cookie = h.login(&sid("sso"), 2, json!({session::OIDC_KEY: "oidc"}));
     assert_eq!(h.get("/account", &cookie).await.status, 200);
-    // RequireMailHealthy leaves its mark in the session
+    // RequireMailHealthy: with verification off the mark is simply dropped (PHP: "fixed")...
     h.sql("delete from settings");
     let cookie = h.login(&sid("mailrepair"), 2, json!({"mail_repair": true}));
-    assert_eq!(h.get("/logs/alarms", &cookie).await.status, 302);
+    assert_eq!(h.get("/logs/alarms", &cookie).await.status, 200);
+    assert!(h.payload(&sid("mailrepair")).get("mail_repair").is_none());
+    // ...with it on and the relay failing, to Settings > Email
+    h.sql("insert into settings (key, value) values ('email_login_verification', '1'), ('smtp_enabled', '1'), ('smtp_host', 'smtp.example.test'), ('smtp_from_address', 'a@example.test'), ('smtp_failed_at', '2025-10-25 03:00:00')");
+    let cookie = h.login(&sid("mailrepai2"), 1, json!({"mail_repair": true}));
+    let r = h.get("/logs/alarms", &cookie).await;
+    assert_eq!((r.status, r.path()), (302, "/settings?tab=email".to_string()));
     // RequireEmailAddress: a person with no email is sent to /account, whose forms must still work
     h.sql("delete from settings; insert into settings (key, value) values ('email_login_verification', '1'), ('smtp_enabled', '1'), ('smtp_host', 'smtp.example.test'), ('smtp_from_address', 'a@example.test')");
     h.sql("update users set email = null where id = 2");
     let cookie = h.login(&sid("noemail"), 2, json!({}));
-    assert_eq!(h.get("/logs/alarms", &cookie).await.status, 302);
+    let r = h.get("/logs/alarms", &cookie).await;
+    assert_eq!((r.status, r.path()), (302, "/account".to_string()));
     assert_eq!(h.get("/account", &cookie).await.status, 200);
     let r = h.go("POST", "/account/profile", Some(&cookie), Some("application/x-www-form-urlencoded"), "name=Dana&email=dana%40example.test", &[("x-csrf-token", TOKEN)]).await;
     assert_eq!(r.status, 302);
