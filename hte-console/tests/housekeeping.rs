@@ -244,7 +244,8 @@ fn round_trip_rust_to_rust() {
     let made = backup::create(&w.env, "manual", NOW).unwrap();
     // wreck the live data, and change the transient tables (which a restore must leave alone)
     let c = w.env.open().unwrap();
-    c.execute_batch("delete from users where id = 2; update settings set value = 'changed' where key = 'oidc_enabled'; insert into devices (rustdesk_id, uuid) values ('999', 'z'); delete from alarm_logs; insert into migrations (migration, batch) values ('later', 3); update sessions set payload = 'newer'; insert into cache_locks (key, owner, expiration) values ('p-other', 'o', 1);").unwrap();
+    c.execute_batch("delete from users where id = 2; update settings set value = 'changed' where key = 'oidc_enabled'; insert into devices (rustdesk_id, uuid) values ('999', 'z'); delete from alarm_logs; insert into migrations (migration, batch) values ('later', 3); update sessions set payload = 'newer'; insert into cache_locks (key, owner, expiration) values ('p-other', 'o', 4102444800);").unwrap();
+    // (the foreign lock is not expired: the lock lottery may delete expired ones, 2% of acquisitions, as Laravel's does)
     drop(c);
     let r = backup::restore(&w.env, &made.path, NOW + 60, &no_hook).unwrap();
     assert_eq!(r.rows, made.rows - 2, "every row except `migrations`' two");
