@@ -723,3 +723,76 @@ async fn the_overview_page() {
     let r = h.get("/", &cookie).await;
     assert_eq!(r.status, 200, "{}", r.body);
 }
+
+#[tokio::test]
+async fn the_web_client() {
+    let h = harness().await;
+    std::env::set_var("APP_URL", "https://remote.example.test");
+    // dana (2) has her own HTE Remote book: 1001 (hers) and a stale entry for 1002 (not hers); erin (3) has no book
+    let pw = h.crypt.encrypt_string(b"Zq7-managed-PASSWORD");
+    h.sql("insert into address_books (id, guid, name, owner_user_id, is_personal, created_at, updated_at) values (5, 'g5', 'HTE Remote', 1, 0, '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
+    h.sql("insert into hte_auto_books (user_id, address_book_id, created_at, updated_at) values (2, 5, '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
+    h.sql(&format!("insert into address_book_entries (address_book_id, rustdesk_id, password_enc, created_at, updated_at) values (5, '1001', '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), (5, '1002', '{pw}', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), (5, '1004', null, '2025-01-01 00:00:00', '2025-01-01 00:00:00')"));
+    h.sql("insert into settings (key, value, created_at, updated_at) values ('hte_scope_enforce', '1', '2025-01-01 00:00:00', '2025-01-01 00:00:00'), ('public_key', 'SERVERKEYb64=', '2025-01-01 00:00:00', '2025-01-01 00:00:00')");
+    let dana = h.login(&sid("wc2"), 2, json!({}));
+    let erin = h.login(&sid("wc3"), 3, json!({}));
+
+    // the page: HTE Remote's title and icon, the bundle's configuration in a data attribute, never a password
+    let r = h.get("/webclient?id=1001", &dana).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("<title>1001 — HTE Remote Web Client</title>") && r.body.contains("hte-remote.png"), "{}", r.body);
+    assert!(!r.body.contains("CortenDesk") && !r.body.contains("cortendesk-sm"));
+    assert!(r.body.contains("/rdclient/app.js?v=") && r.body.contains("hte-brand.css") && r.body.contains("hte-webclient.js"));
+    assert!(!r.body.contains("Zq7-managed-PASSWORD"));
+    let cfg = r.body.split("data-config=\"").nth(1).unwrap().split('"').next().unwrap().replace("&quot;", "\"").replace("&#039;", "'").replace("&amp;", "&");
+    let cfg: serde_json::Value = serde_json::from_str(&cfg).unwrap();
+    assert_eq!(cfg["peerId"], "1001");
+    assert_eq!(cfg["myId"], "web-2");
+    assert_eq!(cfg["myName"], "dana");
+    assert_eq!(cfg["serverKeyB64"], "SERVERKEYb64=");
+    assert_eq!(cfg["wsIdUrl"], "wss://remote.example.test/ws/id");
+    assert_eq!(cfg["wsRelayUrl"], "wss://remote.example.test/ws/relay");
+    assert_eq!(cfg["version"], "1.15.0-hte.1");
+    assert!(cfg["workerUrl"].as_str().unwrap().starts_with("/rdclient/session.worker.js?v="));
+    let r = h.get("/webclient", &dana).await;
+    assert!(r.body.contains("<title>HTE Remote Web Client</title>"));
+
+    // the credential: her computer in her book gives the password; a stale entry outside her scope, an entry without a
+    // password, a computer in nobody's book and a person without a book give nothing
+    let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", "1001")]).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert_eq!(serde_json::from_str::<serde_json::Value>(&r.body).unwrap()["password"], "Zq7-managed-PASSWORD");
+    assert!(r.headers.get("cache-control").unwrap().to_str().unwrap().contains("no-cache"));
+    for id in ["1002", "1004", "1003", "9999", ""] {
+        let r = h.post_form("/webclient/credential", &dana, &[tok(), ("id", id)]).await;
+        assert_eq!(r.status, 404, "{id}: {}", r.body);
+        assert_eq!(r.body, "{}");
+    }
+    let r = h.post_form("/webclient/credential", &erin, &[tok(), ("id", "1001")]).await;
+    assert_eq!(r.status, 404);
+    // a form post without the token is refused before the handler
+    let r = h.post_form("/webclient/credential", &dana, &[("id", "1001")]).await;
+    assert_eq!(r.status, 419);
+    // reach rule: with enforcement off dana's stale entry for 1002 would be visible; with it on it is not (checked above)
+
+    // the static files: branded copies with types, ETag and cache rules; the maps are gone
+    let c = reqwest::Client::new();
+    let get = |p: &str| c.get(format!("{}{p}", h.url)).send();
+    let js = get("/rdclient/app.js?v=x").await.unwrap();
+    assert_eq!(js.status(), 200);
+    assert_eq!(js.headers()["content-type"], "text/javascript; charset=utf-8");
+    assert_eq!(js.headers()["cache-control"], "public, max-age=31536000, immutable");
+    let etag = js.headers()["etag"].to_str().unwrap().to_string();
+    let text = js.text().await.unwrap();
+    assert!(text.contains("HTE <span>Remote</span>") && !text.contains("CortenDesk") && !text.contains("sourceMappingURL"));
+    let r = c.get(format!("{}/rdclient/app.js", h.url)).header("if-none-match", &etag).send().await.unwrap();
+    assert_eq!(r.status(), 304);
+    assert_eq!(get("/rdclient/logo.png").await.unwrap().headers()["content-type"], "image/png");
+    assert_eq!(get("/rdclient/app.css").await.unwrap().headers()["content-type"], "text/css; charset=utf-8");
+    assert_eq!(get("/rdclient/session.worker.js").await.unwrap().status(), 200);
+    assert_eq!(get("/rdclient/app.js.map").await.unwrap().status(), 404);
+    // without a session the page is not shown
+    let r = h.client.get(format!("{}/webclient?id=1001", h.url)).send().await.unwrap();
+    assert!(r.status().is_redirection(), "{}", r.status());
+    std::env::remove_var("APP_URL");
+}

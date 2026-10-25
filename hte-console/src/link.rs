@@ -44,7 +44,20 @@ impl Link {
     /// As the PHP image gets it: `CORTENDESK_SERVER_SECRET`, else the file the entrypoint generates
     /// (`HTE_CONSOLE_SERVER_SECRET_FILE`, default `/data/.server_secret`), trimmed.
     pub fn from_env() -> Result<Link, String> {
-        let secret = match std::env::var("CORTENDESK_SERVER_SECRET").ok().filter(|s| !s.trim().is_empty()) {
+        let secret = server_secret();
+        let link = Link::new(&secret, Store::from_env()?);
+        if link.secret.is_empty() {
+            tracing::warn!("server link: no secret (CORTENDESK_SERVER_SECRET or the secret file): /api/server/* answer 404 as PHP does unlinked");
+        }
+        Ok(link)
+    }
+}
+
+/// The shared secret the ID server and the console sign with: `CORTENDESK_SERVER_SECRET`, else the secret file; empty = the link is off.
+/// Never logged.
+pub fn server_secret() -> String {
+    {
+        match std::env::var("CORTENDESK_SERVER_SECRET").ok().filter(|s| !s.trim().is_empty()) {
             Some(s) => s,
             None => {
                 let path = std::env::var("HTE_CONSOLE_SERVER_SECRET_FILE").unwrap_or_else(|_| "/data/.server_secret".into());
@@ -58,13 +71,10 @@ impl Link {
                     }
                 }
             }
-        };
-        let link = Link::new(&secret, Store::from_env()?);
-        if link.secret.is_empty() {
-            tracing::warn!("server link: no secret (CORTENDESK_SERVER_SECRET or the secret file): /api/server/* answer 404 as PHP does unlinked");
         }
-        Ok(link)
     }
+    .trim()
+    .to_string()
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

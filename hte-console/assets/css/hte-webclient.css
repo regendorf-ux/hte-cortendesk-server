@@ -1,0 +1,9 @@
+/* HTE Remote's web client: the password box starts collapsed for a signed-in person (hte-webclient.js). */
+.rd-connect-row .rd-input.hte-collapsed { display: none; }
+.rd-connect-row.hte-collapsed-row { justify-content: center; }
+.hte-pw-toggle {
+    display: block; margin: 10px auto 0; background: none; border: 0; padding: 4px 8px;
+    color: var(--rd-muted); font: inherit; font-size: 12.5px; cursor: pointer; text-decoration: underline;
+}
+.hte-pw-toggle:hover { color: var(--rd-fg); }
+.rd-save.hte-hidden { display: none; }

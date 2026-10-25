@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'light' if theme == 'light' else 'dark' }}" data-rd-theme-pref="{{ theme }}">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>{{ title }}</title>
+    <link rel="shortcut icon" type="image/png" href="/assets/images/hte-remote.png?v={{ app_version }}">
+    <script src="/assets/js/theme-init.js?v={{ app_version }}"></script>
+    <link rel="stylesheet" href="/assets/vendor/remixicon/remixicon.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/rdclient/app.css?v={{ version }}">
+    <link rel="stylesheet" href="/assets/css/hte-brand.css?v={{ app_version }}">
+    <link rel="stylesheet" href="/assets/css/hte-webclient.css?v={{ app_version }}">
+    <style>
+        html, body { height: 100%; margin: 0; overflow: hidden; background: #000; }
+        #rd-root { height: 100vh; height: 100dvh; }
+    </style>
+</head>
+<body>
+
+    <div id="rd-root">
+        <div id="rd-toolbar"></div>
+        <div id="rd-viewport">
+            <canvas id="rd-canvas"></canvas>
+            <div id="rd-stats"></div>
+            <div id="rd-overlay"></div>
+        </div>
+    </div>
+
+    <div id="rd-config" data-config="{{ config }}" hidden></div>
+    <script src="/assets/js/hte-webclient.js?v={{ app_version }}"></script>
+    <script type="module" src="/rdclient/app.js?v={{ version }}" data-rd-worker="/rdclient/session.worker.js?v={{ version }}"></script>
+
+</body>
+</html>

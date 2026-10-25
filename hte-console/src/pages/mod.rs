@@ -25,6 +25,7 @@ pub mod session;
 pub mod settings;
 pub mod strategies;
 pub mod unavailable;
+pub mod webclient;
 
 /// One write transaction (`begin immediate` .. `commit`, rolled back on an error).
 pub(crate) fn strategies_tx<T>(c: &rusqlite::Connection, f: impl FnOnce() -> Result<T, crate::php::Fault>) -> Result<T, crate::php::Fault> {
@@ -664,6 +665,13 @@ async fn asset(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::ex
     assets::respond(&path, req.method() == Method::HEAD)
 }
 
+async fn rdclient(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::extract::Path<String>, req: Request<Body>) -> Response<Body> {
+    if req.method() != Method::GET && req.method() != Method::HEAD {
+        return error_response(405, "Method Not Allowed", false);
+    }
+    webclient::respond(&path, req.uri().query(), req.headers(), req.method() == Method::HEAD)
+}
+
 pub static ROUTES: &[Route] = &[
     Route { path: "/logs/alarms", methods: &["GET"], need: Some(("audit", "r")), handler: logs::alarms },
     Route { path: "/logs/alarms/export", methods: &["GET"], need: Some(("audit", "r")), handler: logs::alarms_export },
@@ -705,6 +713,8 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/dashboard/stats", methods: &["GET"], need: None, handler: overview::stats_fragment },
     Route { path: "/dashboard/sessions", methods: &["GET"], need: Some(("audit", "r")), handler: overview::sessions_fragment },
     Route { path: "/dashboard/disconnect", methods: &["POST"], need: Some(("audit", "r")), handler: overview::disconnect },
+    Route { path: "/webclient", methods: &["GET"], need: None, handler: webclient::show },
+    Route { path: "/webclient/credential", methods: &["POST"], need: None, handler: webclient::credential },
     Route { path: "/settings", methods: &["GET"], need: Some(("setting", "r")), handler: settings::index },
     Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },
     Route { path: "/settings/relay", methods: &["POST"], need: Some(("setting", "r")), handler: settings::relay },
@@ -736,6 +746,7 @@ pub fn routes(n: Arc<Native>, php: Option<Router>) -> Result<Router, String> {
         r = r.route(route.path, any(move |s: State<Arc<Pages>>, c: ConnectInfo<SocketAddr>, req: Request<Body>| serve(s, c, req, i)));
     }
     r = r.route("/assets/*path", any(asset));
+    r = r.route("/rdclient/*path", any(rdclient));
     Ok(r.with_state(pages))
 }
 
