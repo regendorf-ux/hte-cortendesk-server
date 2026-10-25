@@ -550,3 +550,28 @@ async fn a_wrong_method_is_a_405_for_a_signed_in_person_and_php_s_business_for_a
     let big = "x".repeat(70 * 1024);
     assert_eq!(h.go("POST", "/account/profile", Some(&cookie), Some("application/x-www-form-urlencoded"), &big, &[]).await.status, 413);
 }
+
+// ------------------------------------------------------------------------------------- the replay tool itself ---
+
+/// `hte-console page-replay` against hte-console on both sides must find nothing (it is how the tool is checked here:
+/// PHP is not available on this machine), and must see a difference when one exists.
+#[tokio::test(flavor = "multi_thread")]
+async fn the_page_replay_finds_no_difference_between_two_identical_consoles_and_sees_a_real_one() {
+    use hte_console::pagereplay;
+    let (a, b) = (harness().await, harness().await);
+    let seed = pagereplay::seed_sql(NOW).unwrap();
+    for h in [&a, &b] {
+        h.sql(&seed);
+    }
+    let r = pagereplay::run_with(&a.url, &b.url, APP_KEY, "hte-remote-session", NOW, false).await.unwrap();
+    assert!(r.total > 60, "{} requests", r.total);
+    assert!(r.differences.is_empty(), "{}", r.differences.join("\n"));
+    // one text changed on one side
+    b.sql("update alarm_logs set info = 'tampered' where id = 3");
+    let r = pagereplay::run_with(&a.url, &b.url, APP_KEY, "hte-remote-session", NOW, false).await.unwrap();
+    assert!(r.differences.iter().any(|d| d.contains("GET /logs/alarms") && d.contains("tampered")), "{:?}", r.differences);
+    // and a different class (a badge) on one side
+    b.sql("update alarm_logs set info = (select info from alarm_logs where id = 2) where id = 3; update alarm_logs set typ = 9 where id = 5");
+    let r = pagereplay::run_with(&a.url, &b.url, APP_KEY, "hte-remote-session", NOW, false).await.unwrap();
+    assert!(r.differences.iter().any(|d| d.contains("classes") || d.contains("text")), "{:?}", r.differences);
+}

@@ -24,6 +24,7 @@ pub mod housekeeping;
 pub mod laravel;
 pub mod link;
 pub mod oidc;
+pub mod pagereplay;
 pub mod pages;
 pub mod passwords;
 pub mod passwords_sweep;

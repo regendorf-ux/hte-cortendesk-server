@@ -68,6 +68,16 @@ async fn main() {
         Some("schedule-locks") => schedule_locks(),
         // phase 6: backups, restore, pruning (housekeeping.rs)
         Some("backup" | "backups" | "restore" | "prune-logs" | "prune-invitations" | "housekeeping-locks") => hte_console::housekeeping::cli(&args),
+        // phase 7: the pages, PHP's against ours (pagereplay.rs)
+        Some("page-seed") => match args.get(1).and_then(|n| n.parse::<i64>().ok()).map(hte_console::pagereplay::seed_sql) {
+            Some(Ok(s)) => {
+                print!("{s}");
+                0
+            }
+            Some(Err(e)) => fail(&e),
+            None => fail("usage: hte-console page-seed <unix-now>"),
+        },
+        Some("page-replay") => page_replay(&args[1..]).await,
         Some("sql-apply") => match (args.get(1), args.get(2)) {
             (Some(db), Some(file)) => sql_apply(db, file),
             _ => fail("usage: hte-console sql-apply <sqlite> <sql>"),
@@ -75,6 +85,34 @@ async fn main() {
         Some(other) => fail(&format!("unknown command {other}")),
     };
     std::process::exit(code);
+}
+
+/// Phase 7: `hte-console page-replay <php-url> <rust-url> <unix-now>`; the app key from APP_KEY or
+/// HTE_CONSOLE_APP_KEY_FILE, the session cookie's name from HTE_CONSOLE_SESSION_COOKIE; HTE_PAGEREPLAY_READS_ONLY=1 skips
+/// the writes (the mutation check wants a run that changes nothing).
+async fn page_replay(args: &[String]) -> i32 {
+    let (Some(php), Some(rust), Some(now)) = (args.first(), args.get(1), args.get(2).and_then(|n| n.parse::<i64>().ok())) else {
+        return fail("usage: hte-console page-replay <php-url> <rust-url> <unix-now>");
+    };
+    let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
+        Some(k) => k,
+        None => match std::fs::read_to_string(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())) {
+            Ok(k) => k,
+            Err(e) => return fail(&format!("cannot read the app key: {e}")),
+        },
+    };
+    let Some(cookie) = std::env::var("HTE_CONSOLE_SESSION_COOKIE").ok().filter(|c| !c.trim().is_empty()) else {
+        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name PHP uses (config('session.cookie'))");
+    };
+    let writes = std::env::var("HTE_PAGEREPLAY_READS_ONLY").map_or(true, |v| v.trim().is_empty() || v == "0");
+    match hte_console::pagereplay::run_with(php, rust, &key, &cookie, now, writes).await {
+        Ok(r) => {
+            println!("{} page requests, {} differences", r.total, r.differences.len());
+            r.differences.iter().for_each(|d| println!("{d}"));
+            if r.differences.is_empty() { 0 } else { 1 }
+        }
+        Err(e) => fail(&e),
+    }
 }
 
 fn seed_expand(file: &str, idp: &str) -> i32 {

@@ -2,6 +2,18 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.0 (2026-10-25): phase 7a, the page layer (sessions, CSRF, templates, htmx) and the first pages
+- Reads PHP's session: the `hte-remote-session` cookie decrypted with `/data/.app_key`, the `sessions` table (PHP must run
+  `SESSION_DRIVER=database`; `phase7/deploy.sh` flips it). A request without a valid session is forwarded to PHP, never served.
+- CSRF compatible with Livewire and plain forms (`_token`, `X-CSRF-TOKEN`, `X-XSRF-TOKEN`, `Sec-Fetch-Site`); flashes with
+  Laravel's one-request lifetime; `console-can` redirect.
+- minijinja templates and the CSS/JS/images (HTE brand included) embedded in the binary; htmx 2.0.4 vendored, no CDN.
+- Pages: Account (profile, password, theme; the 2FA card is read-only and links to PHP), Logs: Connections, File Transfers,
+  Alarms, Logins, Console (filters, paging, CSV). Dashboard NOT ported.
+- `page-seed` / `page-replay` (reads and writes against real PHP, databases compared), `replay/replay-pages.sh`,
+  `examples/pages_demo.rs` (screenshots on synthetic data). `HTE_CONSOLE_PAGES=0` turns the pages off.
+- Not routed by default: Caddy lines are in `phase7/NOTES.md`.
+
 ## 0.6.0 (2026-10-25): phase 6, local backups, restore, pruning and the daily scheduler entries
   Review (Opus 5.5, read-only) fixes: the archive is created 0600 from the start; the schema version is read before the
   restore's copy; staged server files are copied aside first and old `*.restore` files dropped, and a failure after the
