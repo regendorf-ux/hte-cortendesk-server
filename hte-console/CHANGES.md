@@ -2,6 +2,14 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.10 (2026-10-25): the ten differences left in the server replay of 0.7.9
+The 0.7.9 run (131 requests) went from 36 to 10 differences, section B was equal (214 lines: the API token step now matches), C caught the mutation. Fixed:
+- Every POST control that stands where PHP has a link (Disconnect on the Dashboard, tag remove on the device page and in address books, Approve/Reject/Restore/Destroy,
+  address-book Remove, phone-list icon buttons) is a class-free inline form around a button with PHP's exact classes; no `d-inline`, `d-contents` or `btn btn-link`.
+  The replay reports only the first difference per page, so all such places were fixed, not just the ones named.
+- User detail: the device platform icon carries `fs-18 align-middle` like PHP's component.
+- Settings: "Test Connection" and "Send test email" (not ported, disabled) now have PHP's markup and text; "not available" moved to the button's tooltip.
+
 ## 0.7.9 (2026-10-25): the markup differences the server replay of 0.7.8 found (36), and the replay itself
 Fixes (the replay compares what a person reads and the CSS class sequence of every page with PHP's):
 - Dashboard (`/`): no extra "Dashboard" breadcrumb item (PHP shows none on this page).

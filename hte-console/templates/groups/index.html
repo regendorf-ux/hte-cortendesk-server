@@ -90,7 +90,7 @@
                     {% if can_manage %}
                     <div class="rd-mini-acts">
                         <a href="{{ edit_prefix }}{{ g.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
-                        <form method="post" action="/groups/act" class="d-contents">
+                        <form method="post" action="/groups/act" style="display:contents">
                             <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="type" value="{{ tab }}"><input type="hidden" name="id" value="{{ g.id }}">
                             <button type="submit" name="do" value="delete" class="rd-iconbtn text-danger" title="Delete" data-rd-confirm="{{ 'Delete this user group? Users in it will be kept but no longer belong to any group.' if tab == 'users' else 'Delete this device group? Devices in it will be kept but no longer belong to any group.' }}"><i class="ri-delete-bin-line"></i></button>
                         </form>

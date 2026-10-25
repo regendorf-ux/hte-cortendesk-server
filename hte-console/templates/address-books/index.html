@@ -77,14 +77,14 @@
                     {% if not book.personal and can_manage %}
                         <div class="d-flex gap-2">
                             <a href="{{ rename_url }}" class="btn btn-sm btn-light"><i class="ri-pencil-line me-1"></i>Rename</a>
-                            <form method="post" action="/address-books/act" class="d-inline">
+                            <form method="post" action="/address-books/act" style="display:inline">
                                 <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}">
                                 <button type="submit" name="do" value="delete-book" class="btn btn-sm btn-outline-danger" data-rd-confirm="Delete address book “{{ book.name }}”? This also permanently deletes all of its entries, tags, and sharing rules."><i class="ri-delete-bin-line me-1"></i>Delete</button>
                             </form>
                         </div>
                     {% elif book.personal and book.orphan and can_manage %}
                         <div class="d-flex gap-2">
-                            <form method="post" action="/address-books/act" class="d-inline">
+                            <form method="post" action="/address-books/act" style="display:inline">
                                 <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}">
                                 <button type="submit" name="do" value="delete-book" class="btn btn-sm btn-outline-danger" data-rd-confirm="Delete this orphaned address book? Its owner no longer exists, so nobody can read it. This permanently deletes its entries and tags."><i class="ri-delete-bin-line me-1"></i>Delete</button>
                             </form>
@@ -100,9 +100,9 @@
                         <span class="badge d-inline-flex align-items-center gap-1 {{ t.text }}" style="background-color: {{ t.hex }};">
                             {{ t.name }}
                             {% if can_manage %}
-                                <form method="post" action="/address-books/act" class="d-contents">
+                                <form method="post" action="/address-books/act" style="display:contents">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ t.id }}">
-                                    <button type="submit" name="do" value="delete-tag" class="btn btn-link p-0 border-0 {{ t.text }} text-decoration-none lh-1" title="Delete tag" data-rd-confirm="Delete tag “{{ t.name }}”? It will be removed from all entries."><i class="ri-close-line align-middle"></i></button>
+                                    <button type="submit" name="do" value="delete-tag" class="{{ t.text }} text-decoration-none lh-1" title="Delete tag" data-rd-confirm="Delete tag “{{ t.name }}”? It will be removed from all entries."><i class="ri-close-line align-middle"></i></button>
                                 </form>
                             {% endif %}
                         </span>
@@ -156,9 +156,9 @@
                                 <td class="text-end rd-rowact">
                                     {% if can_write %}
                                         <a href="{{ entry_edit_prefix }}{{ e.id }}" class="rd-act me-2">Edit</a>
-                                        <form method="post" action="/address-books/act" class="d-inline">
+                                        <form method="post" action="/address-books/act" style="display:inline">
                                             <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ e.id }}">
-                                            <button type="submit" name="do" value="delete-entry" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="Remove {{ e.rustdesk_id }} from this address book?">Remove</button>
+                                            <button type="submit" name="do" value="delete-entry" class="text-danger" data-rd-confirm="Remove {{ e.rustdesk_id }} from this address book?">Remove</button>
                                         </form>
                                     {% else %}
                                         <span class="text-muted">—</span>
@@ -195,7 +195,7 @@
                                 {% if can_write %}
                                     <div class="rd-mini-acts">
                                         <a href="{{ entry_edit_prefix }}{{ e.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
-                                        <form method="post" action="/address-books/act" class="d-contents">
+                                        <form method="post" action="/address-books/act" style="display:contents">
                                             <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ e.id }}">
                                             <button type="submit" name="do" value="delete-entry" class="rd-iconbtn text-danger" title="Remove" data-rd-confirm="Remove {{ e.rustdesk_id }} from this address book?"><i class="ri-delete-bin-line"></i></button>
                                         </form>
@@ -234,13 +234,13 @@
                         {% for r in rules %}
                             <div class="d-flex align-items-center gap-2 rd-inset mb-2 flex-wrap">
                                 <span class="flex-grow-1 text-truncate"><i class="{{ r.icon }} me-1 text-muted"></i>{{ r.label }}</span>
-                                <form method="post" action="/address-books/act" class="d-inline">
+                                <form method="post" action="/address-books/act" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ r.id }}"><input type="hidden" name="do" value="rule-perm">
                                     <select class="form-select form-select-sm w-auto" name="permission" aria-label="Permission" data-rd-autosubmit-select>
                                         {% for l in perm_labels %}<option value="{{ l.v }}"{{ ' selected' if r.permission == l.v else '' }}>{{ l.l }}</option>{% endfor %}
                                     </select>
                                 </form>
-                                <form method="post" action="/address-books/act" class="d-inline">
+                                <form method="post" action="/address-books/act" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ r.id }}">
                                     <button type="submit" name="do" value="delete-rule" class="rd-iconbtn text-danger" title="Delete rule" data-rd-confirm="Delete this sharing rule?"><i class="ri-delete-bin-line"></i></button>
                                 </form>

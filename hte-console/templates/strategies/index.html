@@ -286,7 +286,7 @@
                         <td>{{ r.n }}{% if r.active %} <span class="badge bg-success-subtle text-success">Active</span>{% endif %}</td>
                         <td>{{ r.by }}</td><td>{{ r.when }}</td><td>{{ r.affected }}</td><td>{{ r.note }}</td>
                         <td class="text-end">{% if can_manage and not r.active %}
-                            <form method="post" action="/strategies/restore" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ r.id }}"><button type="submit" class="btn btn-link p-0 align-baseline">Restore as new revision</button></form>
+                            <form method="post" action="/strategies/restore" style="display:inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ r.id }}"><button type="submit" class="btn btn-link p-0 align-baseline">Restore as new revision</button></form>
                         {% endif %}</td>
                     </tr>
                     {% endfor %}

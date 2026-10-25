@@ -61,7 +61,7 @@
                     {% for d in devices %}
                         <div class="rd-def">
                             <dt class="fw-normal min-width-0">
-                                <i class="{{ d.platform.icon }} {{ d.platform.color }} me-1" title="{{ d.platform.label }}"></i>
+                                <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-18 align-middle me-1" title="{{ d.platform.label }}"></i>
                                 <a href="/devices/{{ d.id }}" class="rd-cell-link">{{ d.name }}</a>
                                 <span class="text-muted">· {{ d.rustdesk_id }}</span>
                             </dt>

@@ -42,9 +42,9 @@
                                 {% if x.disconnecting %}
                                     <span class="badge bg-warning-subtle text-warning" title="Sent on the device's next heartbeat">Disconnecting…</span>
                                 {% else %}
-                                    <form method="post" action="/dashboard/disconnect" class="d-inline">
+                                    <form method="post" action="/dashboard/disconnect" style="display:inline">
                                         <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ x.id }}">
-                                        <button type="submit" class="btn btn-link p-0 align-baseline text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
+                                        <button type="submit" class="text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
                                     </form>
                                 {% endif %}
                             </td>
@@ -72,9 +72,9 @@
                             {% if x.disconnecting %}
                                 <span class="badge bg-warning-subtle text-warning">Disconnecting…</span>
                             {% else %}
-                                <form method="post" action="/dashboard/disconnect" class="d-inline">
+                                <form method="post" action="/dashboard/disconnect" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ x.id }}">
-                                    <button type="submit" class="btn btn-link p-0 align-baseline text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
+                                    <button type="submit" class="text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
                                 </form>
                             {% endif %}
                         </div>

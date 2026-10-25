@@ -76,7 +76,7 @@
                                 {% if can_edit %}
                                     <a href="{{ url }}?delete={{ t.id }}" class="btn btn-sm btn-outline-danger">
                                         <i class="ri-delete-bin-line me-1"></i>Delete {{ t.rustdesk_id }}</a>
-                                    <form method="post" action="{{ url }}/do" class="d-inline">
+                                    <form method="post" action="{{ url }}/do" style="display:inline">
                                         <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
                                         <input type="hidden" name="do" value="dismiss"><input type="hidden" name="twin" value="{{ t.id }}">
                                         <button type="submit" class="btn btn-sm btn-outline-light"
@@ -164,7 +164,7 @@
                                 <div class="rd-def"><dt>Nobody</dt><dd>—</dd></div>
                             {% endfor %}
                             <div class="rd-def" id="hte-password-row"><dt>Password</dt>
-                                <dd class="{{ reach.pw.tone }}">{{ reach.pw.text }}<br><span class="fs-12 text-muted">{{ reach.pw.sub }}{% if reach.pw.rotate %} · <form method="post" action="{{ url }}/do" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="do" value="rotate-password"><button type="submit" class="btn btn-link p-0 fs-12 align-baseline">change now</button></form>{% endif %}</span></dd>
+                                <dd class="{{ reach.pw.tone }}">{{ reach.pw.text }}<br><span class="fs-12 text-muted">{{ reach.pw.sub }}{% if reach.pw.rotate %} · <form method="post" action="{{ url }}/do" style="display:inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="do" value="rotate-password"><button type="submit" class="btn btn-link p-0 fs-12 align-baseline">change now</button></form>{% endif %}</span></dd>
                             </div>
                         </dl>
                         <div class="form-text mt-2">
@@ -241,10 +241,10 @@
                         <span class="badge bg-secondary-subtle text-secondary me-1 mb-1">
                             <i class="ri-contacts-book-2-line me-1"></i>{{ b.label }}
                             {% if b.writable %}
-                                <form method="post" action="{{ url }}/do" class="d-inline">
+                                <form method="post" action="{{ url }}/do" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
                                     <input type="hidden" name="do" value="remove-book"><input type="hidden" name="book_id" value="{{ b.id }}">
-                                    <button type="submit" class="btn btn-link p-0 text-secondary ms-1 align-baseline" title="Remove from this address book"
+                                    <button type="submit" class="text-secondary ms-1" title="Remove from this address book"
                                             aria-label="Remove from {{ b.name }}"
                                             data-rd-confirm="Remove this device from {{ b.name }}?"><i class="ri-close-line"></i></button>
                                 </form>

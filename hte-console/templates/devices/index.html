@@ -264,11 +264,11 @@
                     <td class="text-end rd-rowact">
                         {% if st.trashed %}
                             {% if can_rw %}
-                                <form method="post" action="/devices/act" class="d-inline">
+                                <form method="post" action="/devices/act" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
                                     <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
-                                    <button type="submit" name="do" value="restore" class="btn btn-link p-0 align-baseline text-success me-2">Restore</button>
-                                    <button type="submit" name="do" value="destroy" class="btn btn-link p-0 align-baseline text-danger"
+                                    <button type="submit" name="do" value="restore" class="text-success me-2">Restore</button>
+                                    <button type="submit" name="do" value="destroy" class="text-danger"
                                             data-rd-confirm="PERMANENTLY delete device {{ d.rustdesk_id }}? This cannot be undone.">Destroy</button>
                                 </form>
                             {% endif %}
@@ -358,7 +358,7 @@
                     <div class="rd-mini-acts">
                         {% if st.trashed %}
                             {% if can_rw %}
-                                <form method="post" action="/devices/act" class="d-inline">
+                                <form method="post" action="/devices/act" style="display:inline">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
                                     <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
                                     <button type="submit" name="do" value="restore" class="rd-iconbtn text-success" title="Restore"><i class="ri-arrow-go-back-line"></i></button>

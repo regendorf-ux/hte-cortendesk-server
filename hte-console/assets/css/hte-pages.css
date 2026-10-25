@@ -33,3 +33,11 @@ html[data-bs-theme="light"] {
 .rd-rowact form > button:hover, .rd-rowact form > button:focus-visible { text-decoration: underline; }
 
 form[action="/address-books"] { flex: 1 1 auto; }
+
+/* A POST control that must look like the link PHP has there: a class-free inline form around a button that carries the link's classes. */
+form[style*="display:inline"] > button:not(.btn):not(.rd-iconbtn), form[style*="display:contents"] > button:not(.btn):not(.rd-iconbtn) {
+    background: none; border: 0; padding: 0; margin: 0; font: inherit; line-height: inherit; vertical-align: baseline;
+    color: var(--bs-link-color); cursor: pointer; text-decoration: none;
+}
+form[style*="display:inline"] > button:not(.btn):not(.rd-iconbtn):hover, form[style*="display:contents"] > button:not(.btn):not(.rd-iconbtn):hover { text-decoration: underline; }
+form[style*="display:inline"] > button.rd-iconbtn, form[style*="display:contents"] > button.rd-iconbtn { background: none; border: 0; }

@@ -129,7 +129,7 @@
                         <a href="{{ edit_prefix }}{{ u.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
                         <a href="{{ assign_prefix }}{{ u.id }}" class="rd-iconbtn" title="Assign devices"><i class="ri-computer-line"></i></a>
                         {% if not u.self %}
-                            <form method="post" action="/users/act" class="d-contents">
+                            <form method="post" action="/users/act" style="display:contents">
                                 <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ u.id }}">
                                 <button type="submit" name="do" value="toggle" class="rd-iconbtn" title="{{ 'Disable' if u.active else 'Enable' }}"><i class="{{ 'ri-user-unfollow-line' if u.active else 'ri-user-follow-line' }}"></i></button>
                                 <button type="submit" name="do" value="logout" class="rd-iconbtn" title="Force logout everywhere" data-rd-confirm="Force {{ u.username }} to log out everywhere? This signs out their RustDesk clients and console sessions."><i class="ri-logout-box-r-line"></i></button>
