@@ -348,7 +348,7 @@
                             <input class="form-check-input" type="checkbox" role="switch" id="oidcDisableLocalLogin" name="oidc_disable_local_login" value="1"{{ ' checked' if v.oidc_disable_local_login else '' }}>
                             <label class="form-check-label" for="oidcDisableLocalLogin">Disable password sign-in</label>
                         </div>
-                        <div class="form-text">Turns away passwords on the console and in the RustDesk client, so SSO is the only way in. It takes effect only while SSO is enabled and configured, so a provider outage restores password sign-in by itself. <code>CORTENDESK_OIDC_DISABLED=true</code> in <code>.env</code> forces it off from the shell.</div>
+                        <div class="form-text">Turns away passwords on the console and in the RustDesk client, so SSO is the only way in. It takes effect only while SSO is enabled and configured, so a provider outage restores password sign-in by itself. <code>HTE_REMOTE_OIDC_DISABLED=true</code> in <code>.env</code> forces it off from the shell.</div>
                     </div>
                     <div class="mb-3">
                         <label class="form-label">Advanced</label>
