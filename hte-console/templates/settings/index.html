@@ -494,7 +494,7 @@
                                 <option value="all"{{ ' selected' if ev.scope == 'all' else '' }}>All approved devices</option>
                                 <option value="selected"{{ ' selected' if ev.scope == 'selected' else '' }}>Selected groups or devices</option>
                             </select>
-                            <div class="{{ '' if ev.scope == 'selected' else 'd-none' }}" data-rd-group="scope-{{ ev.key }}" data-rd-when="selected">
+                            <div{% if ev.scope == 'selected' %}{% else %} class="d-none"{% endif %} data-rd-group="scope-{{ ev.key }}" data-rd-when="selected">
                                 <select class="form-select form-select-sm mt-2" multiple name="apprise_scope_groups_{{ ev.key }}[]" aria-label="Groups for {{ ev.label }}"{{ '' if ev.scope == 'selected' else ' disabled' }}>
                                     {% for g in all_groups %}<option value="{{ g.id }}"{{ ' selected' if g.id in ev.groups else '' }}>Group: {{ g.name }}</option>{% endfor %}
                                 </select>
@@ -520,13 +520,13 @@
                         <div class="col-md-3"><label class="form-label">Apply to</label>
                             <select class="form-select" name="snooze_type" form="snooze-form" data-rd-switch="snooze-type"><option value="device"{{ ' selected' if snooze.type != 'group' else '' }}>Device</option><option value="group"{{ ' selected' if snooze.type == 'group' else '' }}>Device group</option></select></div>
                         <div class="col-md-5"><label class="form-label">Target</label>
-                            <div class="{{ '' if snooze.type != 'group' else 'd-none' }}" data-rd-group="snooze-type" data-rd-when="device">
+                            <div{% if snooze.type != 'group' %}{% else %} class="d-none"{% endif %} data-rd-group="snooze-type" data-rd-when="device">
                                 <select class="form-select{{ ' is-invalid' if e.presence_snooze_target_id else '' }}" name="snooze_target" form="snooze-form"{{ '' if snooze.type != 'group' else ' disabled' }}>
                                     <option value="0">Choose a target</option>
                                     {% for d in devices %}<option value="{{ d.id }}"{{ ' selected' if snooze.type != 'group' and snooze.target == (d.id | string) else '' }}>{{ d.label }}</option>{% endfor %}
                                 </select>
                             </div>
-                            <div class="{{ '' if snooze.type == 'group' else 'd-none' }}" data-rd-group="snooze-type" data-rd-when="group">
+                            <div{% if snooze.type == 'group' %}{% else %} class="d-none"{% endif %} data-rd-group="snooze-type" data-rd-when="group">
                                 <select class="form-select{{ ' is-invalid' if e.presence_snooze_target_id else '' }}" name="snooze_target" form="snooze-form"{{ '' if snooze.type == 'group' else ' disabled' }}>
                                     <option value="0">Choose a target</option>
                                     {% for g in all_groups %}<option value="{{ g.id }}"{{ ' selected' if snooze.type == 'group' and snooze.target == (g.id | string) else '' }}>{{ g.name }}</option>{% endfor %}
@@ -592,7 +592,6 @@
                         <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save</button>
                         <button type="submit" form="prune-form" data-rd-prune class="btn btn-light"{{ '' if can_manage else ' disabled' }} data-rd-confirm="Save this retention and delete the log rows older than it now?"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
                     </div>
-                    <div class="form-text">Pruning also runs nightly on its own. "Prune now" saves the retention shown here, then prunes.</div>
                     {% if backups.prune %}<div class="alert alert-info py-2 mt-2 mb-0" style="white-space: pre-line;">{{ backups.prune }}</div>{% endif %}
                 </div>
             </div>

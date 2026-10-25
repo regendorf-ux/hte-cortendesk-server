@@ -2,6 +2,11 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.12 (2026-10-25): the last two differences of the server replay of 0.7.11 (both on Settings -> Maintenance / Notifications)
+- The option-group wrappers (Apprise scope pickers, snooze target) carry a `class` only when hidden, so the one in force has no empty `class=""`.
+- Removed the extra "Pruning also runs nightly..." note under Prune now (the confirm dialog already says it saves the retention first).
+- The replay leaves the About card out (PHP lists Laravel and PHP versions, hte-console its own) and lists it with the other by-design Settings item.
+
 ## 0.7.11 (2026-10-25): the last two differences of the server replay of 0.7.10 (131 requests, 2 differences, B equal, C caught)
 - Both were Settings -> Notifications: hte-console ships both Apprise delivery-mode groups (the other one hidden with `d-none`, switched by a click handler,
   no server round trip) while PHP renders only the one in force. Kept as an improvement; the replay now leaves hidden `data-rd-group` blocks out of both sides

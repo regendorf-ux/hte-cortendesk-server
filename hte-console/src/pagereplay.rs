@@ -292,10 +292,26 @@ const FRAGMENTS: [&str; 2] = ["/dashboard/stats", "/dashboard/sessions"];
 const FRAGMENT_REASON: &str = "by design (own htmx refresh URL; PHP refreshes the same cards through Livewire polling, which has no URL; same permission checks as the page)";
 const INVITE_REASON: &str = "by design (the Invitations card at the end of Users: inviting by email is not available in this console; the rest of the page is compared)";
 
-const GROUPS_REASON: &str = "by design (Settings: an option group the page hides with d-none and shows with a click handler, e.g. the other Apprise mode, is in the page; PHP re-renders the form from the server instead; only the group in force is compared)";
+const GROUPS_REASON: &str = "by design (Settings: an option group the page hides with d-none and shows with a click handler, e.g. the other Apprise mode, is in the page; PHP re-renders the form from the server instead; only the group in force is compared; the About card lists different things: PHP its Laravel and PHP versions, hte-console its own)";
+
+/// Where the `<div>` opened at `from` (the end of its opening tag) closes.
+fn div_end(html: &str, from: usize) -> usize {
+    let mut depth = 1i32;
+    for t in TAG.captures_iter(&html[from..]) {
+        let whole = t.get(0).unwrap();
+        if whole.as_str().starts_with("<!--") || !t.get(2).map_or(false, |n| n.as_str().eq_ignore_ascii_case("div")) {
+            continue;
+        }
+        depth += if t.get(1).map_or(false, |c| !c.as_str().is_empty()) { -1 } else if whole.as_str().ends_with("/>") { 0 } else { 1 };
+        if depth == 0 {
+            return from + whole.end();
+        }
+    }
+    html.len()
+}
 
 /// The html without the `data-rd-group` blocks that are hidden (`d-none`): hte-console ships every variant and shows one,
-/// PHP renders only the one in force.
+/// PHP renders only the one in force. The About card (the stack's versions: PHP lists Laravel and PHP, hte-console itself) goes too.
 fn without_hidden_groups(html: &str) -> String {
     static OPEN: Lazy<Regex> = Lazy::new(|| Regex::new(r#"<div\b[^>]*\bdata-rd-group="[^"]*"[^>]*>"#).unwrap());
     let mut out = String::new();
@@ -308,22 +324,17 @@ fn without_hidden_groups(html: &str) -> String {
             continue;
         }
         out.push_str(&html[pos..m.start()]);
-        let (mut depth, mut end) = (1i32, m.end());
-        for t in TAG.captures_iter(&html[m.end()..]) {
-            let whole = t.get(0).unwrap();
-            if whole.as_str().starts_with("<!--") || !t.get(2).map_or(false, |n| n.as_str().eq_ignore_ascii_case("div")) {
-                continue;
-            }
-            depth += if t.get(1).map_or(false, |c| !c.as_str().is_empty()) { -1 } else if whole.as_str().ends_with("/>") { 0 } else { 1 };
-            if depth == 0 {
-                end = m.end() + whole.end();
-                break;
-            }
-        }
-        pos = end;
+        pos = div_end(html, m.end());
     }
     out.push_str(&html[pos..]);
-    out
+    match out.find(">About<").and_then(|i| out[..i].rfind("<div class=\"card\">")) {
+        Some(i) => {
+            let open_end = i + "<div class=\"card\">".len();
+            let end = div_end(&out, open_end);
+            format!("{}{}", &out[..i], &out[end..])
+        }
+        None => out,
+    }
 }
 
 /// The html without the Invitations card, which closes the Users page on both sides.
