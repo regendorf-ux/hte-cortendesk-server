@@ -10,8 +10,8 @@
 //! of CSS classes. The rows both consoles write are compared afterwards by the script (`replay-signin-web.sh`) with
 //! `snapshot`.
 //!
-//! Differences listed as "by design" (never counted): the token kinds phase 2 hardened (no `exp`, several audiences
-//! without `azp`), which PHP accepts and hte-console refuses. `HTE_WEBREPLAY_MUTATE=1` changes one of hte-console's
+//! The token kinds phase 2 hardened (no `exp`, several audiences without `azp`), which PHP accepts and hte-console refuses, are
+//! not in the scenario (the rows could never match); should one be added, its steps count as "by design". `HTE_WEBREPLAY_MUTATE=1` changes one of hte-console's
 //! answers before the comparison, to prove the comparison can fail.
 
 use crate::pagereplay::shape;
@@ -158,7 +158,9 @@ async fn scenario(base: &str) -> Result<Vec<(String, Obs)>, String> {
     out.push(("throttle: the page after".into(), t.obs("GET", "/login", None).await?));
     // Microsoft sign-in through the fake provider
     let mut modes: Vec<(&str, &str)> = vec![("ok", "linked"), ("ok", "known"), ("ok", "anna"), ("ok", "outsider"), ("ok", "disabled")];
-    modes.extend(crate::fake_idp::MODES.iter().filter(|m| !["ok", "slow-token", "wrong-tid"].contains(m)).map(|m| (*m, "known")));
+    // the hardened kinds (HARDENED) are left out: PHP signs those in, so the rows could never be equal; tests/console_signin.rs
+    // and phase 2's tests cover them
+    modes.extend(crate::fake_idp::MODES.iter().filter(|m| !["ok", "slow-token", "wrong-tid"].contains(m) && !HARDENED.contains(m)).map(|m| (*m, "known")));
     for (mode, user) in modes {
         let label = format!("sso {mode} {user}");
         let mut s = Browser::new(base);

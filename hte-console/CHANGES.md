@@ -2,6 +2,13 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.8.1 (2026-10-25): what the 0.8.0 replay against PHP showed
+- Pages (7a/7b/7c): 164 requests, 0 differences. Sign-in: 100 steps, one difference: a POST /logout with no session and no token
+  was answered 302 (to the sign-in page); PHP's CSRF check runs before `auth` and answers 419. Now the same order.
+- The sign-in replay leaves out the two token kinds phase 2 hardened (no `exp`, several audiences without `azp`): PHP signs those
+  in, so their `login_logs` rows could never match; tests cover them. `replay-pages.sh` leaves `hte_console_sessions` out of its
+  database comparison (only hte-console creates it).
+
 ## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie (and all of 0.7.19, phase 7c)
 - One image for 7c and 8: phase 7c's branch is merged in (Diagnostics, Roles, health routes, below). Phase 7c's scripts accept 0.8.x.
 - New modules `pages/websession.rs` (hte-console's own session: cookie `__Host-hte-remote` over https, a random 40-character id,

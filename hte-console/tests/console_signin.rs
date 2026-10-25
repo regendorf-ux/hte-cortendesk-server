@@ -552,7 +552,9 @@ async fn logout_ends_both_sessions_and_needs_the_token() {
     assert_eq!(h.count("sessions"), 0);
     assert_eq!(h.get("/account", Some(&own)).await.path(), "/login");
     // not signed in: to the sign-in page
-    assert_eq!(h.go("POST", "/logout", None, None, &[]).await.path(), "/login");
+    // not signed in and no token: PHP's CSRF check answers first (419); from our own page (same-origin) to the sign-in page
+    assert_eq!(h.go("POST", "/logout", None, None, &[]).await.status, 419);
+    assert_eq!(h.go("POST", "/logout", None, None, &[("sec-fetch-site", "same-origin")]).await.path(), "/login");
 }
 
 // ------------------------------------------------------------------------------- PHP's sessions meanwhile ---

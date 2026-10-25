@@ -752,13 +752,16 @@ async fn logout(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
     let (p2, w2) = (p.clone(), w.clone());
     let first = tokio::task::spawn_blocking(move || -> Result<Result<(bool, Settings, bool, Out), Out>, Fault> {
         let c = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
-        let Some(s) = session::load_any(&c, &p2.session, &p2.own, &p2.n.crypt, w2.now, &w2.cookie, w2.secure)?.filter(|s| s.user_id().is_some()) else {
+        // the web group's CSRF check runs before the route's `auth` middleware (PHP: no session and no token = 419)
+        let found = session::load_any(&c, &p2.session, &p2.own, &p2.n.crypt, w2.now, &w2.cookie, w2.secure)?;
+        let none = Session { id: String::new(), stored: String::new(), data: Map::new(), last_activity: 0, own: true, created: 0 };
+        if !csrf(&p2, found.as_ref().unwrap_or(&none), &w2) {
+            return Ok(Err(page_expired()));
+        }
+        let Some(s) = found.filter(|s| s.user_id().is_some()) else {
             // the `auth` middleware: not signed in, to the sign-in page
             return Ok(Err(Out::new(redirect(&format!("{}/login", w2.root)))));
         };
-        if !csrf(&p2, &s, &w2) {
-            return Ok(Err(page_expired()));
-        }
         let was_sso = s.via_oidc();
         // `Auth::logout()` cycles a remember token the account has. That also ends this person's other hte-console
         // sessions (they carry the old token's fingerprint): signing out signs out everywhere.
