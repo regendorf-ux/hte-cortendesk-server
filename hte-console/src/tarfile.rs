@@ -169,6 +169,7 @@ fn padded(size: u64) -> u64 {
 /// of the same name replaces an earlier one (as tar does).
 pub fn extract<F: FnMut(&str) -> Option<std::path::PathBuf>>(archive: &Path, mut want: F) -> Result<Vec<String>, Bad> {
     let mut r = BufReader::new(File::open(archive)?);
+    let total = std::fs::metadata(archive).map(|m| m.len()).unwrap_or(u64::MAX);
     let mut out = vec![];
     let mut long_name: Option<String> = None;
     let mut pax_path: Option<String> = None;
@@ -197,6 +198,9 @@ pub fn extract<F: FnMut(&str) -> Option<std::path::PathBuf>>(archive: &Path, mut
         let mut size = field_num(&buf[124..136]).ok_or_else(|| Bad("not a tar archive (bad size)".into()))?;
         if let Some(s) = pax_size.take() {
             size = s;
+        }
+        if size > total {
+            return Err(Bad("the archive is cut short (an entry is larger than the file)".into()));
         }
         let kind = buf[156];
         match kind {

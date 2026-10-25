@@ -3,6 +3,14 @@
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
 ## 0.6.0 (2026-10-25): phase 6, local backups, restore, pruning and the daily scheduler entries
+  Review (Opus 5.5, read-only) fixes: the archive is created 0600 from the start; the schema version is read before the
+  restore's copy; staged server files are copied aside first and old `*.restore` files dropped, and a failure after the
+  database commit says so ("The database WAS restored..."); a tar entry larger than the file is refused.
+  Known, left on purpose: a stop during a running backup leaves the `cortendesk:backup` cache lock until its 3600 s expiry
+  (and `panic = abort` skips the guard); the once-per-day check is read before the lock, so two `--scheduled` runs within
+  the same second could both back up; no cap on the decompressed size of a restore (PHP has none either); an
+  undecryptable value is carried over unchanged on re-keying.
+
 
 Built on top of 0.4.1 (phase 5, the admin API, is built in parallel and is not in this version).
 

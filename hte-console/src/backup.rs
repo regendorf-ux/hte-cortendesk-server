@@ -507,7 +507,10 @@ pub fn create(env: &Env, trigger: &str, now: i64) -> Result<Created, String> {
     // Built beside the package and moved into place in one step, so the listing never shows a half-written archive.
     let building = work.join("archive.tar");
     {
-        let f = fs::File::create(&building).map_err(|e| e.to_string())?;
+        let f = {
+            use std::os::unix::fs::OpenOptionsExt;
+            fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(&building).map_err(|e| e.to_string())?
+        };
         let mut w = tarfile::Writer::new(std::io::BufWriter::new(f), now.max(0) as u64);
         w.add_bytes("manifest.json", &manifest_bytes, 0o644).map_err(|e| e.to_string())?;
         for t in counts.keys() {
@@ -700,13 +703,14 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
 
     // the live schema, as a private copy to build in
     let tmp = work.join("restore.sqlite");
-    if !vacuum_into(&env.database, &tmp, env.busy) {
-        return Err("Cannot take a copy of the database to build the restore in.".into());
-    }
+    // read before the copy: a migration landing in between then fails the check in apply() instead of passing it
     let live_schema_version = {
         let c = env.open()?;
         schema_version(&c)?
     };
+    if !vacuum_into(&env.database, &tmp, env.busy) {
+        return Err("Cannot take a copy of the database to build the restore in.".into());
+    }
     let tc = Connection::open_with_flags(&tmp, OpenFlags::SQLITE_OPEN_READ_WRITE).map_err(|e| e.to_string())?;
     let live = tables(&tc)?;
     let restore_tables: Vec<&(String, i64)> = archived.iter().filter(|(t, _)| !KEEP_ON_RESTORE.contains(&t.as_str()) && !SKIP_TABLES.contains(&t.as_str())).collect();
@@ -792,7 +796,7 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
 
     apply(env, &tmp, &live, live_schema_version, hook)?;
 
-    out.files = stage_files(env, &work.join("rustdesk"))?;
+    out.files = stage_files(env, &work.join("rustdesk")).map_err(|e| format!("The database WAS restored, but the server files could not be staged ({e}); nothing is left half staged. Restore again or copy them by hand."))?;
     out.restart_needed = !out.files.is_empty();
     Ok(out)
 }
@@ -847,17 +851,35 @@ fn stage_files(env: &Env, dir: &Path) -> Result<Vec<String>, String> {
             let _ = fs::remove_file(e.path());
         }
     }
-    let mut staged = vec![];
-    for n in RUSTDESK_FILES {
-        let src = dir.join(n);
-        if !src.is_file() {
-            continue;
+    // every file is copied aside first and the old stagings are dropped, so a failure leaves nothing half staged
+    // (a private key without its public key) and an earlier, never adopted restore cannot mix with this one
+    let mut copies = vec![];
+    let res = (|| -> Result<(), String> {
+        for n in RUSTDESK_FILES {
+            let src = dir.join(n);
+            if !src.is_file() {
+                continue;
+            }
+            let part = rd.join(format!("{n}.restore.part"));
+            fs::copy(&src, &part).map_err(|_| format!("Could not stage {n} into {}.", rd.display()))?;
+            chmod(&part, if n == "id_ed25519.pub" { 0o644 } else { 0o600 });
+            copies.push(n.to_string());
         }
-        let part = rd.join(format!("{n}.restore.part"));
-        fs::copy(&src, &part).map_err(|_| format!("Could not stage {n} into {}.", rd.display()))?;
-        chmod(&part, if n == "id_ed25519.pub" { 0o644 } else { 0o600 });
-        fs::rename(&part, rd.join(format!("{n}.restore"))).map_err(|_| format!("Could not stage {n} into {}.", rd.display()))?;
-        staged.push(n.to_string());
+        Ok(())
+    })();
+    if let Err(e) = res {
+        for n in RUSTDESK_FILES {
+            let _ = fs::remove_file(rd.join(format!("{n}.restore.part")));
+        }
+        return Err(e);
+    }
+    for n in RUSTDESK_FILES {
+        let _ = fs::remove_file(rd.join(format!("{n}.restore")));
+    }
+    let mut staged = vec![];
+    for n in copies {
+        fs::rename(rd.join(format!("{n}.restore.part")), rd.join(format!("{n}.restore"))).map_err(|_| format!("Could not stage {n} into {}.", rd.display()))?;
+        staged.push(n);
     }
     Ok(staged)
 }

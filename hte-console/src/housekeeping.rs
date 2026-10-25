@@ -458,6 +458,7 @@ pub fn cli(args: &[String]) -> i32 {
                     }
                     0
                 }
+                Err(e) if e.starts_with("The database WAS restored") => fail(&e),
                 Err(e) => fail(&format!("Restore failed, nothing was changed: {e}")),
             }
         }
