@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block content %}
+{% set kind = "file-transfers" %}{% set placeholder = "Search device ID, from, path, file name, IP…" %}
+<div id="log-card">
+    <div class="card">
+
+        {% include "logs/toolbar.html" %}
+
+        {# Desktop table (md and up) #}
+        <div class="table-responsive d-none d-md-block" id="log-table">
+            <table class="table table-hover table-centered mb-0">
+                <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Device</th>
+                    <th>From</th>
+                    <th>Direction</th>
+                    <th>Path</th>
+                    <th>Files</th>
+                    <th>IP</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for t in rows %}
+                    <tr>
+                        <td>
+                            <span title="{{ t.when }}">{{ t.ago }}</span>
+                        </td>
+                        <td><span class="fw-semibold">{{ t.rustdesk_id }}</span></td>
+                        <td>
+                            <span class="rd-cell-title">{{ t.from_dash }}</span>
+                            <span class="rd-cell-sub">{{ t.from_name }}</span>
+                        </td>
+                        <td>
+                            {% if t.receive %}
+                                <span class="badge bg-warning-subtle text-warning"><i class="ri-arrow-down-line me-1"></i>Receive</span>
+                            {% else %}
+                                <span class="badge bg-info-subtle text-info"><i class="ri-arrow-up-line me-1"></i>Send</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if t.clipboard %}
+                                <span class="badge bg-secondary-subtle text-secondary me-1" title="Copied and pasted through the clipboard">Clipboard</span>
+                            {% endif %}
+                            <span class="d-inline-block text-truncate align-middle rd-mono" style="max-width: 240px;"
+                                  title="{{ t.title }}">{{ t.label_dash }}</span>
+                        </td>
+                        <td>{{ t.file_count }}</td>
+                        <td class="rd-mono">{{ t.ip_dash }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="rd-empty-cell">
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-file-transfer-line"></i></div>
+                                <p class="rd-empty-title">No file transfers match your filters.</p>
+                                <p class="rd-empty-text">Files moved during a remote session are recorded here.</p>
+                                {% include "logs/clear.html" %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile card list (below md) #}
+        <div class="d-md-none rd-cardlist" id="log-cards">
+            {% for t in rows %}
+                <div class="rd-mini">
+                    <div class="rd-mini-head">
+                        <div class="min-width-0">
+                            <span class="rd-mini-title">{{ t.rustdesk_id }}</span>
+                            <span class="rd-mini-sub">
+                                from {{ t.from_dash }}{% if t.from_name %} ({{ t.from_name }}){% endif %}
+                            </span>
+                        </div>
+                        {% if t.receive %}
+                            <span class="badge bg-warning-subtle text-warning"><i class="ri-arrow-down-line me-1"></i>Receive</span>
+                        {% else %}
+                            <span class="badge bg-info-subtle text-info"><i class="ri-arrow-up-line me-1"></i>Send</span>
+                        {% endif %}
+                    </div>
+                    <div class="mt-2">
+                        <small class="d-block text-truncate rd-mono" title="{{ t.title }}">
+                            {% if t.clipboard %}
+                                <span class="badge bg-secondary-subtle text-secondary me-1">Clipboard</span>
+                            {% else %}
+                                <i class="ri-file-line me-1"></i>
+                            {% endif %}
+                            {{ t.label_dash }}
+                        </small>
+                        <span class="rd-mini-sub">
+                            {{ t.file_count }} {{ 'file'|plural(t.file_count) }} ·
+                            {{ t.ip_dash }} ·
+                            {{ t.ago_short }}
+                        </span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-file-transfer-line"></i></div>
+                    <p class="rd-empty-title">No file transfers match your filters.</p>
+                    <p class="rd-empty-text">Files moved during a remote session are recorded here.</p>
+                    {% include "logs/clear.html" %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="rd-tablefoot" id="log-foot">
+            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            {% include "partials/pager.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

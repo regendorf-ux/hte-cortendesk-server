@@ -229,7 +229,16 @@ async fn serve() -> i32 {
                     Err(e) => return fail(&e),
                 }
             }
-            link::routes(n.clone(), l).merge(api::router(n, fallback))
+            // phase 7: the console's pages behind the Laravel session (HTE_CONSOLE_PAGES=0 leaves them all to PHP)
+            let pages = if std::env::var("HTE_CONSOLE_PAGES").map_or(false, |v| v.trim() == "0") {
+                axum::Router::new()
+            } else {
+                match hte_console::pages::routes(n.clone(), fallback.clone()) {
+                    Ok(r) => r,
+                    Err(e) => return fail(&e),
+                }
+            };
+            link::routes(n.clone(), l).merge(pages).merge(api::router(n, fallback))
         }
         (None, Some(s)) => s,
         (None, None) => return fail("nothing to serve: set HTE_CONSOLE_UPSTREAM or HTE_CONSOLE_DATABASE"),

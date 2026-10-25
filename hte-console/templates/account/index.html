@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block content %}
+    {% if email_required %}
+        <div class="alert alert-warning">
+            <i class="ri-mail-line me-1"></i>{{ email_required }}
+        </div>
+    {% elif email_overdue %}
+        <div class="alert alert-info">
+            <i class="ri-mail-line me-1"></i>Your account has no email address. Add one so the
+            console can reach you.
+        </div>
+    {% endif %}
+
+    {% if twofactor_warning %}
+        <div class="alert alert-warning">
+            <i class="ri-error-warning-line me-1"></i>{{ twofactor_warning }}
+        </div>
+    {% endif %}
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            {% include "account/profile.html" %}
+
+            {% include "account/two-factor.html" %}
+        </div>
+    </div>
+{% endblock %}

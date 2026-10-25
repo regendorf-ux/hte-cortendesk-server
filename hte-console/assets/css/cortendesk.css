@@ -1,0 +1,3007 @@
+/* CortenDesk custom styles — static, no build step. */
+
+/* Clickable stat tiles: lift on hover */
+a.card-hover {
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+a.card-hover:hover,
+a.card-hover:focus-visible {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+}
+
+a.card-hover:active {
+    transform: translateY(-1px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    a.card-hover,
+    a.card-hover:hover {
+        transition: none;
+        transform: none;
+    }
+}
+
+/* Auth (login) brand block — mirrors the web client login: big icon with an
+   orange glow + two-tone wordmark. Header background is always dark, so the
+   light wordmark color is fixed, not theme-dependent. */
+.rd-auth-brand {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    text-decoration: none;
+}
+.rd-auth-brand-logo {
+    flex: none;
+    width: 60px;
+    height: 60px;
+    border-radius: 14px;
+    object-fit: contain;
+    filter: drop-shadow(0 6px 16px rgba(201, 83, 31, 0.45));
+}
+.rd-auth-brand-wordmark {
+    font-size: 40px;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1;
+    color: #e7ebf3;
+}
+.rd-auth-brand-wordmark span {
+    color: #e2652e;
+}
+@media (max-width: 480px) {
+    .rd-auth-brand-wordmark {
+        font-size: 32px;
+    }
+    .rd-auth-brand-logo {
+        width: 50px;
+        height: 50px;
+    }
+}
+
+/* Flex helper Bootstrap doesn't ship: allow a flex child to shrink below its
+   content width so text-truncate / wrapping works inside d-flex rows (used by
+   the mobile device-card list). */
+.min-width-0 {
+    min-width: 0;
+}
+
+/* Login page background — covers the viewport, centered, cropping as needed.
+   Fixed-position pseudo-element instead of background-attachment:fixed, which
+   iOS Safari mishandles. Base color matches the image's darkest tone so any
+   flash-of-unloaded-background is invisible. */
+body.rd-auth-bg {
+    background-color: #171d29;
+}
+body.rd-auth-bg::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    background: url('../images/login-bkg.jpg') center center / cover no-repeat;
+}
+
+/* Sidebar version footer — pinned bottom-left of the full sidebar.
+   .rd-sidebar is already position:fixed, so this anchors to it; do NOT
+   re-position .rd-sidebar here (it breaks the fixed sidebar). */
+.rd-sidebar-version {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 12px;
+    background: var(--rd-shell-bg);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+.rd-sidebar-version-num {
+    color: var(--rd-shell-ink-muted);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+/* The condensed (icons-only) sidebar hides it: no room for the label (see
+   shell.css). The scrolling menu above it is sized in shell.css too, so its
+   last entry never ends up underneath this footer (issue #21). */
+
+/* =========================================================================
+   CORTENDESK DESIGN SYSTEM — FOUNDATION
+   =========================================================================
+
+   Everything below this banner is the shared design foundation: tokens first,
+   then the bindings that repaint Bootstrap, then the reusable components.
+   Nothing here is screen-specific — pages opt in by using the classes.
+
+   How the theming works
+   ---------------------
+   Nearly every Bootstrap component reads its colours from `--bs-*` CSS
+   variables. So the cheapest way to restyle the console is to redefine ~30
+   of those rather than to write per-component selectors. Sizes and the app
+   layout live in shell.css; this file is about colour and components.
+
+   This file is loaded AFTER bootstrap.min.css and shell.css, so an
+   equal-specificity rule here wins. `:root` here beats BOTH of Bootstrap's
+   `:root,[data-bs-theme=light]` and `[data-bs-theme=dark]` blocks (all are
+   specificity 0,1,0). That is why the `--bs-*` bindings live in `:root` and
+   reference `--rd-*` tokens — the `--rd-*` tokens are what changes per
+   theme, the bindings never do.
+
+   Section index
+   -------------
+     1. TOKENS            --rd-* palette, dark default + light overrides
+     2. THEME BINDING     --rd-* mapped onto Bootstrap's --bs-* variables
+     3. BASE              body / headings / links / scrollbar
+     4. SHELL             sidebar + topbar chrome, sidebar nav items
+     5. CARD              card, card header, card title
+     6. FORMS + BUTTONS   inputs, primary / light / outline buttons
+     7. TABLE             header row, hover, user cell, avatar
+     8. BADGE + DOT       tinted status badges, live dots
+     9. STAT TILE         .rd-stat — the Overview tiles
+    10. SEGMENTED CONTROL .rd-seg — 14D / 30D / 90D range switches
+    11. META PILL         .rd-meta — "Environment · Production"
+    12. EMPTY STATE       .rd-empty
+    13. CHARTS            ApexCharts overrides (several fight !important)
+    14. TONE HELPERS      .rd-tone-* — colour-per-instance for the above
+    15. OVERVIEW          tile grid, donut + legend, bar list, alert feed
+    16. LIST PANEL        .rd-toolbar / flush table / .rd-cardlist / .rd-tablefoot
+    17. TABS + CHIPS      .nav-bordered, .rd-chiprow, .rd-scrollbox, master/detail
+    18. AUTH              the signed-out card
+    19. PHONE             the 390px contract — wrap guards, tap targets, modals
+    20. DOWNLOAD TILES    .rd-dl — the client-installer links (auth + /downloads)
+
+   Naming: anything of ours is prefixed `rd-` so it is obvious what is ours
+   and what is Bootstrap's.
+   ========================================================================= */
+
+
+/* =========================================================================
+   1. TOKENS
+   =========================================================================
+   Dark is the default (both layouts ship data-bs-theme="dark"); the light
+   block below only has to restate the surfaces, inks and the status hues
+   that need darkening to stay legible on white.
+
+   `-rgb` twins exist wherever a colour is also needed as an alpha tint —
+   CSS cannot decompose a hex, so tinted backgrounds are written as
+   rgba(var(--rd-x-rgb), .14).
+   ========================================================================= */
+
+:root {
+    /* --- Surfaces (dark) ------------------------------------------------ */
+    --rd-bg: #0b0f14;              /* page background                       */
+    --rd-bg-rgb: 11, 15, 20;
+    --rd-surface: #131a22;         /* card / panel background               */
+    --rd-surface-rgb: 19, 26, 34;
+    --rd-surface-2: #182029;       /* raised inner blocks, table head, input */
+    --rd-surface-2-rgb: 24, 32, 41;
+    --rd-surface-3: #1f2731;       /* hover state of a --rd-surface-2 block  */
+
+    /* --- Borders -------------------------------------------------------- */
+    --rd-border: rgba(255, 255, 255, 0.07);        /* hairline              */
+    --rd-border-strong: rgba(255, 255, 255, 0.12); /* dividers that read    */
+
+    /* --- Text ----------------------------------------------------------- */
+    --rd-ink: #e6edf3;             /* primary                               */
+    --rd-ink-rgb: 230, 237, 243;
+    --rd-ink-muted: #8b949e;       /* labels, secondary                     */
+    --rd-ink-muted-rgb: 139, 148, 158;
+    --rd-ink-dim: #6e7781;         /* axis labels, timestamps               */
+
+    /* --- Accent --------------------------------------------------------- */
+    --rd-accent: #e2652e;          /* the brand rust orange — do not drift  */
+    --rd-accent-rgb: 226, 101, 46;
+    --rd-accent-soft: rgba(226, 101, 46, 0.14);
+    --rd-accent-ink: #e2652e;      /* accent as TEXT (darkened in light)    */
+    --rd-accent-hover: #c9541f;    /* pressed / hovered accent fill         */
+
+    /* --- Status --------------------------------------------------------- */
+    --rd-blue: #2f81f7;
+    --rd-blue-rgb: 47, 129, 247;
+    --rd-green: #3fb950;
+    --rd-green-rgb: 63, 185, 80;
+    --rd-amber: #d29922;
+    --rd-amber-rgb: 210, 153, 34;
+    --rd-teal: #2dd4bf;
+    --rd-teal-rgb: 45, 212, 191;
+    --rd-purple: #8b5cf6;
+    --rd-purple-rgb: 139, 92, 246;
+    --rd-red: #f85149;
+    --rd-red-rgb: 248, 81, 73;
+
+    /* --- Shape ---------------------------------------------------------- */
+    --rd-radius: 12px;             /* cards                                 */
+    --rd-radius-sm: 8px;           /* buttons, chips, nav items             */
+    --rd-radius-pill: 999px;
+
+    /* --- Elevation ------------------------------------------------------ */
+    --rd-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+
+    /* Default tone for the tone-driven components (see section 14). */
+    --rd-tone: var(--rd-accent);
+    --rd-tone-rgb: var(--rd-accent-rgb);
+
+    /* --- Shell ----------------------------------------------------------
+       The sidebar and topbar are dark in BOTH themes: they carry the light
+       wordmark — which is white, so a white sidebar would swallow half the
+       brand. These tokens keep the chrome on the dark ramp while the
+       content area follows the theme. In dark mode they are aliases and
+       change nothing. */
+    --rd-shell-bg: var(--rd-surface);
+    --rd-shell-2: var(--rd-surface-2);
+    --rd-shell-border: var(--rd-border);
+    --rd-shell-border-strong: var(--rd-border-strong);
+    --rd-shell-ink: var(--rd-ink);
+    --rd-shell-ink-muted: var(--rd-ink-muted);
+    --rd-shell-ink-dim: var(--rd-ink-dim);
+    --rd-shell-accent: var(--rd-accent);
+    --rd-shell-accent-soft: var(--rd-accent-soft);
+    --rd-shell-green: var(--rd-green);
+    --rd-shell-amber: var(--rd-amber);
+    --rd-shell-amber-rgb: var(--rd-amber-rgb);
+}
+
+/* Light mode. Specificity (0,1,1) beats the :root block above, so only the
+   values that must change are restated. Status hues are darkened to keep
+   11px badge text readable on a white surface. */
+html[data-bs-theme="light"] {
+    --rd-bg: #f5f7fa;
+    --rd-bg-rgb: 245, 247, 250;
+    --rd-surface: #ffffff;
+    --rd-surface-rgb: 255, 255, 255;
+    --rd-surface-2: #f1f4f8;
+    --rd-surface-2-rgb: 241, 244, 248;
+    --rd-surface-3: #e6ebf2;
+
+    --rd-border: rgba(13, 22, 33, 0.1);
+    --rd-border-strong: rgba(13, 22, 33, 0.16);
+
+    --rd-ink: #16202c;
+    --rd-ink-rgb: 22, 32, 44;
+    --rd-ink-muted: #566173;
+    --rd-ink-muted-rgb: 86, 97, 115;
+    --rd-ink-dim: #7a8595;
+
+    --rd-accent-soft: rgba(226, 101, 46, 0.12);
+    --rd-accent-ink: #b44a18;
+    --rd-accent-hover: #c4551f;
+
+    --rd-blue: #1a63d8;
+    --rd-blue-rgb: 26, 99, 216;
+    --rd-green: #1a7f37;
+    --rd-green-rgb: 26, 127, 55;
+    --rd-amber: #9a6700;
+    --rd-amber-rgb: 154, 103, 0;
+    --rd-teal: #0f766e;
+    --rd-teal-rgb: 15, 118, 110;
+    --rd-purple: #6d28d9;
+    --rd-purple-rgb: 109, 40, 217;
+    --rd-red: #cf222e;
+    --rd-red-rgb: 207, 34, 46;
+
+    --rd-shadow: 0 1px 2px rgba(13, 22, 33, 0.08);
+
+    /* The chrome stays dark — see the note in the dark block. These are the
+       dark values written out, because the tokens they alias have flipped. */
+    --rd-shell-bg: #131a22;
+    --rd-shell-2: #1f2731;
+    --rd-shell-border: rgba(255, 255, 255, 0.07);
+    --rd-shell-border-strong: rgba(255, 255, 255, 0.12);
+    --rd-shell-ink: #e6edf3;
+    --rd-shell-ink-muted: #8b949e;
+    --rd-shell-ink-dim: #6e7781;
+    --rd-shell-accent: #e2652e;
+    --rd-shell-accent-soft: rgba(226, 101, 46, 0.16);
+    --rd-shell-green: #3fb950;
+    --rd-shell-amber: #d29922;
+    --rd-shell-amber-rgb: 210, 153, 34;
+}
+
+
+/* =========================================================================
+   2. THEME BINDING — --rd-* onto Bootstrap's --bs-*
+   =========================================================================
+   These declarations are theme-independent: they always point at an --rd-*
+   token, and the token is what flips with the theme. Do not add literal
+   colours in this block.
+   ========================================================================= */
+
+:root {
+    /* --- Page + text ---------------------------------------------------- */
+    --bs-body-bg: var(--rd-bg);
+    --bs-body-bg-rgb: var(--rd-bg-rgb);
+    --bs-body-color: var(--rd-ink);
+    --bs-body-color-rgb: var(--rd-ink-rgb);
+    --bs-emphasis-color: var(--rd-ink);
+    --bs-emphasis-color-rgb: var(--rd-ink-rgb);
+    --bs-heading-color: var(--rd-ink);
+
+    /* .text-muted resolves to --bs-secondary-color (196 uses across views). */
+    --bs-secondary-color: var(--rd-ink-muted);
+    --bs-secondary-color-rgb: var(--rd-ink-muted-rgb);
+
+    /* --bs-secondary-bg is the card / dropdown / modal / pagination surface
+       (--bs-card-bg reads it). It is ALSO the literal background of
+       .form-control / .form-select — those are pushed back to --rd-surface-2
+       explicitly in section 6. */
+    --bs-secondary-bg: var(--rd-surface);
+    --bs-secondary-bg-rgb: var(--rd-surface-rgb);
+
+    /* --bs-tertiary-bg drives table hover and dropdown hover. */
+    --bs-tertiary-bg: var(--rd-surface-2);
+    --bs-tertiary-bg-rgb: var(--rd-surface-2-rgb);
+    --bs-tertiary-color: var(--rd-ink);
+    --bs-tertiary-color-rgb: var(--rd-ink-rgb);
+
+    /* --- Borders + shape ------------------------------------------------ */
+    --bs-border-color: var(--rd-border);
+    --bs-border-color-translucent: var(--rd-border-strong);
+    --bs-border-radius: var(--rd-radius);
+    --bs-border-radius-sm: var(--rd-radius-sm);
+    --bs-border-radius-lg: var(--rd-radius);
+    --bs-border-radius-pill: var(--rd-radius-pill);
+    --bs-box-shadow: var(--rd-shadow);
+    --bs-box-shadow-sm: var(--rd-shadow);
+
+    /* --- Palette -------------------------------------------------------- */
+    --bs-primary: var(--rd-accent);
+    --bs-primary-rgb: var(--rd-accent-rgb);
+    --bs-primary-text-emphasis: var(--rd-accent-hover);
+    --bs-secondary: var(--rd-ink-muted);
+    --bs-secondary-rgb: var(--rd-ink-muted-rgb);
+    --bs-success: var(--rd-green);
+    --bs-success-rgb: var(--rd-green-rgb);
+    --bs-success-text-emphasis: var(--rd-green);
+    --bs-info: var(--rd-blue);
+    --bs-info-rgb: var(--rd-blue-rgb);
+    --bs-info-text-emphasis: var(--rd-blue);
+    --bs-warning: var(--rd-amber);
+    --bs-warning-rgb: var(--rd-amber-rgb);
+    --bs-warning-text-emphasis: var(--rd-amber);
+    --bs-danger: var(--rd-red);
+    --bs-danger-rgb: var(--rd-red-rgb);
+    --bs-danger-text-emphasis: var(--rd-red);
+    --bs-light: var(--rd-surface-2);
+    --bs-light-rgb: var(--rd-surface-2-rgb);
+
+    /* Subtle tints. Bootstrap hardcodes a hex per theme; stating them here
+       keeps `badge bg-*-subtle text-*` identical in both themes and at the
+       ~14% the spec asks for. */
+    --bs-primary-bg-subtle: rgba(var(--rd-accent-rgb), 0.14);
+    --bs-secondary-bg-subtle: rgba(var(--rd-ink-muted-rgb), 0.14);
+    --bs-success-bg-subtle: rgba(var(--rd-green-rgb), 0.14);
+    --bs-info-bg-subtle: rgba(var(--rd-blue-rgb), 0.14);
+    --bs-warning-bg-subtle: rgba(var(--rd-amber-rgb), 0.14);
+    --bs-danger-bg-subtle: rgba(var(--rd-red-rgb), 0.14);
+    --bs-light-bg-subtle: var(--rd-surface-2);
+    --bs-primary-border-subtle: rgba(var(--rd-accent-rgb), 0.28);
+    --bs-secondary-border-subtle: rgba(var(--rd-ink-muted-rgb), 0.28);
+    --bs-success-border-subtle: rgba(var(--rd-green-rgb), 0.28);
+    --bs-info-border-subtle: rgba(var(--rd-blue-rgb), 0.28);
+    --bs-warning-border-subtle: rgba(var(--rd-amber-rgb), 0.28);
+    --bs-danger-border-subtle: rgba(var(--rd-red-rgb), 0.28);
+    --bs-light-border-subtle: var(--rd-border);
+
+    /* --- Links + focus -------------------------------------------------- */
+    --bs-link-color: var(--rd-accent-ink);
+    --bs-link-color-rgb: var(--rd-accent-rgb);
+    --bs-link-hover-color: var(--rd-accent-hover);
+    --bs-link-hover-color-rgb: var(--rd-accent-rgb);
+    --bs-focus-ring-color: var(--rd-accent-soft);
+    --bs-code-color: var(--rd-accent-ink);
+    --bs-highlight-bg: var(--rd-accent-soft);
+}
+
+
+/* =========================================================================
+   3. BASE
+   ========================================================================= */
+
+.rd-page-head .rd-page-title {
+    color: var(--rd-ink);
+    font-size: 18px;
+    font-weight: 600;
+}
+
+.rd-page-head .breadcrumb,
+.rd-page-head .breadcrumb a {
+    color: var(--rd-ink-dim);
+}
+
+.rd-page-head .breadcrumb .active {
+    color: var(--rd-ink-muted);
+}
+
+hr {
+    border-top-color: var(--rd-border);
+}
+
+.rd-footer {
+    color: var(--rd-ink-dim);
+}
+
+/* Scrollbars: match the surfaces instead of the OS default light track. */
+* {
+    scrollbar-color: var(--rd-border-strong) transparent;
+}
+
+
+/* =========================================================================
+   4. SHELL — sidebar + topbar
+   =========================================================================
+   Layout and metrics are in shell.css; this is the look of the chrome. The
+   sidebar and topbar read the --rd-shell-* tokens, which stay dark in both
+   themes.
+   ========================================================================= */
+
+/* Section headings: 11px, wide tracking, dim. */
+.rd-nav .rd-nav-title {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--rd-shell-ink-dim);
+    padding-top: 20px;
+    padding-bottom: 8px;
+}
+
+.rd-nav .rd-nav-title:first-child {
+    padding-top: 8px;
+}
+
+/* Items: rounded chip, inset from the sidebar edge. Margins are symmetric so
+   the condensed (icons-only) sidebar stays centred. */
+.rd-nav .rd-nav-link {
+    margin: 2px 8px;
+    border-radius: var(--rd-radius-sm);
+}
+
+.rd-nav .rd-nav-link:hover,
+.rd-nav .rd-nav-link:focus {
+    background-color: var(--rd-shell-2);
+}
+
+/* Active item: soft accent chip, accent text + icon, 3px bar flush against
+   the sidebar edge (hence the negative offset — it sits outside the chip). */
+.rd-nav .rd-current > .rd-nav-link,
+.rd-nav .rd-current > .rd-nav-link:hover,
+.rd-nav .rd-current > .rd-nav-link:focus {
+    background-color: var(--rd-shell-accent-soft);
+    color: var(--rd-shell-accent);
+    font-weight: 600;
+}
+
+.rd-nav .rd-current > .rd-nav-link::before {
+    content: "";
+    position: absolute;
+    left: -8px;
+    top: 4px;
+    bottom: 4px;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background-color: var(--rd-shell-accent);
+}
+
+/* Condensed (icons-only) sidebar.
+   There is no label to sit beside, so the link becomes a centred square: the
+   accent bar is dropped (it would push the glyph off-centre in a 2-3 character
+   wide chip) and the horizontal margin is equalised. Without this the icon
+   drifts right of centre, because the expanded layout reserves space to the
+   left of the label. */
+html[data-rd-sidebar="condensed"] .rd-nav .rd-nav-link {
+    margin-inline: 6px;
+    padding-inline: 0;
+    justify-content: center;
+    text-align: center;
+}
+
+html[data-rd-sidebar="condensed"] .rd-nav .rd-nav-link > i {
+    margin: 0;
+}
+
+html[data-rd-sidebar="condensed"] .rd-nav .rd-current > .rd-nav-link::before {
+    content: none;
+}
+
+/* Sub-level (collapse) items sit inside the group, so no bar for them. */
+.rd-nav-sub .rd-current > a::before {
+    content: none;
+}
+
+.rd-nav-sub li a.active,
+.rd-nav-sub .rd-current > a {
+    color: var(--rd-shell-accent);
+}
+
+/* Sidebar footer (markup already exists — this restyles it, see the
+   .rd-sidebar-version rules further up). Two rows: a status line, then the
+   running version with its badge. The sidebar already reserves the space —
+   .rd-sidebar carries a padding-bottom of a footer height plus change —
+   so the block can grow to two lines without covering the last nav item. */
+.rd-sidebar-version {
+    flex-wrap: wrap;
+    row-gap: 6px;
+    column-gap: 8px;
+    padding: 12px 16px;
+    border-top: 1px solid var(--rd-shell-border);
+    color: var(--rd-shell-ink-dim);
+}
+
+.rd-sidebar-version-num {
+    color: var(--rd-shell-ink-muted);
+}
+
+/* Status line for the sidebar footer. flex-basis:100% puts it on its own row
+   above the version. The dot inherits the line's colour, so the state is set
+   by a modifier on the line — the bootstrap text-* utilities are no use here
+   because their light-theme values are tuned for a white surface and this
+   block sits on the dark chrome in both themes. */
+.rd-sidebar-status {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    flex-basis: 100%;
+    font-size: 12px;
+    font-weight: 500;
+}
+
+.rd-sidebar-status .rd-dot {
+    margin-right: 0;
+    top: 0;
+}
+
+.rd-sidebar-status-ok {
+    color: var(--rd-shell-green);
+}
+
+.rd-sidebar-status-warn {
+    color: var(--rd-shell-amber);
+}
+
+.rd-sidebar-status-unknown {
+    color: var(--rd-shell-ink-dim);
+}
+
+/* The dot is the only coloured thing on the line; the label stays ink. */
+.rd-sidebar-status-label {
+    color: var(--rd-shell-ink);
+}
+
+.rd-sidebar-status-unknown .rd-sidebar-status-label {
+    color: var(--rd-shell-ink-muted);
+}
+
+/* An amber badge that lives on the dark chrome (sidebar footer, topbar). */
+.rd-shell-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0.4em 0.6em;
+    border-radius: 6px;
+    background-color: rgba(var(--rd-shell-amber-rgb), 0.16);
+    color: var(--rd-shell-amber);
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.2;
+    text-decoration: none;
+}
+
+.rd-shell-badge:hover,
+.rd-shell-badge:focus-visible {
+    background-color: rgba(var(--rd-shell-amber-rgb), 0.24);
+    color: var(--rd-shell-amber);
+}
+
+
+/* --- Topbar --------------------------------------------------------------
+   shell.css stretches every topbar item to the full height of the bar. That
+   reads as heavy furniture on a flat console, so the actions become 36px
+   ghost buttons and the user block becomes a chip that lines up with them. */
+.rd-topbar-menu {
+    gap: 8px;
+}
+
+/* Icon actions: theme toggle, fullscreen. */
+.rd-topbar-menu .nav-link.rd-topbar-btn {
+    width: 36px;
+    height: 36px;
+    justify-content: center;
+    border-radius: var(--rd-radius-sm);
+    font-size: 19px;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rd-topbar-menu .nav-link.rd-topbar-btn:hover,
+.rd-topbar-menu .nav-link.rd-topbar-btn:focus-visible {
+    background-color: var(--rd-shell-2);
+    color: var(--rd-shell-ink);
+}
+
+.rd-topbar-menu .nav-link.rd-topbar-btn i {
+    font-size: inherit;
+    line-height: 1;
+}
+
+/* The upgrade notice reads as a badge, not as a button, so it gets no hover
+   chrome of its own — only the badge inside it is interactive-looking. */
+.rd-topbar-menu .rd-topbar-upgrade .rd-shell-badge {
+    padding: 6px 10px;
+}
+
+/* User chip. */
+.rd-topbar-menu .nav-link.rd-user-chip {
+    min-height: 0;
+    height: 42px;
+    gap: 10px;
+    padding: 0 12px;
+    border-width: 1px;
+    border-color: var(--rd-shell-border);
+    border-radius: var(--rd-radius-sm);
+    background-color: var(--rd-shell-2);
+}
+
+.rd-topbar-menu .nav-link.rd-user-chip:hover,
+.rd-topbar-menu .nav-link.rd-user-chip.show {
+    border-color: var(--rd-shell-border-strong);
+}
+
+/* The avatar sits on the dark chrome, so it takes the shell accent rather
+   than the theme's (which is darkened for a white surface). */
+.rd-topbar .rd-avatar {
+    --rd-tone: var(--rd-shell-accent);
+    --rd-tone-rgb: var(--rd-accent-rgb);
+}
+
+.rd-topbar-identity {
+    line-height: 1.25;
+    min-width: 0;
+}
+
+.rd-topbar-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rd-shell-ink);
+    margin: 0;
+}
+
+.rd-topbar-role {
+    font-size: 11.5px;
+    font-weight: 400;
+    color: var(--rd-shell-ink-muted);
+    margin: 0;
+}
+
+/* The dropdown hangs below the chrome onto a normal surface, so its header
+   uses the theme's inks, not the shell's. */
+.rd-menu-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    margin: 0;
+}
+
+.rd-menu-role {
+    font-size: 11.5px;
+    color: var(--rd-ink-muted);
+}
+
+/* --- Profile dropdown ----------------------------------------------------
+   Same shape language as the sidebar: rounded items, hairline divider, and
+   a header that names the signed-in user (the chip hides that below lg). */
+.rd-profile-menu {
+    min-width: 236px;
+    padding: 6px;
+}
+
+.rd-profile-menu .dropdown-header {
+    padding: 8px 10px 10px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--rd-border);
+}
+
+.rd-profile-menu .dropdown-item {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--rd-radius-sm);
+    background: transparent;
+    font-size: 13px;
+    text-align: left;
+}
+
+.rd-profile-menu .dropdown-item i {
+    font-size: 16px;
+    line-height: 1;
+    color: var(--rd-ink-dim);
+}
+
+.rd-profile-menu .dropdown-item:hover i,
+.rd-profile-menu .dropdown-item:focus i {
+    color: var(--rd-ink-muted);
+}
+
+.rd-profile-menu form {
+    margin: 0;
+}
+
+.dropdown-divider {
+    margin: 6px 0;
+    border-top-color: var(--rd-border);
+    opacity: 1;
+}
+
+
+/* =========================================================================
+   5. CARD
+   =========================================================================
+   Subtly framed panel: flat surface, hairline border, 12px radius, 20px
+   padding, and a header separated by a hairline rather than a filled bar.
+   ========================================================================= */
+
+.card {
+    --bs-card-spacer-y: 20px;
+    --bs-card-spacer-x: 20px;
+    --bs-card-cap-padding-y: 14px;
+    --bs-card-cap-padding-x: 20px;
+    --bs-card-border-color: var(--rd-border);
+    --bs-card-bg: var(--rd-surface);
+    --bs-card-box-shadow: var(--rd-shadow);
+    margin-bottom: 20px;
+}
+
+/* Deliberately NOT display:flex — several existing headers stack a title and
+   a description, and the ones that need a row already carry `d-flex`. */
+.card-header {
+    background-color: transparent;
+    border-bottom: 1px solid var(--rd-border);
+}
+
+/* Title inside a card header — `.header-title` (spacing in shell.css) is
+   used across the existing views, so it gets the treatment too. */
+.card-header .header-title,
+.card-header .card-title,
+.card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    margin-bottom: 0;
+}
+
+.card-body .card-title {
+    margin-bottom: var(--bs-card-title-spacer-y);
+}
+
+/* Right-hand controls in a card header. */
+.rd-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* A screen with no filter bar puts its create action in the card header
+   instead. Same control, so the same 36px the toolbar normalises to — the
+   button must not change height depending on which row it landed in. */
+.rd-card-actions .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 36px;
+    padding: 0 14px;
+    font-size: 13px;
+    white-space: nowrap;
+}
+
+/* A block that needs to read as recessed inside a card. */
+.rd-inset {
+    background-color: var(--rd-surface-2);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    padding: 14px 16px;
+}
+
+
+/* =========================================================================
+   6. FORMS + BUTTONS
+   =========================================================================
+   Inputs must sit on --rd-surface-2 so they read against the card they are
+   on; shell.css points them at --bs-secondary-bg, which is the card colour
+   itself, so they are restated here.
+   ========================================================================= */
+
+.form-control,
+.form-select,
+.form-control:focus,
+.form-select:focus {
+    background-color: var(--rd-surface-2);
+    color: var(--rd-ink);
+}
+
+.form-control,
+.form-select {
+    border-color: var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+}
+
+.form-control:focus,
+.form-select:focus {
+    border-color: rgba(var(--rd-accent-rgb), 0.55);
+    box-shadow: 0 0 0 3px var(--rd-accent-soft);
+}
+
+.form-control::placeholder {
+    color: var(--rd-ink-dim);
+}
+
+.form-label {
+    color: var(--rd-ink-muted);
+    font-size: 12px;
+    font-weight: 500;
+    margin-bottom: 6px;
+}
+
+.input-group-text {
+    background-color: var(--rd-surface-2);
+    border-color: var(--rd-border);
+    color: var(--rd-ink-muted);
+}
+
+.form-check-input {
+    background-color: var(--rd-surface-2);
+    border-color: var(--rd-border-strong);
+}
+
+.form-check-input:checked {
+    background-color: var(--rd-accent);
+    border-color: var(--rd-accent);
+}
+
+.btn {
+    --bs-btn-font-weight: 500;
+    --bs-btn-border-radius: var(--rd-radius-sm);
+}
+
+.btn-primary {
+    --bs-btn-color: #fff;
+    --bs-btn-bg: var(--rd-accent);
+    --bs-btn-border-color: var(--rd-accent);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--rd-accent-hover);
+    --bs-btn-hover-border-color: var(--rd-accent-hover);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--rd-accent-hover);
+    --bs-btn-active-border-color: var(--rd-accent-hover);
+    --bs-btn-disabled-color: #fff;
+    --bs-btn-disabled-bg: var(--rd-accent);
+    --bs-btn-disabled-border-color: var(--rd-accent);
+    --bs-btn-focus-shadow-rgb: var(--rd-accent-rgb);
+}
+
+.btn-outline-primary {
+    --bs-btn-color: var(--rd-accent-ink);
+    --bs-btn-border-color: rgba(var(--rd-accent-rgb), 0.4);
+    --bs-btn-hover-color: #fff;
+    --bs-btn-hover-bg: var(--rd-accent);
+    --bs-btn-hover-border-color: var(--rd-accent);
+    --bs-btn-active-color: #fff;
+    --bs-btn-active-bg: var(--rd-accent-hover);
+    --bs-btn-active-border-color: var(--rd-accent-hover);
+    --bs-btn-disabled-color: var(--rd-accent-ink);
+    --bs-btn-focus-shadow-rgb: var(--rd-accent-rgb);
+}
+
+/* .btn-light is the console's secondary button (32 uses). Bootstrap pairs a
+   light fill with near-black text, which is unreadable once the fill goes dark, so
+   it becomes a neutral bordered button instead. */
+.btn-light {
+    --bs-btn-color: var(--rd-ink);
+    --bs-btn-bg: var(--rd-surface-2);
+    --bs-btn-border-color: var(--rd-border);
+    --bs-btn-hover-color: var(--rd-ink);
+    --bs-btn-hover-bg: var(--rd-surface-3);
+    --bs-btn-hover-border-color: var(--rd-border-strong);
+    --bs-btn-active-color: var(--rd-ink);
+    --bs-btn-active-bg: var(--rd-surface-3);
+    --bs-btn-active-border-color: var(--rd-border-strong);
+    --bs-btn-disabled-color: var(--rd-ink-muted);
+    --bs-btn-disabled-bg: var(--rd-surface-2);
+    --bs-btn-disabled-border-color: var(--rd-border);
+    --bs-btn-focus-shadow-rgb: var(--rd-ink-muted-rgb);
+}
+
+.btn-outline-light {
+    --bs-btn-color: var(--rd-ink-muted);
+    --bs-btn-bg: transparent;
+    --bs-btn-border-color: var(--rd-border-strong);
+    --bs-btn-hover-color: var(--rd-ink);
+    --bs-btn-hover-bg: var(--rd-surface-2);
+    --bs-btn-hover-border-color: var(--rd-border-strong);
+    --bs-btn-active-color: var(--rd-ink);
+    --bs-btn-active-bg: var(--rd-surface-2);
+    --bs-btn-active-border-color: var(--rd-border-strong);
+    --bs-btn-disabled-color: var(--rd-ink-dim);
+    --bs-btn-focus-shadow-rgb: var(--rd-ink-muted-rgb);
+}
+
+/* Bootstrap hardcodes its blue on these two. */
+.nav-pills {
+    --bs-nav-pills-link-active-bg: var(--rd-accent);
+}
+
+.pagination {
+    --bs-pagination-bg: transparent;
+    --bs-pagination-color: var(--rd-ink-muted);
+    --bs-pagination-hover-bg: var(--rd-surface-2);
+    --bs-pagination-hover-color: var(--rd-ink);
+    --bs-pagination-focus-bg: var(--rd-surface-2);
+    --bs-pagination-active-bg: var(--rd-accent-soft);
+    --bs-pagination-active-border-color: rgba(var(--rd-accent-rgb), 0.35);
+    --bs-pagination-active-color: var(--rd-accent-ink);
+    --bs-pagination-disabled-bg: transparent;
+    --bs-pagination-disabled-color: var(--rd-ink-dim);
+}
+
+.dropdown-menu {
+    --bs-dropdown-bg: var(--rd-surface);
+    --bs-dropdown-border-color: var(--rd-border);
+    --bs-dropdown-border-radius: var(--rd-radius-sm);
+    --bs-dropdown-link-color: var(--rd-ink-muted);
+    --bs-dropdown-link-hover-color: var(--rd-ink);
+    --bs-dropdown-link-hover-bg: var(--rd-surface-2);
+    --bs-dropdown-link-active-bg: var(--rd-surface-2);
+    --bs-dropdown-link-active-color: var(--rd-ink);
+}
+
+.modal-content {
+    background-color: var(--rd-surface);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius);
+}
+
+.modal-header,
+.modal-footer {
+    border-color: var(--rd-border);
+}
+
+
+/* =========================================================================
+   7. TABLE
+   =========================================================================
+   Note: Bootstrap paints table cells with
+   `.table > :not(caption) > * > * { background-color: var(--bs-table-bg) }`
+   and the rule's three-level selector outranks a plain th rule. Setting the
+   variable in a thead scope works with that rule instead of against it.
+   ========================================================================= */
+
+.table {
+    --bs-table-border-color: var(--rd-border);
+    --bs-table-hover-bg: var(--rd-surface-2);
+    --bs-table-hover-color: var(--rd-ink);
+    --bs-table-striped-bg: var(--rd-surface-2);
+    --bs-table-active-bg: var(--rd-surface-2);
+}
+
+.table > thead {
+    --bs-table-bg: var(--rd-surface-2);
+}
+
+.table > thead > tr > th {
+    padding-top: 10px;
+    padding-bottom: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    line-height: 1.45;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--rd-ink-muted);
+    border-bottom-color: var(--rd-border);
+    white-space: nowrap;
+}
+
+.table > tbody > tr > td {
+    padding-top: 12px;
+    padding-bottom: 12px;
+    border-bottom-color: var(--rd-border);
+}
+
+.table > tbody > tr:last-child > td {
+    border-bottom-width: 0;
+}
+
+/* A table sitting flush inside a card: square off the header corners it
+   would otherwise poke through. */
+.card > .table-responsive:first-child > .table > thead > tr > th:first-child,
+.card > .table > thead > tr > th:first-child {
+    border-top-left-radius: var(--rd-radius);
+}
+
+.card > .table-responsive:first-child > .table > thead > tr > th:last-child,
+.card > .table > thead > tr > th:last-child {
+    border-top-right-radius: var(--rd-radius);
+}
+
+/* User / device cell: 28px avatar + a name over a dim second line. */
+.rd-avatar {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: var(--rd-radius-pill);
+    background-color: rgba(var(--rd-tone-rgb), 0.14);
+    color: var(--rd-tone);
+    font-size: 12px;
+    font-weight: 600;
+    line-height: 1;
+    text-transform: uppercase;
+}
+
+.rd-avatar-lg {
+    width: 40px;
+    height: 40px;
+    font-size: 15px;
+}
+
+.rd-cell {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+
+.rd-cell-title {
+    display: block;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    line-height: 1.35;
+}
+
+.rd-cell-sub {
+    display: block;
+    font-size: 12px;
+    color: var(--rd-ink-dim);
+    line-height: 1.35;
+}
+
+
+/* =========================================================================
+   8. BADGE + DOT
+   =========================================================================
+   The existing `badge bg-success-subtle text-success` idiom keeps working —
+   the subtle tints were rebound in section 2. This just tightens the shape.
+   ========================================================================= */
+
+.badge {
+    --bs-badge-font-size: 11px;
+    --bs-badge-font-weight: 600;
+    --bs-badge-padding-x: 0.55em;
+    --bs-badge-padding-y: 0.4em;
+    --bs-badge-border-radius: 6px;
+    letter-spacing: 0.01em;
+}
+
+/* Status dot. Standalone, or as the leading dot of a live/online badge:
+   `<span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Online</span>` */
+.rd-dot {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    border-radius: var(--rd-radius-pill);
+    background-color: currentColor;
+    vertical-align: middle;
+    margin-right: 6px;
+    position: relative;
+    top: -1px;
+}
+
+.rd-dot-lg {
+    width: 8px;
+    height: 8px;
+}
+
+/* A status badge sitting in a row of small buttons (device detail header).
+   The row's flex stretch sets the height; this centres the label in it. */
+.rd-status-block {
+    display: inline-flex;
+    align-items: center;
+    padding-left: 0.75em;
+    padding-right: 0.75em;
+}
+
+
+/* =========================================================================
+   9. STAT TILE
+   =========================================================================
+   Markup shape (a later phase applies it):
+
+     <div class="rd-stat rd-tone-blue">
+       <div class="rd-stat-head">
+         <span class="rd-stat-icon"><i class="ri-computer-line"></i></span>
+         <div class="min-width-0">
+           <div class="rd-stat-label">Devices</div>
+           <div class="rd-stat-value">128</div>
+         </div>
+       </div>
+       <div class="rd-stat-foot rd-trend-up">↑ 12 vs last 14 days</div>
+     </div>
+
+   Colour comes from the .rd-tone-* class (section 14), not from the tile.
+   ========================================================================= */
+
+.rd-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    height: 100%;
+}
+
+.rd-stat-head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.rd-stat-icon {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 46px;
+    height: 46px;
+    border-radius: var(--rd-radius-sm);
+    background-color: rgba(var(--rd-tone-rgb), 0.14);
+    color: var(--rd-tone);
+    font-size: 21px;
+    line-height: 1;
+}
+
+.rd-stat-icon i {
+    line-height: 1;
+}
+
+.rd-stat-label {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--rd-ink-muted);
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.rd-stat-value {
+    font-size: 29px;
+    font-weight: 600;
+    line-height: 1.15;
+    color: var(--rd-ink);
+    letter-spacing: -0.01em;
+}
+
+.rd-stat-foot {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: auto;
+    font-size: 12px;
+    color: var(--rd-ink-dim);
+    line-height: 1.4;
+}
+
+.rd-trend-up {
+    color: var(--rd-green);
+}
+
+.rd-trend-down {
+    color: var(--rd-red);
+}
+
+/* Slightly smaller value on very narrow phones so 6-digit counts still fit. */
+@media (max-width: 400px) {
+    .rd-stat-value {
+        font-size: 26px;
+    }
+
+    .rd-stat-icon {
+        width: 42px;
+        height: 42px;
+        font-size: 19px;
+    }
+}
+
+
+/* =========================================================================
+   10. SEGMENTED CONTROL
+   =========================================================================
+     <div class="rd-seg" role="group">
+       <button type="button" class="rd-seg-item active">14D</button>
+       <button type="button" class="rd-seg-item">30D</button>
+     </div>
+   ========================================================================= */
+
+.rd-seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 2px;
+    background-color: var(--rd-surface-2);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-pill);
+}
+
+.rd-seg-item {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    padding: 4px 10px;
+    border-radius: var(--rd-radius-pill);
+    font-size: 12px;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--rd-ink-muted);
+    text-decoration: none;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rd-seg-item:hover,
+.rd-seg-item:focus-visible {
+    color: var(--rd-ink);
+}
+
+.rd-seg-item.active,
+.rd-seg-item[aria-pressed="true"] {
+    background-color: var(--rd-accent-soft);
+    color: var(--rd-accent-ink);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .rd-seg-item {
+        transition: none;
+    }
+}
+
+
+/* =========================================================================
+   11. META PILL
+   =========================================================================
+     <span class="rd-meta"><span class="rd-meta-label">Environment</span>
+       <span class="rd-meta-sep">·</span>
+       <span class="rd-meta-value">Production</span></span>
+   ========================================================================= */
+
+.rd-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    font-size: 12px;
+    line-height: 1.4;
+    white-space: nowrap;
+}
+
+.rd-meta-label {
+    color: var(--rd-ink-muted);
+}
+
+.rd-meta-sep {
+    color: var(--rd-ink-dim);
+}
+
+.rd-meta-value {
+    color: var(--rd-ink);
+    font-weight: 600;
+}
+
+.rd-meta-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+
+/* =========================================================================
+   12. EMPTY STATE
+   =========================================================================
+     <div class="rd-empty">
+       <div class="rd-empty-icon"><i class="ri-inbox-line"></i></div>
+       <p class="rd-empty-title">No devices yet</p>
+       <p class="rd-empty-text">Devices appear here once a client connects.</p>
+       <a href="#" class="btn btn-sm btn-outline-light">Add a device</a>
+     </div>
+   ========================================================================= */
+
+.rd-empty {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 40px 20px;
+}
+
+.rd-empty-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+    border-radius: var(--rd-radius-pill);
+    background-color: var(--rd-surface-2);
+    color: var(--rd-ink-dim);
+    font-size: 24px;
+    line-height: 1;
+}
+
+.rd-empty-title {
+    margin: 0 0 4px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--rd-ink);
+}
+
+.rd-empty-text {
+    margin: 0 0 16px;
+    font-size: 13px;
+    color: var(--rd-ink-muted);
+    max-width: 42ch;
+}
+
+.rd-empty-text:last-child {
+    margin-bottom: 0;
+}
+
+
+/* =========================================================================
+   13. CHARTS (ApexCharts)
+   =========================================================================
+   Three of these fight rules that JS options cannot win:
+     * gridlines need `!important` to beat the stroke Apex writes;
+     * axis label colour is a CSS `fill` on `.apexcharts-xaxis text`, and CSS
+       beats the SVG presentation attribute Apex writes, so chart.foreColor
+       and xaxis.labels.style.colors are both ignored;
+     * the legend colour is `!important`.
+   Matching ApexCharts' own selectors works because this file loads after
+   the stylesheet the library injects.
+   ========================================================================= */
+
+.apexcharts-gridline,
+.apexcharts-xaxis-tick {
+    stroke: var(--rd-border) !important;
+}
+
+.apexcharts-yaxis text,
+.apexcharts-xaxis text,
+.apexcharts-text {
+    fill: var(--rd-ink-dim);
+    font-size: 11px;
+}
+
+.apexcharts-legend-text {
+    color: var(--rd-ink-muted) !important;
+    font-family: var(--bs-font-sans-serif) !important;
+    font-size: 13px !important;
+    vertical-align: middle;
+}
+
+.apexcharts-legend-series {
+    font-weight: 600;
+}
+
+.apexcharts-legend-marker {
+    margin-right: 5px !important;
+    vertical-align: middle;
+}
+
+/* Apex sets its own font stack on these; keep the console's. */
+.apexcharts-tooltip *,
+.apexcharts-yaxis text,
+.apexcharts-xaxis text,
+.apexcharts-title-text,
+.apexcharts-subtitle-text {
+    font-family: var(--bs-font-sans-serif) !important;
+}
+
+.apexcharts-tooltip * {
+    color: var(--bs-tertiary-color) !important;
+}
+
+.apexcharts-datalabel-label {
+    fill: var(--rd-ink-muted) !important;
+}
+
+.apexcharts-datalabel-value {
+    fill: var(--rd-ink) !important;
+    font-weight: 600;
+}
+
+.apexcharts-tooltip {
+    background: var(--rd-surface-2) !important;
+    border: 1px solid var(--rd-border-strong) !important;
+    border-radius: var(--rd-radius-sm) !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35) !important;
+}
+
+.apexcharts-tooltip-title {
+    background: transparent !important;
+    border-bottom: 1px solid var(--rd-border) !important;
+    color: var(--rd-ink-muted) !important;
+    font-size: 12px !important;
+}
+
+/* Donut legend rendered as a list beside the chart rather than Apex's own.
+     <ul class="rd-legend">
+       <li class="rd-legend-item rd-tone-blue">
+         <span class="rd-legend-swatch"></span>
+         <span class="rd-legend-label">Windows</span>
+         <span class="rd-legend-count">42</span>
+         <span class="rd-legend-pct">61%</span>
+       </li>
+     </ul> */
+.rd-legend {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rd-legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.rd-legend-swatch {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    background-color: var(--rd-tone);
+}
+
+.rd-legend-label {
+    color: var(--rd-ink-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rd-legend-count {
+    margin-left: auto;
+    color: var(--rd-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.rd-legend-pct {
+    color: var(--rd-ink-dim);
+    font-variant-numeric: tabular-nums;
+    min-width: 4ch;
+    text-align: right;
+}
+
+
+/* =========================================================================
+   14. TONE HELPERS
+   =========================================================================
+   Add one of these to a .rd-stat, .rd-avatar, .rd-legend-item (or anything
+   else reading --rd-tone) to colour it. Keeps the components colour-agnostic.
+
+   Overview tile assignment per the design: devices blue, online green,
+   users purple, sessions blue, alerts amber (red when non-zero),
+   success-rate teal.
+   ========================================================================= */
+
+.rd-tone-accent {
+    --rd-tone: var(--rd-accent-ink);
+    --rd-tone-rgb: var(--rd-accent-rgb);
+}
+
+.rd-tone-blue {
+    --rd-tone: var(--rd-blue);
+    --rd-tone-rgb: var(--rd-blue-rgb);
+}
+
+.rd-tone-green {
+    --rd-tone: var(--rd-green);
+    --rd-tone-rgb: var(--rd-green-rgb);
+}
+
+.rd-tone-amber {
+    --rd-tone: var(--rd-amber);
+    --rd-tone-rgb: var(--rd-amber-rgb);
+}
+
+.rd-tone-teal {
+    --rd-tone: var(--rd-teal);
+    --rd-tone-rgb: var(--rd-teal-rgb);
+}
+
+.rd-tone-purple {
+    --rd-tone: var(--rd-purple);
+    --rd-tone-rgb: var(--rd-purple-rgb);
+}
+
+.rd-tone-red {
+    --rd-tone: var(--rd-red);
+    --rd-tone-rgb: var(--rd-red-rgb);
+}
+
+.rd-tone-muted {
+    --rd-tone: var(--rd-ink-muted);
+    --rd-tone-rgb: var(--rd-ink-muted-rgb);
+}
+
+
+/* =========================================================================
+   15. OVERVIEW
+   =========================================================================
+   Layout pieces the dashboard needs on top of the components above. Nothing
+   here is Overview-only by design — any screen may reuse them — but this is
+   where they earn their keep.
+   ========================================================================= */
+
+/* --- Stat tile row ------------------------------------------------------
+   Six across on a wide screen, three on a laptop, two on a tablet, one on a
+   phone. A grid rather than Bootstrap columns because the Users tile is
+   admin-only: with five tiles the row still fills evenly. */
+.rd-stat-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+    margin-bottom: 20px;
+}
+
+@media (min-width: 576px) {
+    .rd-stat-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 992px) {
+    .rd-stat-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+}
+
+@media (min-width: 1400px) {
+    .rd-stat-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr));
+    }
+
+    /* Six across leaves ~105px beside the icon chip: the label steps down a
+       notch so the longest of them ("Connections today") still reads whole. */
+    .rd-stat-grid .rd-stat-head {
+        gap: 10px;
+    }
+
+    .rd-stat-grid .rd-stat-label {
+        font-size: 12px;
+    }
+}
+
+.rd-stat-grid > .card {
+    margin-bottom: 0;
+    height: 100%;
+}
+
+/* Denser than the 20px card default — six of these share one row. */
+.rd-stat-grid > .card > .card-body {
+    padding: 16px;
+}
+
+/* The global card lift is too busy for a dense row of tiles: the frame
+   brightens instead of the tile jumping. */
+.rd-stat-grid a.card-hover:hover,
+.rd-stat-grid a.card-hover:focus-visible {
+    transform: none;
+    box-shadow: var(--rd-shadow);
+    border-color: var(--rd-border-strong);
+}
+
+/* An icon standing in for an initial inside a .rd-avatar. */
+.rd-avatar i {
+    font-size: 14px;
+}
+
+/* --- Card header subtitle -----------------------------------------------
+   Capped: a header that runs the full width of a 1900px screen pushes its
+   own action button onto a second row and reads as a paragraph, not a
+   caption. */
+.rd-card-sub {
+    margin-top: 2px;
+    font-size: 12.5px;
+    color: var(--rd-ink-muted);
+    line-height: 1.4;
+    max-width: 78ch;
+}
+
+/* --- Donut + legend beside it -------------------------------------------
+   Wraps to stacked below ~360px of card width, which is what a 390px phone
+   gives once the card padding is taken off. */
+.rd-donut {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 20px;
+}
+
+.rd-donut-chart {
+    flex: 1 1 190px;
+    min-width: 0;
+}
+
+.rd-donut-legend {
+    flex: 1 1 170px;
+    min-width: 0;
+}
+
+/* --- Horizontal bar list -------------------------------------------------
+     <ul class="rd-barlist">
+       <li class="rd-barlist-item rd-tone-blue">
+         <div class="rd-barlist-head">
+           <span class="rd-barlist-label">1.3.2</span>
+           <span class="rd-barlist-count">42</span>
+           <span class="rd-barlist-pct">61%</span>
+         </div>
+         <div class="rd-barlist-track"><div class="rd-barlist-fill" style="width:100%"></div></div>
+       </li>
+     </ul> */
+.rd-barlist {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+}
+
+.rd-barlist-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+.rd-barlist-label {
+    color: var(--rd-ink);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rd-barlist-count {
+    margin-left: auto;
+    color: var(--rd-ink);
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+}
+
+.rd-barlist-pct {
+    color: var(--rd-ink-dim);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    min-width: 4ch;
+    text-align: right;
+}
+
+.rd-barlist-track {
+    height: 6px;
+    border-radius: var(--rd-radius-pill);
+    background-color: var(--rd-surface-2);
+    overflow: hidden;
+}
+
+.rd-barlist-fill {
+    height: 100%;
+    min-width: 3px;
+    border-radius: var(--rd-radius-pill);
+    background-color: var(--rd-tone);
+}
+
+/* --- Alert feed ----------------------------------------------------------
+   A short list of recent events: hairline between rows, no outer rules. */
+.rd-feed {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.rd-feed-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 0;
+    border-top: 1px solid var(--rd-border);
+}
+
+.rd-feed-item:first-child {
+    padding-top: 0;
+    border-top: 0;
+}
+
+.rd-feed-item:last-child {
+    padding-bottom: 0;
+}
+
+
+/* =========================================================================
+   16. LIST PANEL
+   =========================================================================
+   Every list screen in the console is the same object: a filter bar, a wide
+   table, a phone-sized card list standing in for that table, and a footer
+   carrying the range and the pager. Before this section each screen built
+   that by hand out of Bootstrap grid columns, so the filter row landed on
+   different breakpoints on every screen and the table sat marooned inside
+   20px of card padding.
+
+   The panel now reads as one framed object:
+
+     <div class="card">
+       <div class="rd-toolbar"> … filters … </div>       hairline below
+       <div class="table-responsive d-none d-md-block">   flush to the edges
+       <div class="d-md-none rd-cardlist">                phone fallback
+       <div class="rd-tablefoot">  range + pager          hairline above
+     </div>
+
+   The `d-none d-md-block` / `d-md-none` pair is deliberately untouched: it
+   is the house pattern for the mobile fallback and one test asserts on the
+   literal class names.
+   ========================================================================= */
+
+/* --- Filter bar ---------------------------------------------------------
+   Flex, not grid columns: controls keep a sensible minimum and wrap when
+   they run out of room, so the row lines up at 390px and at 1900px without
+   a per-screen column table. */
+.rd-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    padding: 14px 20px;
+    border-bottom: 1px solid var(--rd-border);
+}
+
+.rd-toolbar .form-control,
+.rd-toolbar .form-select,
+.rd-toolbar .btn {
+    height: 36px;
+    font-size: 13px;
+    padding-top: 0;
+    padding-bottom: 0;
+}
+
+.rd-toolbar .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding-left: 14px;
+    padding-right: 14px;
+    white-space: nowrap;
+}
+
+.rd-toolbar .input-group-text {
+    background-color: var(--rd-surface-2);
+    color: var(--rd-ink-dim);
+    padding-right: 0;
+    border-right: 0;
+}
+
+.rd-toolbar .input-group .form-control {
+    border-left: 0;
+    padding-left: 8px;
+}
+
+/* Search absorbs the slack (grow 1); the filters hold a fixed, legible width
+   and only shrink when the row is genuinely tight. A date input rendered
+   220px wide to hold "mm/dd/yyyy" is the row shouting at you. */
+.rd-toolbar-search {
+    flex: 1 1 220px;
+    min-width: 0;
+}
+
+.rd-toolbar-filter {
+    flex: 0 1 156px;
+    width: auto;
+    min-width: 118px;
+}
+
+/* Row-count selects and other two-or-three-character controls. */
+.rd-toolbar-narrow {
+    flex: 0 1 88px;
+    width: auto;
+    min-width: 74px;
+}
+
+.rd-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: auto;
+}
+
+/* On a phone the actions get their own full-width row rather than being
+   squeezed against the last filter. */
+@media (max-width: 575.98px) {
+    .rd-toolbar {
+        padding: 12px 16px;
+    }
+
+    /* A 390px card gives the row ~314px of usable width. At the desktop basis
+       only one filter fits per line; at 132px two do, and they stretch to
+       share the line evenly. */
+    .rd-toolbar-filter,
+    .rd-toolbar-narrow {
+        flex: 1 1 132px;
+        min-width: 0;
+    }
+
+    .rd-toolbar-actions {
+        flex: 1 1 100%;
+        margin-left: 0;
+    }
+
+    .rd-toolbar-actions > .btn {
+        flex: 1 1 0;
+    }
+}
+
+/* Sorting controls. The picker and its reverse button travel together — the
+   button is meaningless on its own, and letting it wrap to another line puts an
+   unlabelled arrow somewhere the eye has to hunt for it. */
+.rd-sort-mobile {
+    display: flex;
+    flex: 1 1 100%;
+    align-items: center;
+    gap: 8px;
+}
+
+.rd-sort-mobile > .rd-toolbar-filter {
+    flex: 1 1 auto;
+}
+
+/* Clickable table headings. The th text is styled directly (section 7), so
+   the button has to inherit rather than bring btn styling of its own — a
+   stack of utility classes cancelling Bootstrap out reads worse. */
+.rd-sort-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding: 0;
+    border: 0;
+    background: none;
+    font: inherit;
+    color: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    cursor: pointer;
+}
+
+.rd-sort-btn:hover {
+    color: var(--rd-shell-accent);
+}
+
+.rd-sort-btn:focus-visible {
+    outline: 2px solid var(--rd-shell-accent);
+    outline-offset: 2px;
+    border-radius: 3px;
+}
+
+/* The caret is present on every heading and only shown on the active one, so
+   sorting a column does not change its width. */
+.rd-sort-btn > i {
+    visibility: hidden;
+    font-size: 14px;
+}
+
+.rd-sort-active {
+    color: var(--rd-shell-accent);
+}
+
+.rd-sort-active > i {
+    visibility: visible;
+}
+
+/* --- Flush table --------------------------------------------------------
+   The table now spans the panel, so the outer cells re-create the card's
+   own horizontal padding. */
+.card > .table-responsive > .table {
+    margin-bottom: 0;
+}
+
+.card > .table-responsive > .table > thead > tr > th:first-child,
+.card > .table-responsive > .table > tbody > tr > td:first-child {
+    padding-left: 20px;
+}
+
+.card > .table-responsive > .table > thead > tr > th:last-child,
+.card > .table-responsive > .table > tbody > tr > td:last-child {
+    padding-right: 20px;
+}
+
+/* An empty state occupies the whole table, so it must not inherit the cell
+   padding on top of its own. */
+.rd-empty-cell {
+    padding: 0 !important;
+}
+
+/* --- Phone card list ----------------------------------------------------
+   `.d-md-none` only sets display from md up, so the flex below governs the
+   phone layout and Bootstrap still hides the block on a desktop. */
+.rd-cardlist {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px;
+}
+
+/* One row of a card list: a recessed block, not a nested card — a card on a
+   card is the same colour twice and reads as nothing at all. */
+.rd-mini {
+    background-color: var(--rd-surface-2);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    padding: 12px 14px;
+}
+
+.rd-mini-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    min-width: 0;
+}
+
+.rd-mini-title {
+    display: block;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    line-height: 1.35;
+}
+
+.rd-mini-sub {
+    display: block;
+    font-size: 12px;
+    color: var(--rd-ink-dim);
+    line-height: 1.4;
+}
+
+/* The subtitle doubles as the link to the device detail page on phones. */
+a.rd-mini-sub {
+    text-decoration: none;
+}
+
+a.rd-mini-sub:hover {
+    color: var(--rd-shell-accent);
+    text-decoration: underline;
+}
+
+/* The action strip at the bottom of a card-list row. */
+.rd-mini-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.rd-mini-acts {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 4px;
+    flex-shrink: 0;
+}
+
+/* Ghost icon buttons — the phone equivalent of the row action links. */
+.rd-iconbtn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    padding: 0;
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    background-color: transparent;
+    color: var(--rd-ink-muted);
+    font-size: 15px;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.rd-iconbtn:hover,
+.rd-iconbtn:focus-visible {
+    background-color: var(--rd-surface-3);
+    border-color: var(--rd-border-strong);
+    color: var(--rd-ink);
+}
+
+/* --- Panel footer ------------------------------------------------------- */
+.rd-tablefoot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px;
+    border-top: 1px solid var(--rd-border);
+    font-size: 12px;
+    color: var(--rd-ink-muted);
+}
+
+.rd-tablefoot .pagination {
+    margin-bottom: 0;
+    --bs-pagination-font-size: 12px;
+    --bs-pagination-padding-x: 0.6rem;
+    --bs-pagination-padding-y: 0.25rem;
+}
+
+/* Laravel's bootstrap paginator prints its own "Showing 1 to 20 of 87 results"
+   line beside the links from sm up, which is the same sentence the footer
+   already carries on the left. Ours stays (it is there at every width); the
+   paginator's copy goes. */
+.rd-tablefoot nav p.small {
+    display: none;
+}
+
+/* --- Row actions --------------------------------------------------------
+   The text links in the last cell of a table row. Kept as links (they are
+   Livewire actions, not form buttons) but given one consistent size and a
+   separator-free rhythm. */
+.rd-rowact {
+    white-space: nowrap;
+    font-size: 12.5px;
+}
+
+.rd-rowact a {
+    text-decoration: none;
+    font-weight: 500;
+}
+
+.rd-rowact a:hover,
+.rd-rowact a:focus-visible {
+    text-decoration: underline;
+}
+
+/* Neutral row action: reads as a control, not as a link needing attention.
+   The destructive one keeps .text-danger. */
+.rd-rowact .rd-act {
+    color: var(--rd-ink-muted);
+}
+
+.rd-rowact .rd-act:hover,
+.rd-rowact .rd-act:focus-visible {
+    color: var(--rd-ink);
+}
+
+
+/* =========================================================================
+   17. TABS, CHIPS AND OTHER SHARED FURNITURE
+   ========================================================================= */
+
+/* `.nav-bordered` (shell.css) is an underline tab strip on a 2px rule.
+   Hairline it and switch the active marker to the accent. */
+.nav-tabs.nav-bordered {
+    border-bottom: 1px solid var(--rd-border);
+    gap: 2px;
+}
+
+.nav-tabs.nav-bordered li a,
+.nav-tabs.nav-bordered .nav-link {
+    padding: 10px 14px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    border-radius: 0;
+    background-color: transparent;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--rd-ink-muted);
+}
+
+.nav-tabs.nav-bordered li a:hover,
+.nav-tabs.nav-bordered .nav-link:hover,
+.nav-tabs.nav-bordered .nav-link:focus {
+    border-color: transparent;
+    border-bottom: 2px solid var(--rd-border-strong);
+    color: var(--rd-ink);
+}
+
+.nav-tabs.nav-bordered li a.active,
+.nav-tabs.nav-bordered .nav-link.active {
+    background-color: transparent;
+    border-bottom: 2px solid var(--rd-accent);
+    color: var(--rd-accent-ink);
+}
+
+/* A tab strip that must survive a phone: six tabs scroll sideways instead of
+   wrapping into a second row and shoving the panel down. */
+.rd-tabbar {
+    margin-bottom: 0;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    scrollbar-width: none;
+}
+
+/* When the strip runs along the top of a panel it is full-bleed, and its own
+   hairline doubles as the divider above the toolbar. */
+.card > .rd-tabbar {
+    padding: 0 12px;
+}
+
+.rd-tabbar::-webkit-scrollbar {
+    display: none;
+}
+
+.rd-tabbar .nav-item {
+    flex: none;
+}
+
+/* --- Summary chips -------------------------------------------------------
+   The small counts above a list ("128 Devices · 96 Online"). Three cards for
+   three numbers is too much furniture; one row of chips says the same thing.
+
+     <div class="rd-chiprow">
+       <span class="rd-chip rd-tone-blue">
+         <i class="ri-computer-line rd-chip-icon"></i>
+         <span class="rd-chip-value">128</span>
+         <span class="rd-chip-label">Devices</span>
+       </span>
+     </div> */
+.rd-chiprow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 16px;
+}
+
+.rd-chip {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 7px;
+    padding: 8px 14px;
+    background-color: var(--rd-surface);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    font-size: 13px;
+    line-height: 1.3;
+    text-decoration: none;
+}
+
+.rd-chip-icon {
+    align-self: center;
+    color: var(--rd-tone);
+    font-size: 15px;
+    line-height: 1;
+}
+
+.rd-chip-dot {
+    align-self: center;
+    width: 7px;
+    height: 7px;
+    border-radius: var(--rd-radius-pill);
+    background-color: var(--rd-tone);
+}
+
+.rd-chip-value {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    font-variant-numeric: tabular-nums;
+}
+
+.rd-chip-label {
+    color: var(--rd-ink-muted);
+}
+
+/* Cells that read better on one line (the OS column); the full value rides in
+   the title attribute. */
+.rd-nowrap {
+    white-space: nowrap;
+}
+
+/* The hostname in the Device cell opens the detail page; it keeps the cell's
+   ink so the table does not fill with link-blue, and shows intent on hover. */
+.rd-cell-link {
+    color: inherit;
+    text-decoration: none;
+}
+
+.rd-cell-link:hover {
+    color: var(--rd-shell-accent);
+    text-decoration: underline;
+}
+
+/* Chips that filter (issue #26). Same anatomy as the plain chip; the button
+   reset keeps them pixel-identical until hovered, and the active one carries
+   its tone on the border so the current filter is visible at a glance. */
+.rd-chip-btn {
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+}
+
+.rd-chip-btn:hover {
+    border-color: var(--rd-tone);
+}
+
+.rd-chip-btn:focus-visible {
+    outline: 2px solid var(--rd-tone);
+    outline-offset: 2px;
+}
+
+.rd-chip-active {
+    border-color: var(--rd-tone);
+    box-shadow: inset 0 0 0 1px var(--rd-tone);
+}
+
+/* --- Scroll box ----------------------------------------------------------
+   The bordered, scrolling pick-lists inside the modals. Recessed so the
+   checkboxes read as content inside the dialog rather than more dialog. */
+.rd-scrollbox {
+    background-color: var(--rd-surface-2);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+}
+
+.rd-scrollbox .table {
+    --bs-table-bg: transparent;
+}
+
+.rd-scrollbox .table > tbody > tr > td {
+    padding-top: 8px;
+    padding-bottom: 8px;
+}
+
+/* --- Master / detail -----------------------------------------------------
+   The address-book list beside its entries. */
+.rd-masterlist {
+    --bs-list-group-bg: transparent;
+    --bs-list-group-border-color: var(--rd-border);
+    --bs-list-group-color: var(--rd-ink-muted);
+    --bs-list-group-hover-bg: var(--rd-surface-2);
+    --bs-list-group-action-hover-color: var(--rd-ink);
+    --bs-list-group-active-bg: var(--rd-accent-soft);
+    --bs-list-group-active-border-color: var(--rd-border);
+    --bs-list-group-active-color: var(--rd-accent-ink);
+    --bs-list-group-border-radius: var(--rd-radius-sm);
+}
+
+.rd-masterlist .list-group-item {
+    padding: 10px 14px;
+    font-size: 13px;
+}
+
+/* A row is built from the table-cell pair, and .rd-cell-title hard-sets its
+   colour — so without this the selected row's title stayed ink and the
+   selection read only as a background tint. The meta line underneath stays
+   dim in both states: it is metadata, it does not carry the selection. */
+.rd-masterlist .list-group-item.active .rd-cell-title {
+    color: var(--rd-accent-ink);
+}
+
+/* --- Definition rows -----------------------------------------------------
+   Label / value pairs on the account and settings screens.
+
+     <dl class="rd-deflist">
+       <div class="rd-def"><dt>Username</dt><dd>admin</dd></div>
+     </dl> */
+.rd-deflist {
+    margin: 0;
+}
+
+.rd-def {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 10px 0;
+    border-top: 1px solid var(--rd-border);
+}
+
+.rd-def:first-child {
+    border-top: 0;
+    padding-top: 0;
+}
+
+.rd-def dt {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--rd-ink-muted);
+}
+
+.rd-def dd {
+    margin: 0;
+    font-size: 13px;
+    color: var(--rd-ink);
+    text-align: right;
+    word-break: break-word;
+}
+
+/* --- Alerts --------------------------------------------------------------
+   Tighter than the default, and on the same radius as the buttons. */
+/* Equal-height cards across a dashboard row.
+   Bootstrap stretches the COLUMNS, not the cards inside them, so a short card
+   next to a tall one leaves dead space under it. Making the column a flex
+   column and letting the card grow fixes it, and still works when a column
+   holds two stacked cards. */
+.rd-row-equal > [class*="col-"] {
+    display: flex;
+    flex-direction: column;
+}
+
+.rd-row-equal > [class*="col-"] > .card,
+.rd-row-equal > [class*="col-"] > [wire\:id] > .card {
+    flex: 1 1 auto;
+}
+
+/* Leading icon in a flex alert.
+   The icon is set larger than the copy, so its line box is taller and it drifts
+   below the first line of text. Inheriting the alert's line-height makes the two
+   boxes agree, so the glyph sits on the first line instead of under it. Do not
+   add a margin-top to nudge it — that is what caused the drift. */
+.alert.d-flex {
+    --rd-alert-line: calc(var(--bs-body-font-size, 0.875rem) * var(--bs-body-line-height, 1.5));
+}
+
+.alert.d-flex > i[class^="ri-"],
+.alert.d-flex > i[class*=" ri-"] {
+    flex: 0 0 auto;
+    /* Box exactly one text line tall, glyph centred inside it. align-items-start
+       aligns box TOPS, and the icon is set larger than the copy, so matching
+       line-heights is not enough — its taller box centres the glyph lower. Fixing
+       the height to one line makes it land on the first line whatever the icon
+       size is. Do not "fix" this with margin-top. */
+    height: var(--rd-alert-line);
+    display: inline-flex;
+    align-items: center;
+    line-height: 1;
+}
+
+.alert {
+    --bs-alert-border-radius: var(--rd-radius-sm);
+    font-size: 13px;
+}
+
+/* --- Modals -------------------------------------------------------------- */
+.modal-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--rd-ink);
+}
+
+.modal-header,
+.modal-footer {
+    padding: 14px 20px;
+}
+
+.modal-body {
+    padding: 20px;
+}
+
+/* Restore scrolling in dialogs whose form wraps the header/body/footer.
+   ---------------------------------------------------------------------------
+   .modal-dialog-scrollable works by making .modal-content a flex column and
+   letting .modal-body take the leftover height with overflow-y:auto. Every
+   editor dialog here nests a <form> between the two so one submit handler can
+   cover the body and the footer button:
+
+       .modal-content > form > (.modal-header, .modal-body, .modal-footer)
+
+   That form becomes the ONLY flex child of .modal-content. It has no height
+   constraint, so it grows to its natural content height, .modal-body is never
+   bounded, and overflow-y:auto has nothing to scroll against — the dialog
+   simply runs off the bottom of the screen, taking the Save button with it.
+   Add Strategy is where it shows first because it is the tallest, but all
+   seven editor dialogs share the structure.
+
+   Fixed here rather than by unwrapping the forms: the markup is correct HTML
+   and the submit handler depends on it. min-height:0 is the load-bearing part
+   — a flex item's default min-height:auto refuses to shrink below its content,
+   which is exactly what stops the scroll from ever engaging. */
+.modal-dialog-scrollable .modal-content > form {
+    display: flex;
+    flex-direction: column;
+    max-height: 100%;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.modal-dialog-scrollable .modal-content > form > .modal-body {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.modal-dialog-scrollable .modal-content > form > .modal-header,
+.modal-dialog-scrollable .modal-content > form > .modal-footer {
+    flex: 0 0 auto;
+}
+
+/* Livewire toggles these dialogs by hand, so the backdrop is a sibling div
+   (or an inline style) rather than Bootstrap's own. Deepen it either way. */
+.modal-backdrop.show {
+    --bs-backdrop-opacity: 0.6;
+}
+
+/* --- Code / monospace values --------------------------------------------- */
+.rd-mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+}
+
+/* One click selects the whole value, for copying ids and UUIDs. */
+.rd-select-all {
+    user-select: all;
+}
+
+/* A single machine-issued code shown in a grid — the one-time recovery codes
+   today. Recessed like a scroll box but sized as a chip; keeping it separate
+   means neither component has to bend to fit the other. */
+.rd-codechip {
+    display: block;
+    padding: 4px 8px;
+    background-color: var(--rd-surface-2);
+    border: 1px solid var(--rd-border);
+    border-radius: var(--rd-radius-sm);
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12.5px;
+    color: var(--rd-ink);
+    text-align: center;
+    overflow-wrap: anywhere;
+}
+
+
+/* =========================================================================
+   18. AUTH
+   =========================================================================
+   The signed-out screens sit on a photograph, so the card needs to be more
+   solid than a console panel: no transparency, a stronger shadow, and a
+   slightly wider radius.
+   ========================================================================= */
+
+.rd-auth-bg .card {
+    border-color: var(--rd-border-strong);
+    box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45);
+}
+
+/* The brand header on every signed-out card. It was inlined in a style="" on
+   each of the seven auth blades, so a brand tweak meant seven edits; the
+   markup inside it — the logo link, its image and the wordmark — is
+   deliberately untouched. */
+.rd-auth-head {
+    background: radial-gradient(120% 140% at 50% 0%, #233149 0%, #141c2b 60%, #0f1622 100%);
+    border-bottom: 2px solid var(--rd-accent);
+}
+
+.rd-auth-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: var(--rd-ink);
+    margin-bottom: 4px;
+}
+
+.rd-auth-sub {
+    font-size: 13px;
+    color: var(--rd-ink-muted);
+    margin-bottom: 20px;
+}
+
+.rd-auth-foot {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rd-border);
+    font-size: 13px;
+    color: var(--rd-ink-muted);
+    text-align: center;
+}
+
+/* Secondary actions in the footer are quiet text, whatever element they are
+   built from — a link on one screen is a form button on the next. */
+.rd-auth-foot a,
+.rd-auth-foot .btn-link {
+    color: var(--rd-ink-muted);
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
+    vertical-align: baseline;
+}
+
+.rd-auth-foot a:hover,
+.rd-auth-foot a:focus-visible,
+.rd-auth-foot .btn-link:hover,
+.rd-auth-foot .btn-link:focus-visible {
+    color: var(--rd-accent-ink);
+    text-decoration: underline;
+}
+
+.rd-auth-foot-note {
+    display: block;
+    margin: 8px 0 0;
+    font-size: 12px;
+    color: var(--rd-ink-dim);
+}
+
+/* Fields sit a little taller than in the console: a signed-out card is one
+   short form and has the room, and the larger target helps on a phone. */
+.rd-auth-bg .form-control {
+    min-height: 42px;
+}
+
+/* One-time codes: bigger, centred, spaced out, and never so wide that a
+   placeholder clips on a 390px phone — hence the short placeholders. */
+.rd-code-input.form-control {
+    min-height: 52px;
+    font-size: 20px;
+    font-weight: 600;
+    letter-spacing: 0.18em;
+    text-align: center;
+}
+
+.rd-auth-bg .btn {
+    min-height: 42px;
+}
+
+/* The button hierarchy on these screens is: one filled primary action per
+   card, an outline button for an alternative route in (SSO), quiet text for
+   everything else. */
+.rd-auth-bg .btn-primary,
+.rd-auth-bg .btn-outline-primary {
+    font-weight: 600;
+}
+
+.rd-auth-bg .form-text {
+    color: var(--rd-ink-dim);
+    font-size: 12px;
+}
+
+/* A disabled field is showing a fact, not inviting an edit. */
+.rd-auth-bg .form-control:disabled {
+    background-color: rgba(var(--rd-ink-muted-rgb), 0.08);
+    color: var(--rd-ink-muted);
+}
+
+/* A quiet inline link beside a field ("Forgot password?"). */
+.rd-auth-quiet {
+    font-size: 12.5px;
+    color: var(--rd-ink-muted);
+    text-decoration: none;
+}
+
+.rd-auth-quiet:hover,
+.rd-auth-quiet:focus-visible {
+    color: var(--rd-accent-ink);
+    text-decoration: underline;
+}
+
+.rd-auth-bg .form-check-label {
+    font-size: 12.5px;
+    color: var(--rd-ink-muted);
+}
+
+/* The "or" rule between the SSO button and the password form. */
+.rd-auth-or {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin: 20px 0;
+    font-size: 12px;
+    color: var(--rd-ink-dim);
+}
+
+.rd-auth-or hr {
+    flex: 1 1 auto;
+    margin: 0;
+    border-top: 1px solid var(--rd-border);
+    opacity: 1;
+}
+
+/* The result icon on the SSO return page — the empty-state circle, toned. */
+.rd-auth-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 56px;
+    margin-bottom: 16px;
+    border-radius: var(--rd-radius-pill);
+    background-color: rgba(var(--rd-tone-rgb), 0.14);
+    color: var(--rd-tone);
+    font-size: 26px;
+    line-height: 1;
+}
+
+/* The line under the card, sitting on the photograph rather than on a
+   surface, so it needs its own contrast rather than --rd-ink-muted. */
+.rd-auth-note {
+    margin: 0;
+    font-size: 13px;
+    color: rgba(230, 237, 243, 0.62);
+}
+
+
+/* =========================================================================
+   19. PHONE — the 390px contract
+   =========================================================================
+   Mobile is a hard requirement: every screen has to work at 390px. Most of
+   that is already carried by the per-screen markup (the `d-none d-md-block`
+   table plus its `d-md-none` card-list twin), so what lives here is the part
+   that is genuinely shared and would otherwise have to be repeated in
+   nineteen views:
+
+     19a. WRAP GUARDS   nothing may push the BODY into horizontal scroll
+     19b. CARD LIST     the phone stand-in for a table, hardened
+     19c. PICK LISTS    the checkbox tables inside the modals
+     19d. TAP TARGETS   40px minimum on anything you press with a thumb
+     19e. MODALS        near-full-bleed, with a body that scrolls
+     19f. TOOLBAR       the filter row at its narrowest
+
+   The measured budget at 390px, used throughout: .content-page contributes
+   0.75rem of padding each side and .container-fluid a 1.25rem gutter, which
+   leaves a 346px card; 20px of card padding leaves 306px inside a card-body;
+   a .rd-cardlist row (16px list padding, 14px row padding, 1px border) leaves
+   about 284px of usable width inside one .rd-mini.
+   ========================================================================= */
+
+/* --- 19a. Wrap guards ----------------------------------------------------
+   The single most common way a console screen breaks a phone: one long
+   unbroken token — a hostname, a filesystem path, an SMTP error, a token
+   prefix — sets the min-content width of its box wider than the screen. Every
+   ancestor here is overflow:visible, so that width propagates all the way up
+   and the BODY gains a horizontal scrollbar. `anywhere` (not `break-word`)
+   is deliberate: only `anywhere` also lowers the min-content contribution,
+   which is the half that stops the propagation.
+
+   Applied to the places that carry machine-generated strings, not globally —
+   prose should still break on spaces. */
+.rd-mono,
+.rd-mini,
+.d-md-none .rd-cell-title,
+.d-md-none .rd-cell-sub {
+    overflow-wrap: anywhere;
+}
+
+/* --- 19b. Card list ------------------------------------------------------
+   .rd-mini-head and .rd-mini-foot are flex rows pairing a text block with a
+   badge or an action strip. A flex item defaults to min-width:auto, so the
+   text block refuses to shrink past its longest word and shoves the badge
+   off the row. Zeroing it here means each view no longer has to remember to
+   put .min-width-0 on the wrapper — several had missed it. */
+.rd-mini-head > *,
+.rd-mini-foot > * {
+    min-width: 0;
+}
+
+/* The badge / switch / action strip keeps its size and the text yields, which
+   is the right way round for the short status words these carry. The cap
+   stops an unusually long label (a role name, an alarm type) from taking the
+   row and leaving the title with nothing. */
+.rd-mini-head > .badge,
+.rd-mini-head > .form-check,
+.rd-mini-head > .rd-iconbtn,
+.rd-mini-head > .text-end {
+    flex-shrink: 0;
+    max-width: 62%;
+}
+
+@media (max-width: 575.98px) {
+    /* Up to six icon actions can appear in one row (Users). Six 40px targets
+       need 260px against the 284px a .rd-mini offers, so the meta line takes
+       the first row on its own and the actions get the second. Below the
+       breakpoint the actions may also wrap among themselves rather than
+       overflow. */
+    .rd-mini-foot {
+        flex-wrap: wrap;
+        row-gap: 8px;
+    }
+
+    .rd-mini-foot > .rd-mini-sub {
+        flex: 1 1 100%;
+    }
+
+    .rd-mini-acts {
+        flex-wrap: wrap;
+        justify-content: flex-end;
+        margin-left: auto;
+    }
+}
+
+/* --- 19c. Pick lists -----------------------------------------------------
+   The checkbox tables inside the Assign Devices / Assign Strategy modals.
+   They sit in a .rd-scrollbox whose overflow-y:auto computes overflow-x to
+   auto as well, so they scroll rather than bleed — but a two-axis scroll
+   region on a phone is miserable. Letting the label cell wrap collapses the
+   table's min-content back under the modal width, so only the intended
+   vertical scroll remains. */
+.rd-scrollbox .table > tbody > tr > td {
+    overflow-wrap: anywhere;
+}
+
+/* A 14px checkbox is not a thumb target. The label beside it is wired to the
+   input with `for`, so pressing anywhere on the row toggles it; this just
+   gives that label the whole cell to be pressed in. */
+.rd-picklabel {
+    display: block;
+    margin: 0;
+    cursor: pointer;
+}
+
+/* --- 19d. Tap targets ----------------------------------------------------
+   40px minimum on anything pressed with a thumb. .btn is inline-block in the
+   theme, so min-height alone would leave the label sitting at the top of a
+   taller box — hence the flex centring.
+
+   Two exclusions, both because the element is not a button-shaped thing:
+     * .btn-close is a small corner affordance; stretching it to 40px
+       displaces the modal and alert headers it sits in.
+     * .btn-link is set as running text — "Send a new code · Sign in as
+       someone else" on the email-challenge screen is one sentence, and a
+       40px inline-flex box in the middle of it breaks the baseline the
+       separator and the sibling link share. */
+@media (max-width: 767.98px) {
+    .btn:not(.btn-close):not(.btn-link) {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 40px;
+    }
+
+    .form-control,
+    .form-select {
+        min-height: 40px;
+    }
+
+    .rd-iconbtn {
+        width: 40px;
+        height: 40px;
+        font-size: 17px;
+    }
+
+    /* Checkboxes and radios only — a switch is already 2em wide and resizing
+       it fights the -2.5em pull into the .form-switch gutter. The margin
+       keeps the larger box optically centred on its label's first line
+       (shell.css's 0.1825em assumes a 1.135em box). */
+    .form-check-input:not([role="switch"]) {
+        width: 1.15em;
+        height: 1.15em;
+        margin-top: 0.18em;
+    }
+
+    /* The pager collapses to Prev / Next below sm, so there are only two of
+       these and they can afford to be square. */
+    .page-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 40px;
+        min-height: 40px;
+    }
+
+    /* Sidebar rows in the off-canvas drawer. Below 768px the sidebar is
+       always off-canvas (shell.js), so this is the only sidebar a phone
+       ever sees. */
+    .rd-nav .rd-nav-link {
+        min-height: 44px;
+    }
+
+    .rd-nav-sub li a {
+        min-height: 40px;
+        display: flex;
+        align-items: center;
+    }
+
+    /* The range switch on Overview. Three 12px pills are a fine desktop
+       control and a poor thumb target. */
+    .rd-seg-item {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+        padding: 0 16px;
+    }
+
+    /* Quiet text links used as controls: "View log" and "All devices" in a
+       card header, "Recycle Bin" and "Pending approval" in a toolbar. They
+       keep their type but gain a pressable box around it. */
+    .rd-card-actions > a:not(.btn),
+    .rd-toolbar > a:not(.btn) {
+        display: inline-flex;
+        align-items: center;
+        min-height: 40px;
+    }
+}
+
+/* --- 19e. Modals ---------------------------------------------------------
+   Every dialog in the console is toggled by Livewire rather than by
+   Bootstrap's JS, so none of them get `modal-open` on the body. What that
+   costs on a phone is only the background scroll-lock; the dialog itself
+   still scrolls, because .modal is overflow-y:auto. What it must not cost is
+   the header and the footer: without a bounded body, a long form pushes
+   "Save" off the bottom of a 390px screen with no way to reach it. Capping
+   the body here gives every modal the scrollable-body behaviour, whether or
+   not its markup opted into .modal-dialog-scrollable.
+
+   dvh first-with-fallback: on iOS the URL bar is inside 100vh, so a
+   vh-measured cap hides the footer behind it.
+
+   Width is left alone deliberately: below sm Bootstrap already drops
+   --bs-modal-margin to 0.5rem, giving a 374px dialog on a 390px screen, and
+   .modal-dialog-scrollable / .modal-dialog-centered derive their own height
+   sums from that same variable. Overriding the margin by hand would desync
+   them for eight pixels of nothing. */
+@media (max-width: 575.98px) {
+    .modal-header,
+    .modal-footer {
+        padding: 12px 16px;
+    }
+
+    .modal-body {
+        padding: 16px;
+        max-height: calc(100vh - 152px);
+        max-height: calc(100dvh - 152px);
+        overflow-y: auto;
+    }
+
+    /* Two buttons share the footer evenly instead of huddling to the right,
+       which is both easier to hit and easier to read as "the two choices". */
+    .modal-footer > .btn {
+        flex: 1 1 0;
+    }
+}
+
+/* --- 19f. Toolbar --------------------------------------------------------
+   The filter bar already wraps (section 16). These are the two flex items it
+   does not own: the title block some panels put first, and the tag chips on
+   the address book. Both default to min-width:auto and would otherwise set
+   the row's width from their longest word. */
+.rd-toolbar > div:not(.rd-toolbar-actions):not(.rd-toolbar-search) {
+    min-width: 0;
+}
+
+.rd-toolbar > .badge {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+}
+
+@media (max-width: 575.98px) {
+    /* Section 16 sizes these at 36px for density; a phone wants the target. */
+    .rd-toolbar .form-control,
+    .rd-toolbar .form-select,
+    .rd-toolbar .btn {
+        height: 40px;
+    }
+}
+
+/* Bulk-selection column on the device table (issue #15): as narrow as the
+   checkbox, so twelve data columns don't lose width to it. */
+.rd-selcol {
+    width: 28px;
+    padding-right: 0 !important;
+}
+
+/* =========================================================================
+   20. DOWNLOAD TILES
+   .rd-dl — the published client installers, rendered by
+   resources/views/components/client-download-links.blade.php on the sign-in
+   page, the public /downloads page and the console preview card.
+
+   One tile per build: platform icon, label, size, download glyph. Rows rather
+   than a grid, because the label carries the useful part ("Windows (64-bit)")
+   and an icon-only grid would need a tooltip to be usable. Sized to sit inside
+   the 320px-wide auth card without wrapping.
+   ========================================================================= */
+.rd-dl {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.rd-dl-tile {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border: 1px solid var(--rd-border-strong);
+    border-radius: var(--rd-radius-sm);
+    background: var(--rd-surface-2);
+    color: var(--rd-ink);
+    text-decoration: none;
+    transition: background-color .15s ease, border-color .15s ease;
+    /* A phone tap target, and the reason the tile is a row: 44px of height is
+       cheap vertically and impossible in an icon grid. */
+    min-height: 44px;
+}
+
+.rd-dl-tile:hover,
+.rd-dl-tile:focus-visible {
+    background: var(--rd-surface-3);
+    border-color: rgba(var(--rd-accent-rgb), 0.45);
+    color: var(--rd-ink);
+}
+
+.rd-dl-icon {
+    flex: 0 0 auto;
+    line-height: 1;
+}
+
+/* min-width:0 so a long label truncates instead of widening the auth card. */
+.rd-dl-text {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1 1 auto;
+}
+
+.rd-dl-label {
+    font-size: .875rem;
+    font-weight: 500;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.rd-dl-meta {
+    font-size: .75rem;
+    color: var(--rd-ink-muted);
+}
+
+.rd-dl-arrow {
+    flex: 0 0 auto;
+    color: var(--rd-ink-dim);
+    font-size: 1rem;
+}
+
+.rd-dl-tile:hover .rd-dl-arrow {
+    color: var(--rd-accent-ink);
+}
+
+/* Compact: the sign-in row and the console preview, where the tiles are a
+   secondary offer under the real content. */
+.rd-dl-compact .rd-dl-tile {
+    padding: 8px 10px;
+    gap: 10px;
+}
+
+/* Platform heading on the public page. */
+.rd-dl-group {
+    margin: 0 0 6px;
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+    color: var(--rd-ink-muted);
+}
+
+/* --- Session notes (issue #79) --------------------------------------------
+   One line in the connection-log table with the full text on hover; wrapped
+   in full on the mobile cards and on the device page. */
+.rd-conn-note {
+    max-width: 260px;
+}
+
+.rd-conn-note .text-truncate {
+    max-width: 260px;
+}
+
+.rd-conn-note-full {
+    display: block;
+    margin-top: 4px;
+    white-space: pre-line;
+    overflow-wrap: anywhere;
+}

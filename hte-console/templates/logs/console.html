@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+{% block content %}
+{% set kind = "console" %}{% set placeholder = "Search operator or details…" %}
+<div id="log-card">
+    <div class="card">
+
+        {% include "logs/toolbar.html" %}
+
+        {# Desktop table (md and up) #}
+        <div class="table-responsive d-none d-md-block" id="log-table">
+            <table class="table table-hover table-centered mb-0">
+                <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Operator</th>
+                    <th>Action</th>
+                    <th>Target</th>
+                    <th>Details</th>
+                    <th>IP</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for audit in rows %}
+                    <tr>
+                        <td>
+                            <span title="{{ audit.when }}">{{ audit.ago }}</span>
+                        </td>
+                        <td>
+                            <span class="rd-cell">
+                                <span class="rd-avatar rd-tone-purple">{{ audit.initial }}</span>
+                                <span class="min-width-0"><span class="rd-cell-title">{{ audit.username }}</span></span>
+                            </span>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary-subtle text-secondary">{{ audit.action }}</span>
+                        </td>
+                        <td>
+                            {% if audit.has_target %}
+                                <span class="rd-cell-title">{{ audit.target_dash }}</span>
+                                <span class="rd-cell-sub">{{ audit.target_type }}</span>
+                            {% else %}
+                                —
+                            {% endif %}
+                        </td>
+                        <td>{{ audit.summary }}</td>
+                        <td class="rd-mono">{{ audit.ip_dash }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="rd-empty-cell">
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-history-line"></i></div>
+                                <p class="rd-empty-title">No audit entries match your filters.</p>
+                                <p class="rd-empty-text">Changes made in the console — users, roles, settings — are recorded here.</p>
+                                {% include "logs/clear.html" %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile card list (below md) #}
+        <div class="d-md-none rd-cardlist" id="log-cards">
+            {% for audit in rows %}
+                <div class="rd-mini">
+                    <div class="rd-mini-head">
+                        <div class="min-width-0">
+                            <span class="rd-mini-title">{{ audit.username }}</span>
+                            <span class="rd-mini-sub">{{ audit.summary }}</span>
+                        </div>
+                        <span class="badge bg-secondary-subtle text-secondary">{{ audit.action }}</span>
+                    </div>
+                    <div class="rd-mini-foot">
+                        <span class="rd-mini-sub">
+                            {% if audit.target_id %}{{ audit.target_id }} · {% endif %}{{ audit.target_type_dash }}
+                        </span>
+                        <span class="rd-mini-sub text-end">
+                            {{ audit.ip_dash }} · {{ audit.ago_short }}
+                        </span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-history-line"></i></div>
+                    <p class="rd-empty-title">No audit entries match your filters.</p>
+                    <p class="rd-empty-text">Changes made in the console — users, roles, settings — are recorded here.</p>
+                    {% include "logs/clear.html" %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="rd-tablefoot" id="log-foot">
+            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            {% include "partials/pager.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

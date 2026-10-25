@@ -1,0 +1,28 @@
+/* HTE Remote inside the console (2026-10-16, owner): CortenDesk's rust orange becomes HTE blue (the
+   suite's accent tokens); the sidebar and top-bar backgrounds stay CortenDesk's. Loaded after
+   cortendesk.css by layouts/app.blade.php (one line, marked HTE), so only the variables change. */
+:root {
+    --rd-accent: #0a66e8;
+    --rd-accent-rgb: 10, 102, 232;
+    --rd-accent-soft: rgba(10, 102, 232, 0.14);
+    --rd-accent-ink: #0a66e8;
+    --rd-accent-hover: #0854c0;
+    --rd-shell-accent: #3b8dff;
+    --rd-shell-accent-soft: rgba(59, 141, 255, 0.18);
+}
+
+html[data-bs-theme="light"] {
+    --rd-accent-soft: rgba(10, 102, 232, 0.12);
+    --rd-accent-ink: #0854c0;
+    --rd-accent-hover: #0854c0;
+    --rd-shell-accent: #0a66e8;
+    --rd-shell-accent-soft: rgba(10, 102, 232, 0.14);
+}
+
+/* The mark: HTE Remote's icon with the wordmark, "Remote" in the accent (sign-in mock-up C). */
+.hte-mark { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+.hte-mark img { width: 30px; height: 30px; border-radius: 7px; }
+.hte-mark-name { font-size: 17px; font-weight: 700; letter-spacing: -0.01em; color: #ffffff; line-height: 1; white-space: nowrap; }
+.hte-mark-name span { color: var(--rd-shell-accent); }
+.rd-sidebar-logo .rd-logo-sm img.hte-mark-icon { width: 34px; height: 34px; border-radius: 8px; }
+.rd-topbar-logo img.hte-mark-icon { width: 26px; height: 26px; border-radius: 6px; }

@@ -4,6 +4,7 @@
 //! Phase 3: the server link (policy with HTE's scope, local addresses, refusals) and the scheduled sweeps.
 //! Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config) answered natively.
 //! Phase 5: the admin automation API (`/api/v1/*`, token-guarded) and the client's `--assign` answered natively.
+//! Phase 7: the console pages (Laravel session, CSRF, templates, htmx), one group of pages at a time.
 //! Phase 6: local backups (PHP's archive format), restore, log and invitation pruning, and their daily scheduler entries.
 pub mod admin;
 pub mod admin_ctl;
@@ -23,6 +24,7 @@ pub mod housekeeping;
 pub mod laravel;
 pub mod link;
 pub mod oidc;
+pub mod pages;
 pub mod passwords;
 pub mod passwords_sweep;
 pub mod php;

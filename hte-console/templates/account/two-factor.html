@@ -1,0 +1,42 @@
+<div>
+    <div class="card">
+        <div class="card-header d-flex align-items-center justify-content-between">
+            <h4 class="header-title">Two-Factor Authentication</h4>
+            {% if tfa.enabled %}
+                <span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Enabled</span>
+            {% else %}
+                <span class="badge bg-secondary-subtle text-secondary">Disabled</span>
+            {% endif %}
+        </div>
+        <div class="card-body">
+
+            {% if tfa.enabled %}
+                <p class="text-muted mb-3">
+                    Two-factor authentication is protecting your account
+                    {% if tfa.confirmed_at %}since {{ tfa.confirmed_at }}{% endif %}.
+                    You have <strong>{{ tfa.remaining }}</strong> recovery {{ 'code'|plural(tfa.remaining) }} remaining.
+                    {% if tfa.remaining <= 2 %}
+                        <span class="badge bg-warning-subtle text-warning ms-1">Running low — regenerate soon</span>
+                    {% endif %}
+                </p>
+
+                {% if tfa.required %}
+                    <div class="alert alert-info py-2 fs-13"><i class="ri-lock-line me-1"></i>Your account requires two-factor authentication, so it can't be turned off.</div>
+                {% endif %}
+
+                {# Regenerating codes and turning it off stay on the PHP page until that screen moves. #}
+                <a href="/account/two-factor" class="btn btn-outline-light">
+                    <i class="ri-shield-keyhole-line me-1"></i>Manage two-factor authentication
+                </a>
+            {% else %}
+                <p class="text-muted">Add a second step to your console sign-in. After entering your password you'll be asked for a code from your authenticator app.</p>
+                {% if tfa.required %}
+                    <div class="alert alert-warning py-2 fs-13"><i class="ri-error-warning-line me-1"></i>Two-factor authentication is required for your account.</div>
+                {% endif %}
+                <a href="/account/two-factor" class="btn btn-primary">
+                    <i class="ri-shield-check-line me-1"></i>Enable two-factor authentication
+                </a>
+            {% endif %}
+        </div>
+    </div>
+</div>

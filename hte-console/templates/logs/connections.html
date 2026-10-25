@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% block content %}
+{% set kind = "connections" %}{% set placeholder = "Search device ID, from, IP, note…" %}
+<div id="log-card">
+    <div class="card">
+
+        {% include "logs/toolbar.html" %}
+
+        {# Desktop table (md and up) #}
+        <div class="table-responsive d-none d-md-block" id="log-table">
+            <table class="table table-hover table-centered mb-0">
+                <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Controlled Device</th>
+                    <th>From</th>
+                    <th>Type</th>
+                    <th>IP</th>
+                    <th>Duration</th>
+                    <th>Note</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for conn in rows %}
+                    <tr>
+                        <td>
+                            <span title="{{ conn.when }}">{{ conn.ago }}</span>
+                        </td>
+                        <td><span class="fw-semibold">{{ conn.rustdesk_id }}</span></td>
+                        <td>
+                            <span class="rd-cell-title">{{ conn.from_dash }}</span>
+                            <span class="rd-cell-sub">{{ conn.from_name }}</span>
+                        </td>
+                        <td>
+                            {% if conn.kind == "file" %}
+                                <span class="badge bg-info-subtle text-info"><i class="ri-file-transfer-line me-1"></i>File Transfer</span>
+                            {% elif conn.kind == "forward" %}
+                                <span class="badge bg-warning-subtle text-warning"><i class="ri-swap-line me-1"></i>Port Forward</span>
+                            {% else %}
+                                <span class="badge bg-primary-subtle text-primary"><i class="{{ conn.type_icon }} me-1"></i>{{ conn.type_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="rd-mono">{{ conn.ip_dash }}</td>
+                        <td>
+                            {% if conn.closed %}
+                                <span title="Closed {{ conn.closed_at }}">
+                                    {{ conn.duration }}
+                                </span>
+                            {% else %}
+                                <span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Active</span>
+                            {% endif %}
+                        </td>
+                        <td class="rd-conn-note">
+                            {% if conn.has_note %}
+                                <span class="rd-cell-sub text-truncate" title="{{ conn.note }}">{{ conn.note }}</span>
+                                {% if conn.note_user %}
+                                    <span class="rd-cell-sub">{{ conn.note_user }}</span>
+                                {% endif %}
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="7" class="rd-empty-cell">
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-remote-control-line"></i></div>
+                                <p class="rd-empty-title">No connections match your filters.</p>
+                                <p class="rd-empty-text">Sessions appear here as soon as a client connects to one of your devices.</p>
+                                {% include "logs/clear.html" %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile card list (below md) #}
+        <div class="d-md-none rd-cardlist" id="log-cards">
+            {% for conn in rows %}
+                <div class="rd-mini">
+                    <div class="rd-mini-head">
+                        <div class="min-width-0">
+                            <span class="rd-mini-title">{{ conn.rustdesk_id }}</span>
+                            <span class="rd-mini-sub">
+                                from {{ conn.from_dash }}{% if conn.from_name %} ({{ conn.from_name }}){% endif %}
+                            </span>
+                        </div>
+                        {% if conn.closed %}
+                            <span class="badge bg-secondary-subtle text-secondary">
+                                {{ conn.duration }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Active</span>
+                        {% endif %}
+                    </div>
+                    <div class="rd-mini-foot">
+                        {% if conn.kind == "file" %}
+                            <span class="badge bg-info-subtle text-info">File Transfer</span>
+                        {% elif conn.kind == "forward" %}
+                            <span class="badge bg-warning-subtle text-warning">Port Forward</span>
+                        {% else %}
+                            <span class="badge bg-primary-subtle text-primary">{{ conn.type_label }}</span>
+                        {% endif %}
+                        <span class="rd-mini-sub text-end">
+                            {{ conn.ip_dash }} · {{ conn.ago_short }}
+                        </span>
+                    </div>
+                    {% if conn.has_note %}
+                        <div class="rd-mini-sub rd-conn-note-full"><i class="ri-sticky-note-line"></i> {{ conn.note }}{% if conn.note_user %} · {{ conn.note_user }}{% endif %}</div>
+                    {% endif %}
+                </div>
+            {% else %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-remote-control-line"></i></div>
+                    <p class="rd-empty-title">No connections match your filters.</p>
+                    <p class="rd-empty-text">Sessions appear here as soon as a client connects to one of your devices.</p>
+                    {% include "logs/clear.html" %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="rd-tablefoot" id="log-foot">
+            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            {% include "partials/pager.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

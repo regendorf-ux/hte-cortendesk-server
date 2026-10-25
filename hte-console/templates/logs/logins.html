@@ -1,0 +1,122 @@
+{% extends "base.html" %}
+{% block content %}
+{% set kind = "logins" %}{% set placeholder = "Search username, device, IP…" %}
+<div id="log-card">
+    <div class="card">
+
+        {% include "logs/toolbar.html" %}
+
+        {# Desktop table (md and up) #}
+        <div class="table-responsive d-none d-md-block" id="log-table">
+            <table class="table table-hover table-centered mb-0">
+                <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Username</th>
+                    <th>Client</th>
+                    <th>Device</th>
+                    <th>IP</th>
+                    <th>Result</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for log in rows %}
+                    <tr>
+                        <td>
+                            <span title="{{ log.when }}">{{ log.ago }}</span>
+                        </td>
+                        <td>
+                            <span class="rd-cell">
+                                <span class="rd-avatar {{ 'rd-tone-blue' if log.successful else 'rd-tone-red' }}">{{ log.initial }}</span>
+                                <span class="min-width-0"><span class="rd-cell-title">{{ log.username }}</span></span>
+                            </span>
+                        </td>
+                        <td>
+                            {% if log.client_kind == "web" %}
+                                <span class="badge bg-primary-subtle text-primary"><i class="ri-global-line me-1"></i>Web</span>
+                            {% elif log.client_kind == "mobile" %}
+                                <span class="badge bg-warning-subtle text-warning"><i class="ri-smartphone-line me-1"></i>Mobile</span>
+                            {% elif log.client_kind == "desktop" %}
+                                <span class="badge bg-info-subtle text-info"><i class="ri-computer-line me-1"></i>Desktop</span>
+                            {% else %}
+                                <span class="badge bg-secondary-subtle text-secondary">{{ log.client_label }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="rd-cell-title">{{ log.device_dash }}</span>
+                            <span class="rd-cell-sub">{{ log.device_os }}</span>
+                        </td>
+                        <td class="rd-mono">{{ log.ip_dash }}</td>
+                        <td>
+                            {% if log.successful %}
+                                <span class="badge bg-success-subtle text-success"><i class="ri-check-line me-1"></i>Success</span>
+                            {% else %}
+                                <span class="badge bg-danger-subtle text-danger" {% if log.has_note %}title="{{ log.note }}"{% endif %}>
+                                    <i class="ri-close-line me-1"></i>Failed
+                                </span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="rd-empty-cell">
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-login-circle-line"></i></div>
+                                <p class="rd-empty-title">No logins match your filters.</p>
+                                <p class="rd-empty-text">Every sign-in attempt from a RustDesk client shows up here, successful or not.</p>
+                                {% include "logs/clear.html" %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile card list (below md) #}
+        <div class="d-md-none rd-cardlist" id="log-cards">
+            {% for log in rows %}
+                <div class="rd-mini">
+                    <div class="rd-mini-head">
+                        <div class="min-width-0">
+                            <span class="rd-mini-title">{{ log.username }}</span>
+                            <span class="rd-mini-sub">{{ log.device_dash }}{% if log.device_os %} · {{ log.device_os }}{% endif %}</span>
+                        </div>
+                        {% if log.successful %}
+                            <span class="badge bg-success-subtle text-success">Success</span>
+                        {% else %}
+                            <span class="badge bg-danger-subtle text-danger">Failed</span>
+                        {% endif %}
+                    </div>
+                    <div class="rd-mini-foot">
+                        {% if log.client_kind == "web" %}
+                            <span class="badge bg-primary-subtle text-primary">Web</span>
+                        {% elif log.client_kind == "mobile" %}
+                            <span class="badge bg-warning-subtle text-warning">Mobile</span>
+                        {% elif log.client_kind == "desktop" %}
+                            <span class="badge bg-info-subtle text-info">Desktop</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary">{{ log.client_label }}</span>
+                        {% endif %}
+                        <span class="rd-mini-sub text-end">
+                            {{ log.ip_dash }} · {{ log.ago_short }}
+                        </span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-login-circle-line"></i></div>
+                    <p class="rd-empty-title">No logins match your filters.</p>
+                    <p class="rd-empty-text">Every sign-in attempt from a RustDesk client shows up here, successful or not.</p>
+                    {% include "logs/clear.html" %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="rd-tablefoot" id="log-foot">
+            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            {% include "partials/pager.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

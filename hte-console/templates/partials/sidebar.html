@@ -1,0 +1,187 @@
+<div class="rd-sidebar">
+
+    <a href="/" class="rd-sidebar-logo">
+        <span class="rd-logo-lg">
+            {% set mark_size = "lg" %}{% include "partials/mark.html" %}
+        </span>
+        <span class="rd-logo-sm">
+            {% set mark_size = "sm" %}{% include "partials/mark.html" %}
+        </span>
+    </a>
+
+    <div class="rd-sidebar-close" data-rd-dismiss="sidebar" role="button" aria-label="Close menu">
+        <i class="ri-close-fill align-middle"></i>
+    </div>
+
+    <div class="rd-sidebar-scroll">
+
+        <ul class="rd-nav">
+
+            <li class="rd-nav-item {{ 'rd-current' if route == 'overview' else '' }}">
+                <a href="/" class="rd-nav-link {{ 'active' if route == 'overview' else '' }}">
+                    <i class="ri-home-4-line"></i>
+                    <span> Overview </span>
+                </a>
+            </li>
+
+            {% if can.devices or can.address_books or can.groups or can.users or can.strategies or can.roles %}
+                <li class="rd-nav-title">Manage</li>
+            {% endif %}
+
+            {% if can.devices %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'devices' else '' }}">
+                    <a href="/devices" class="rd-nav-link {{ 'active' if route == 'devices' else '' }}">
+                        <i class="ri-computer-line"></i>
+                        <span> Devices </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if can.address_books %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'address-books' else '' }}">
+                    <a href="/address-books" class="rd-nav-link {{ 'active' if route == 'address-books' else '' }}">
+                        <i class="ri-contacts-book-2-line"></i>
+                        <span> Address Books </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if native_webclient %}
+                <li class="rd-nav-item">
+                    <a href="/webclient" target="cortendesk-webclient" rel="noopener" class="rd-nav-link">
+                        <i class="ri-global-line"></i>
+                        <span> Web Client </span>
+                    </a>
+                </li>
+            {% elif webclient_url %}
+                <li class="rd-nav-item">
+                    <a href="{{ webclient_url }}" target="_blank" rel="noopener" class="rd-nav-link">
+                        <i class="ri-global-line"></i>
+                        <span> Web Client </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if can.groups %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'groups' else '' }}">
+                    <a href="/groups" class="rd-nav-link {{ 'active' if route == 'groups' else '' }}">
+                        <i class="ri-group-line"></i>
+                        <span> Groups </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if can.users %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'users' else '' }}">
+                    <a href="/users" class="rd-nav-link {{ 'active' if route == 'users' else '' }}">
+                        <i class="ri-user-settings-line"></i>
+                        <span> Users </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {# Roles are super-admin only: a delegated admin who could edit roles could grant themselves anything. #}
+            {% if can.roles %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'roles' else '' }}">
+                    <a href="/roles" class="rd-nav-link {{ 'active' if route == 'roles' else '' }}">
+                        <i class="ri-shield-user-line"></i>
+                        <span> Roles </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if can.strategies %}
+                <li class="rd-nav-item {{ 'rd-current' if route == 'strategies' else '' }}">
+                    <a href="/strategies" class="rd-nav-link {{ 'active' if route == 'strategies' else '' }}">
+                        <i class="ri-shield-keyhole-line"></i>
+                        <span> Strategies </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            {% if can.audit %}
+                <li class="rd-nav-title">Monitor</li>
+
+                <li class="rd-nav-item {{ 'rd-current' if in_logs else '' }}">
+                    <a data-bs-toggle="collapse" href="#sidebarLogs" aria-expanded="{{ 'true' if in_logs else 'false' }}" aria-controls="sidebarLogs" class="rd-nav-link">
+                        <i class="ri-file-list-3-line"></i>
+                        <span> Logs </span>
+                        <span class="rd-nav-arrow"></span>
+                    </a>
+                    <div class="collapse {{ 'show' if in_logs else '' }}" id="sidebarLogs">
+                        <ul class="rd-nav-sub">
+                            <li class="{{ 'rd-current' if route == 'logs.connections' else '' }}"><a href="/logs/connections">Connections</a></li>
+                            <li class="{{ 'rd-current' if route == 'logs.file-transfers' else '' }}"><a href="/logs/file-transfers">File Transfers</a></li>
+                            <li class="{{ 'rd-current' if route == 'logs.alarms' else '' }}"><a href="/logs/alarms">Alarms</a></li>
+                            {% if can.audit_manage %}
+                                <li class="{{ 'rd-current' if route == 'logs.logins' else '' }}"><a href="/logs/logins">Logins</a></li>
+                                <li class="{{ 'rd-current' if route == 'logs.console' else '' }}"><a href="/logs/console">Console</a></li>
+                            {% endif %}
+                        </ul>
+                    </div>
+                </li>
+            {% endif %}
+
+            {% if can.settings %}
+                <li class="rd-nav-title">System</li>
+
+                <li class="rd-nav-item {{ 'rd-current' if route == 'settings' else '' }}">
+                    <a href="/settings" class="rd-nav-link {{ 'active' if route == 'settings' else '' }}">
+                        <i class="ri-settings-3-line"></i>
+                        <span> Settings </span>
+                    </a>
+                </li>
+
+                <li class="rd-nav-item {{ 'rd-current' if in_diagnostics else '' }}">
+                    <a href="/diagnostics" class="rd-nav-link {{ 'active' if in_diagnostics else '' }}">
+                        <i class="ri-pulse-line"></i>
+                        <span> Diagnostics </span>
+                    </a>
+                </li>
+
+                <li class="rd-nav-item {{ 'rd-current' if route == 'client-downloads' else '' }}">
+                    <a href="/client-downloads" class="rd-nav-link {{ 'active' if route == 'client-downloads' else '' }}">
+                        <i class="ri-download-cloud-line"></i>
+                        <span> Client Downloads </span>
+                    </a>
+                </li>
+
+                {% if rdgen_url %}
+                    <li class="rd-nav-item">
+                        <a href="{{ rdgen_url }}" target="_blank" rel="noopener" class="rd-nav-link">
+                            <i class="ri-install-line"></i>
+                            <span> Build Installers </span>
+                        </a>
+                    </li>
+                {% endif %}
+            {% endif %}
+        </ul>
+
+    </div>
+
+    {% if can.settings %}
+        <div class="rd-sidebar-version">
+            {% if update.enabled %}
+            <span class="rd-sidebar-status {{ 'rd-sidebar-status-warn' if update.upgrade else ('rd-sidebar-status-ok' if update.checked else 'rd-sidebar-status-unknown') }}"
+                  title="The console compares the running version against the latest published release.">
+                <i class="rd-dot rd-dot-lg"></i>
+                <span class="rd-sidebar-status-label">
+                    {% if update.upgrade %}
+                        Update available
+                    {% elif update.checked %}
+                        Running the latest release
+                    {% else %}
+                        Release check unavailable
+                    {% endif %}
+                </span>
+            </span>
+            {% endif %}
+            <span class="rd-sidebar-version-num">v{{ version }}</span>
+            {% if update.upgrade %}
+                <a href="https://github.com/marcpope/cortendesk/releases/tag/v{{ update.upgrade }}" target="_blank" rel="noopener"
+                   class="rd-shell-badge"
+                   title="Version {{ update.upgrade }} is available. Opens the release notes."><i class="ri-download-cloud-2-line"></i>Update to v{{ update.upgrade }}</a>
+            {% endif %}
+        </div>
+    {% endif %}
+</div>

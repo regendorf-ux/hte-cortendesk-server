@@ -1,0 +1,83 @@
+<div class="rd-topbar">
+    <div class="rd-topbar-inner container-fluid">
+        <div class="d-flex align-items-center gap-lg-2 gap-1">
+
+            {# Only shown while the sidebar is off-canvas (phones). #}
+            <div class="rd-topbar-logo">
+                <a href="/">
+                    {% set mark_size = "bar" %}{% include "partials/mark.html" %}
+                </a>
+            </div>
+
+            <button type="button" class="rd-menu-toggle" data-rd-toggle="sidebar" aria-label="Toggle menu">
+                <i class="ri-menu-2-fill"></i>
+            </button>
+        </div>
+
+        <ul class="rd-topbar-menu d-flex align-items-center">
+
+            {% if can.settings and update.upgrade %}
+                <li class="rd-topbar-upgrade">
+                    <a class="nav-link" href="https://github.com/marcpope/cortendesk/releases/tag/v{{ update.upgrade }}" target="_blank" rel="noopener"
+                       data-bs-toggle="tooltip" data-bs-placement="bottom" title="Version {{ update.upgrade }} is available. Opens the release notes.">
+                        <span class="rd-shell-badge">
+                            <i class="ri-download-cloud-2-line"></i><span class="d-none d-sm-inline">Update to v{{ update.upgrade }}</span>
+                        </span>
+                    </a>
+                </li>
+            {% endif %}
+
+            <li>
+                <div class="nav-link rd-topbar-btn rd-theme-toggle" data-rd-toggle="theme" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Theme Mode">
+                    <i class="ri-moon-line"></i>
+                </div>
+            </li>
+
+            <li class="d-none d-md-inline-block">
+                <a class="nav-link rd-topbar-btn" href="#" data-rd-toggle="fullscreen" data-bs-toggle="tooltip" data-bs-placement="bottom" title="Full Screen">
+                    <i class="ri-fullscreen-line"></i>
+                </a>
+            </li>
+
+            <li class="dropdown">
+                <a class="nav-link dropdown-toggle rd-no-caret rd-user-chip" data-bs-toggle="dropdown" href="#" role="button" aria-haspopup="false" aria-expanded="false">
+                    <span>
+                        <span class="rd-avatar rd-tone-accent">
+                            {{ user.initial }}
+                        </span>
+                    </span>
+                    <span class="d-lg-flex flex-column d-none rd-topbar-identity">
+                        <h5 class="rd-topbar-name">{{ user.display_name }}</h5>
+                        <h6 class="rd-topbar-role">{{ user.role }}</h6>
+                    </span>
+                </a>
+                <div class="dropdown-menu dropdown-menu-end rd-dropdown-slide rd-profile-menu">
+                    <div class="dropdown-header">
+                        <h6 class="rd-menu-name text-truncate">{{ user.display_name }}</h6>
+                        <span class="rd-menu-role">{{ user.role }}</span>
+                    </div>
+
+                    <a href="/account" class="dropdown-item">
+                        <i class="ri-account-circle-line"></i>
+                        <span>My Account</span>
+                    </a>
+
+                    <a href="/account/two-factor" class="dropdown-item">
+                        <i class="ri-shield-keyhole-line"></i>
+                        <span>Two-Factor Authentication</span>
+                    </a>
+
+                    <div class="dropdown-divider"></div>
+
+                    <form method="POST" action="/logout">
+                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                        <button type="submit" class="dropdown-item">
+                            <i class="ri-logout-box-line"></i>
+                            <span>Logout</span>
+                        </button>
+                    </form>
+                </div>
+            </li>
+        </ul>
+    </div>
+</div>

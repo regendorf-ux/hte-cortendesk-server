@@ -319,6 +319,11 @@ impl Encrypter {
         Ok(Encrypter { key })
     }
 
+    /// `Crypt::getKey()`: the raw key (phase 7: the cookie value prefix is an HMAC under it).
+    pub fn key_bytes(&self) -> &[u8; 32] {
+        &self.key
+    }
+
     fn mac(&self, iv_b64: &[u8], value: &[u8]) -> String {
         let mut m = <Hmac<Sha256> as Mac>::new_from_slice(&self.key).expect("hmac takes any key length");
         m.update(iv_b64);

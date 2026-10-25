@@ -1,0 +1,44 @@
+{# The filter bar every log page shares. `kind` picks the placeholder and the extra select; the form's fields are
+   the page's query parameters, and htmx replaces the table, the card list and the footer as they change. #}
+<form class="rd-toolbar" id="log-form" method="get" action="{{ path }}"
+      hx-get="{{ path }}" hx-trigger="input delay:300ms, submit" hx-sync="this:replace" hx-disinherit="*"
+      hx-target="#log-table" hx-select="#log-table" hx-select-oob="#log-cards,#log-foot" hx-swap="outerHTML" hx-push-url="true">
+    <div class="rd-toolbar-search">
+        <div class="input-group">
+            <span class="input-group-text"><i class="ri-search-line"></i></span>
+            <input type="search" name="search" value="{{ filters.search }}" class="form-control" placeholder="{{ placeholder }}">
+        </div>
+    </div>
+    {% if kind == "alarms" %}
+    <select class="form-select rd-toolbar-filter" name="type" aria-label="Alarm type">
+        <option value="">All types</option>
+        {% for t in types %}
+        <option value="{{ t.id }}"{{ ' selected' if filters.type == (t.id ~ '') else '' }}>{{ t.label }}</option>
+        {% endfor %}
+    </select>
+    {% elif kind == "console" %}
+    <select class="form-select rd-toolbar-filter" name="action" aria-label="Action">
+        <option value="">All actions</option>
+        {% for g in action_groups %}
+        <optgroup label="{{ g.label }}">
+            {% for a in g.actions %}
+            <option value="{{ a.value }}"{{ ' selected' if filters.action == a.value else '' }}>{{ a.label }}</option>
+            {% endfor %}
+        </optgroup>
+        {% endfor %}
+    </select>
+    {% endif %}
+    <input type="date" name="dateFrom" value="{{ filters.dateFrom }}" class="form-control rd-toolbar-filter" aria-label="From date">
+    <input type="date" name="dateTo" value="{{ filters.dateTo }}" class="form-control rd-toolbar-filter" aria-label="To date">
+    <select class="form-select rd-toolbar-narrow" name="perPage" aria-label="Rows per page">
+        <option value="20"{{ ' selected' if filters.perPage == 20 else '' }}>20</option>
+        <option value="50"{{ ' selected' if filters.perPage == 50 else '' }}>50</option>
+        <option value="100"{{ ' selected' if filters.perPage == 100 else '' }}>100</option>
+    </select>
+    <div class="rd-toolbar-actions">
+        <a class="btn btn-outline-light" href="{{ path }}" hx-get="{{ path }}" hx-target="#log-card" hx-select="#log-card" hx-swap="outerHTML" hx-push-url="true">Reset</a>
+        <button type="button" class="btn btn-primary" data-rd-export="{{ path }}/export">
+            <i class="ri-download-2-line"></i>Export CSV
+        </button>
+    </div>
+</form>

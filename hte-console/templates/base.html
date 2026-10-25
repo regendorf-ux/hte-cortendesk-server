@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="{{ 'light' if theme == 'light' else 'dark' }}" data-rd-theme-pref="{{ theme }}" data-rd-sidebar="expanded">
+<head>
+    <meta charset="utf-8"/>
+    <title>{{ title }} | {{ app_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="HTE Remote — remote support for HTE"/>
+    <meta name="csrf-token" content="{{ csrf }}">
+    <link rel="shortcut icon" type="image/png" href="/assets/images/hte-remote.png?v={{ version }}">
+
+    <!-- Theme + sidebar state before first paint (no flash) -->
+    <script src="/assets/js/theme-init.js?v={{ version }}"></script>
+
+    <link href="/assets/vendor/bootstrap/bootstrap.min.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/vendor/remixicon/remixicon.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/fonts/figtree/figtree.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/css/spacing.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/css/shell.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/css/cortendesk.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="/assets/css/hte-brand.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+</head>
+
+<body>
+    <div class="rd-app">
+
+        {% include "partials/topbar.html" %}
+
+        {% include "partials/sidebar.html" %}
+
+        <div class="rd-main">
+            <div class="rd-content">
+                <div class="container-fluid">
+
+                    <div class="row">
+                        <div class="col-12">
+                            <div class="rd-page-head">
+                                <div class="rd-page-crumbs">
+                                    <ol class="breadcrumb m-0">
+                                        <li class="breadcrumb-item"><a href="/">HTE Remote</a></li>
+                                        {% if subtitle %}
+                                        <li class="breadcrumb-item"><a href="javascript:void(0);">{{ subtitle }}</a></li>
+                                        {% endif %}
+                                        <li class="breadcrumb-item active">{{ title }}</li>
+                                    </ol>
+                                </div>
+                                <h4 class="rd-page-title">{{ title }}</h4>
+                            </div>
+                        </div>
+                    </div>
+
+                    {% block content %}{% endblock %}
+
+                </div>
+            </div>
+
+            <footer class="rd-footer">
+                <div class="container-fluid">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <script>document.write(new Date().getFullYear())</script> © HTE
+                        </div>
+                        <div class="col-md-6">
+                            <div class="text-md-end d-none d-md-block">
+                                <span class="text-muted">HTE Remote — remote support</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </div>
+
+    </div>
+
+    <script src="/assets/vendor/bootstrap/bootstrap.bundle.min.js?v={{ version }}"></script>
+    <script src="/assets/vendor/htmx/htmx.min.js?v={{ version }}"></script>
+    <script src="/assets/js/shell.js?v={{ version }}"></script>
+    <script src="/assets/js/cortendesk.js?v={{ version }}"></script>
+    <script src="/assets/js/hte-pages.js?v={{ version }}"></script>
+</body>
+</html>

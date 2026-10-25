@@ -1,0 +1,109 @@
+{% extends "base.html" %}
+{% block content %}
+{% set kind = "alarms" %}{% set placeholder = "Search device ID, info…" %}
+<div id="log-card">
+    <div class="card">
+
+        {% include "logs/toolbar.html" %}
+
+        {# Desktop table (md and up) #}
+        <div class="table-responsive d-none d-md-block" id="log-table">
+            <table class="table table-hover table-centered mb-0">
+                <thead>
+                <tr>
+                    <th>When</th>
+                    <th>Device</th>
+                    <th>Type</th>
+                    <th>Details</th>
+                    <th>Conn</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% for alarm in rows %}
+                    <tr>
+                        <td>
+                            <span title="{{ alarm.when }}">{{ alarm.ago }}</span>
+                        </td>
+                        <td>
+                            {% if alarm.is_console %}
+                                <span class="badge bg-secondary-subtle text-secondary"><i class="ri-terminal-box-line me-1"></i>Console</span>
+                            {% else %}
+                                <span class="fw-semibold">
+                                {{ alarm.rustdesk_id }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-{{ alarm.severity }}-subtle text-{{ alarm.severity }}">
+                                <i class="ri-alarm-warning-line me-1"></i>{{ alarm.type_label }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if alarm.has_pairs %}
+                                <small class="d-inline-block text-truncate align-middle" style="max-width: 320px;"
+                                       title="{{ alarm.info }}">
+                                    {% for pair in alarm.pairs %}
+                                        <span class="me-2"><span class="text-muted">{{ pair[0] }}:</span> {{ pair[1] }}</span>
+                                    {% endfor %}
+                                </small>
+                            {% else %}
+                                <span class="d-inline-block text-truncate align-middle" style="max-width: 320px;"
+                                      title="{{ alarm.info }}">{{ alarm.info_dash }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="rd-mono">{{ alarm.conn_dash }}</td>
+                    </tr>
+                {% else %}
+                    <tr>
+                        <td colspan="5" class="rd-empty-cell">
+                            <div class="rd-empty">
+                                <div class="rd-empty-icon"><i class="ri-alarm-warning-line"></i></div>
+                                <p class="rd-empty-title">No alarms match your filters.</p>
+                                <p class="rd-empty-text">Nothing has been flagged in this range — failed logins and other security events land here.</p>
+                                {% include "logs/clear.html" %}
+                            </div>
+                        </td>
+                    </tr>
+                {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        {# Mobile card list (below md) #}
+        <div class="d-md-none rd-cardlist" id="log-cards">
+            {% for alarm in rows %}
+                <div class="rd-mini">
+                    <div class="rd-mini-head">
+                        <span class="rd-mini-title">{{ alarm.rustdesk_id }}</span>
+                        <span class="badge bg-{{ alarm.severity }}-subtle text-{{ alarm.severity }}">
+                            {{ alarm.type_label }}
+                        </span>
+                    </div>
+                    <div class="mt-2">
+                        {% if alarm.has_info %}
+                            <small class="d-block text-truncate" title="{{ alarm.info }}">
+                                <i class="ri-information-line me-1"></i>{{ alarm.info }}
+                            </small>
+                        {% endif %}
+                        <span class="rd-mini-sub">
+                            {% if alarm.has_conn %}conn {{ alarm.conn_id }} · {% endif %}{{ alarm.ago_short }}
+                        </span>
+                    </div>
+                </div>
+            {% else %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-alarm-warning-line"></i></div>
+                    <p class="rd-empty-title">No alarms match your filters.</p>
+                    <p class="rd-empty-text">Nothing has been flagged in this range — failed logins and other security events land here.</p>
+                    {% include "logs/clear.html" %}
+                </div>
+            {% endfor %}
+        </div>
+
+        <div class="rd-tablefoot" id="log-foot">
+            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            {% include "partials/pager.html" %}
+        </div>
+    </div>
+</div>
+{% endblock %}

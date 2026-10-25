@@ -1,0 +1,8 @@
+{# HTE Remote's mark for the console chrome. mark_size: lg (sidebar, icon + wordmark), sm (condensed sidebar), bar (top bar on phones). #}
+{% if mark_size == "lg" %}
+    <span class="hte-mark"><img src="/assets/images/hte-remote.png?v={{ version }}" alt=""><span class="hte-mark-name">HTE <span>Remote</span></span></span>
+{% elif mark_size == "sm" %}
+    <img src="/assets/images/hte-remote.png?v={{ version }}" alt="HTE Remote" class="hte-mark-icon mx-auto d-block"/>
+{% else %}
+    <img src="/assets/images/hte-remote.png?v={{ version }}" alt="HTE Remote" class="hte-mark-icon">
+{% endif %}
