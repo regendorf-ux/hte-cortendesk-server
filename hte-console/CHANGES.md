@@ -22,7 +22,13 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
 - The gate answers `RequireTwoFactor` / `RequireEmailAddress` / `RequireMailHealthy` itself (no forwarding to PHP).
 - hte-console's own `hte-*` CSS/JS are revalidated on every load (a cached older copy hid the row-action button styles).
 - Sign-in replay: the two-factor challenge (password step, page, wrong code, right code) is compared with PHP too.
-- Tests: `tests/console_steps.rs` (5, with a fake SMTP relay), `mail` and `challenge`/`twofactor` unit tests.
+- Independent Fable review (medium): one high, fixed: the unauthenticated "Forgot password?" post sent its mail while holding the
+  database lock (a dead relay could stall the device API); the reset mail now goes after the answer, outside the lock (which also
+  hides whether the account exists by timing). Medium, fixed (hardened beyond PHP): "starttls" now requires TLS; a relay that does not
+  offer it gets nothing ("none" stays opportunistic). Lows fixed: no username in the stored SMTP error, a 4 KiB bound on a relay reply
+  line, the enrolment blob expires after 15 minutes. Left (need a valid password or an administrator): the e-mailed code steps and the
+  test mail still send under the lock, bounded by the 10 s timeouts.
+- Tests: `tests/console_steps.rs` (6, with a fake SMTP relay), `mail` and `challenge`/`twofactor` unit tests.
 
 ## 0.8.1 (2026-10-25): what the 0.8.0 replay against PHP showed
 - Pages (7a/7b/7c): 164 requests, 0 differences. Sign-in: 100 steps, one difference: a POST /logout with no session and no token

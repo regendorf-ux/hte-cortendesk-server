@@ -292,7 +292,8 @@ impl Smtp {
         let mut lines = vec![];
         loop {
             let mut l = String::new();
-            let n = self.r.read_line(&mut l).map_err(|e| format!("Connection to \"{}\" has been closed unexpectedly ({e}).", self.host))?;
+            // a reply line is short; a relay that streams without a newline is cut off at 4 KiB
+            let n = (&mut self.r).take(4096).read_line(&mut l).map_err(|e| format!("Connection to \"{}\" has been closed unexpectedly ({e}).", self.host))?;
             if n == 0 {
                 return Err(format!("Connection to \"{}\" has been closed unexpectedly.", self.host));
             }
@@ -375,10 +376,16 @@ pub fn deliver(cfg: &MailConfig, app_name: &str, local_domain: &str, msg: &Messa
     s.expect(&[220])?;
     let helo = if local_domain.is_empty() { "[127.0.0.1]".to_string() } else { local_domain.to_string() };
     let mut ehlo = s.cmd(&format!("EHLO {helo}"), &[250])?.text;
-    if cfg.encryption != "ssl" && has_ext(&ehlo, "STARTTLS").is_some() {
-        s.cmd("STARTTLS", &[220])?;
-        s.upgrade()?;
-        ehlo = s.cmd(&format!("EHLO {helo}"), &[250])?.text;
+    if cfg.encryption != "ssl" {
+        if has_ext(&ehlo, "STARTTLS").is_some() {
+            s.cmd("STARTTLS", &[220])?;
+            s.upgrade()?;
+            ehlo = s.cmd(&format!("EHLO {helo}"), &[250])?.text;
+        } else if cfg.encryption == "starttls" {
+            // Hardened (Symfony goes on in plain text): "starttls" means TLS, so a relay, or someone in the path who
+            // strips the offer, never gets the password or a sign-in code in the clear. "none" stays opportunistic.
+            return Err(format!("The SMTP server \"{}\" did not offer STARTTLS; set the encryption to \"none\" to send without it.", cfg.host));
+        }
     }
     if !cfg.username.is_empty() {
         let mechs = has_ext(&ehlo, "AUTH").unwrap_or_default().to_ascii_uppercase();
@@ -386,10 +393,10 @@ pub fn deliver(cfg: &MailConfig, app_name: &str, local_domain: &str, msg: &Messa
         if mechs.split_whitespace().any(|m| m == "LOGIN") {
             s.cmd("AUTH LOGIN", &[334])?;
             s.cmd(&b64(&cfg.username), &[334])?;
-            s.cmd(&b64(&cfg.password), &[235]).map_err(|_| format!("Failed to authenticate on SMTP server with username \"{}\" using the LOGIN authenticator.", cfg.username))?;
+            s.cmd(&b64(&cfg.password), &[235]).map_err(|_| format!("Failed to authenticate on the SMTP server using the LOGIN authenticator."))?;
         } else if mechs.split_whitespace().any(|m| m == "PLAIN") {
             let token = base64::engine::general_purpose::STANDARD.encode(format!("\0{}\0{}", cfg.username, cfg.password));
-            s.cmd(&format!("AUTH PLAIN {token}"), &[235]).map_err(|_| format!("Failed to authenticate on SMTP server with username \"{}\" using the PLAIN authenticator.", cfg.username))?;
+            s.cmd(&format!("AUTH PLAIN {token}"), &[235]).map_err(|_| format!("Failed to authenticate on the SMTP server using the PLAIN authenticator."))?;
         } else {
             return Err(format!("Failed to find an authenticator supported by the SMTP server, which currently supports: \"{}\".", mechs.to_ascii_lowercase()));
         }
@@ -481,7 +488,7 @@ mod tests {
             }
             said
         });
-        let cfg = MailConfig { enabled: true, host: "127.0.0.1".into(), port, username: "u".into(), password: "tok-5eed0000mailpw01".into(), encryption: "starttls".into(), from_address: "from@example.invalid".into(), from_name: String::new() };
+        let cfg = MailConfig { enabled: true, host: "127.0.0.1".into(), port, username: "u".into(), password: "tok-5eed0000mailpw01".into(), encryption: "none".into(), from_address: "from@example.invalid".into(), from_name: String::new() };
         let m = Message { to: "to@example.invalid".into(), subject: "Hello".into(), html: ".dot line\n<p>hi</p>".into() };
         deliver(&cfg, "HTE Remote", "console.example.invalid", &m, 1_800_000_000).unwrap();
         let said = h.join().unwrap();

@@ -443,6 +443,13 @@ async fn password_reset_by_mail() {
         assert_eq!(r.path(), "/forgot-password");
         assert!(h.get("/forgot-password", Some(&guest)).await.body.contains("If that account exists and has an email address, a reset link is on its way."));
     }
+    // the reset mail goes after the answer, without the database lock: wait for it
+    for _ in 0..50 {
+        if !h.mails().is_empty() {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
     let mails = h.mails();
     assert_eq!(mails.len(), 1, "only the real account gets a mail");
     let link = between(&mails[0].1, "<span style=\"word-break:break-all;\">", "</span>").to_string();
@@ -536,4 +543,17 @@ async fn invitations_from_the_users_page_to_a_signed_in_account() {
     assert_eq!(h.count("console_audits where action in ('user.invite-resend', 'user.invite-revoke')"), 2);
     // the old link target
     assert_eq!(h.get("/invitations", Some(&me)).await.path(), "/users");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn starttls_means_tls() {
+    let h = harness().await;
+    h.mail_on();
+    h.setting("smtp_encryption", "starttls");
+    let me = h.signed_in(ADMIN).await;
+    let t = h.token("/settings?tab=email", &me).await;
+    h.go("POST", "/settings/mail-test", Some(&me), &[("_token", &t), ("smtp_test_to", "ops@example.invalid")]).await;
+    let page = h.get("/settings?tab=email", Some(&me)).await;
+    assert!(page.body.contains("did not offer STARTTLS"), "the fake relay offers no STARTTLS: nothing is sent in the clear");
+    assert!(h.mails().is_empty());
 }

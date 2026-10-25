@@ -124,11 +124,14 @@ pub(super) fn web(p: &Pages, parts: &axum::http::request::Parts, body: &[u8], pe
 pub(super) struct Out {
     pub(super) resp: Response<Body>,
     pub(super) cookies: Vec<String>,
+    /// Mail to send after the answer, without the database lock (an unauthenticated request must never hold the
+    /// lock across a relay's network I/O): the message, and a password-reset row to retire if it is not sent.
+    pub(super) later: Vec<(crate::mail::Message, Option<i64>)>,
 }
 
 impl Out {
     pub(super) fn new(resp: Response<Body>) -> Out {
-        Out { resp, cookies: vec![] }
+        Out { resp, cookies: vec![], later: vec![] }
     }
     pub(super) fn done(mut self) -> Response<Body> {
         let h = self.resp.headers_mut();
@@ -259,7 +262,12 @@ async fn entry(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
         _ => Ok(Out::new(error(405, "Method Not Allowed", false))),
     };
     let mut resp = match out {
-        Ok(o) => o.done(),
+        Ok(mut o) => {
+            for (msg, reset) in std::mem::take(&mut o.later) {
+                send_later(&p, &w, msg, reset);
+            }
+            o.done()
+        }
         Err(f) => {
             tracing::error!("sign-in page: {}", match &f {
                 Fault::Other(m) => m.as_str(),
@@ -281,6 +289,37 @@ fn which_key(w: Which) -> (&'static str, u64, bool) {
         Which::Reset => ("password-reset", 20, false),
         _ => ("invite", 20, false),
     }
+}
+
+/// Send a mail in the background: the settings read and the health record under the lock, the relay without it.
+fn send_later(p: &Arc<Pages>, w: &Arc<Web>, msg: crate::mail::Message, reset: Option<i64>) {
+    let (p, w) = (p.clone(), w.clone());
+    tokio::task::spawn_blocking(move || {
+        let cfg = {
+            let c = p.n.db.lock().unwrap_or_else(|e| e.into_inner());
+            match crate::mail::MailConfig::load(&c, &p.n.crypt) {
+                Ok(cfg) if cfg.is_enabled() => cfg,
+                _ => return,
+            }
+        };
+        let domain = url::Url::parse(&w.root).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_default();
+        let result = crate::mail::deliver(&cfg, &p.n.signin.app_name, &domain, &msg, w.now);
+        let c = p.n.db.lock().unwrap_or_else(|e| e.into_inner());
+        match result {
+            Ok(()) => {
+                let _ = crate::mail::record_success(&c, w.now);
+            }
+            Err(e) => {
+                tracing::warn!("email send failed: {e}");
+                let _ = crate::mail::record_failure(&c, &e, w.now);
+                if let Some(id) = reset {
+                    // a link nobody received is retired at once
+                    let ts = laravel::ts(w.now);
+                    let _ = db::exec(&c, r#"update "password_resets" set "used_at" = ?, "updated_at" = ? where "id" = ? and "used_at" is null"#, &[P(Val::str(&ts)), P(Val::str(&ts)), P(Val::Int(id))]);
+                }
+            }
+        }
+    });
 }
 
 /// Run a handler on the database connection, outside the async runtime.

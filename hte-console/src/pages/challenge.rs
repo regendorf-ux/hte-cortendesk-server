@@ -531,16 +531,24 @@ pub(super) fn forgot_post(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fau
         return back(p, c, w, &s, s.data.clone(), "/forgot-password", "login", &m, old);
     }
     let user = db::first(c, r#"select * from "users" where "username" = ? or LOWER(email) = ? limit 1"#, &[P(Val::str(&login_text)), P(Val::str(&login_text.to_lowercase()))])?;
-    match user {
+    let mail = match user {
         Some(u) if may_reset(&u) => dispatch_link(p, c, w, &u)?,
-        Some(_) => tracing::info!("password reset refused (account not resettable)"),
-        None => {}
+        Some(_) => {
+            tracing::info!("password reset refused (account not resettable)");
+            None
+        }
+        None => None,
+    };
+    // the same answer at the same speed whatever the account: the mail goes after it, without the lock
+    let mut out = with_status(p, c, w, &s, s.data.clone(), "/forgot-password", NEUTRAL)?;
+    if let Some((msg, id)) = mail {
+        out.later.push((msg, Some(id)));
     }
-    with_status(p, c, w, &s, s.data.clone(), "/forgot-password", NEUTRAL)
+    Ok(out)
 }
 
-/// `PasswordReset::issue()` + the mail; a link nobody received is retired at once.
-fn dispatch_link(p: &Pages, c: &Connection, w: &Web, u: &Row) -> Result<(), Fault> {
+/// `PasswordReset::issue()` and the mail to send (after the answer, without the database lock).
+fn dispatch_link(p: &Pages, c: &Connection, w: &Web, u: &Row) -> Result<Option<(crate::mail::Message, i64)>, Fault> {
     let ts = laravel::ts(w.now);
     // one live link per account (Eloquent's query-builder update also sets updated_at)
     db::exec(
@@ -561,20 +569,12 @@ fn dispatch_link(p: &Pages, c: &Connection, w: &Web, u: &Row) -> Result<(), Faul
         &ts,
     )?;
     let url = format!("{}/reset-password/{plain}", w.root);
-    let sent = send_mail(
-        p,
-        c,
-        w,
-        &text(u, "email"),
-        &format!("Reset your {} password", p.n.signin.app_name),
-        "mail/password-reset.html",
-        json!({"username": text(u, "username"), "url": url, "minutes": RESET_TTL_MIN, "ip": w.ip}),
-    )?;
-    if !sent {
-        db::exec(c, r#"update "password_resets" set "used_at" = ?, "updated_at" = ? where "id" = ? and "used_at" is null"#, &[P(Val::str(&ts)), P(Val::str(&ts)), P(Val::Int(id))])?;
-        tracing::warn!("password reset email failed");
-    }
-    Ok(())
+    let html = p
+        .view
+        .render("mail/password-reset.html", json!({"app_name": p.n.signin.app_name, "root": w.root.trim_end_matches('/'), "username": text(u, "username"), "url": url, "minutes": RESET_TTL_MIN, "ip": w.ip}))
+        .map_err(Fault::Other)?;
+    let msg = crate::mail::Message { to: text(u, "email"), subject: format!("Reset your {} password", p.n.signin.app_name), html };
+    Ok(Some((msg, id)))
 }
 
 fn token_of(w: &Web) -> String {

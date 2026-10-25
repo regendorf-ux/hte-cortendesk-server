@@ -21,6 +21,8 @@ use serde_json::json;
 /// `TwoFactor::ISSUER`, `RECOVERY_COUNT`
 const ISSUER: &str = "CortenDesk";
 const RECOVERY_COUNT: usize = 10;
+/// How long a started enrolment can be confirmed (PHP's lasts as long as the session).
+const SETUP_TTL: i64 = 15 * 60;
 
 /// RFC 4648 base32, upper case, no padding (otphp's `Base32::encodeUpper`, trimmed).
 pub fn base32(bytes: &[u8]) -> String {
@@ -119,7 +121,7 @@ fn render(ctx: &Ctx, c: &Connection, v: View) -> Result<Reply, Fault> {
     let username = s(&user, "username");
     let (secret, qr, blob) = match &v.setup {
         Some(sec) if !enabled => {
-            let blob = ctx.p.n.crypt.encrypt_string(format!("{}|{sec}", ctx.uid()).as_bytes());
+            let blob = ctx.p.n.crypt.encrypt_string(format!("{}|{}|{sec}", ctx.uid(), ctx.now).as_bytes());
             (sec.clone(), qr_svg(&provisioning_uri(sec, &username)), blob)
         }
         _ => (String::new(), String::new(), String::new()),
@@ -164,7 +166,12 @@ pub fn page(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
                 .decrypt_string(body.get("setup").as_bytes())
                 .ok()
                 .and_then(|b| String::from_utf8(b).ok())
-                .and_then(|t| t.split_once('|').filter(|(uid, _)| *uid == ctx.uid().to_string()).map(|(_, s)| s.to_string()))
+                // "<user id>|<made at>|<secret>": this account's, and at most SETUP_TTL old
+                .and_then(|t| {
+                    let mut it = t.splitn(3, '|');
+                    let (uid, at, secret) = (it.next()?, it.next()?.parse::<i64>().ok()?, it.next()?);
+                    (uid == ctx.uid().to_string() && at + SETUP_TTL >= ctx.now).then(|| secret.to_string())
+                })
                 .unwrap_or_default();
             let code = body.get("code");
             if code.trim().is_empty() {
