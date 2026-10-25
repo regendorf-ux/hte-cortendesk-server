@@ -9,7 +9,7 @@ HERE="$(cd "$(dirname "$0")/.." && pwd)"
 for d in css images fonts vendor/bootstrap vendor/remixicon vendor/apexcharts; do
   [ -d "$SRC/$d" ] || { echo "missing $SRC/$d" >&2; exit 1; }
   mkdir -p "$HERE/assets/$d"
-  rsync -a --delete "$SRC/$d/" "$HERE/assets/$d/"
+  rsync -a --delete --exclude hte-pages.css "$SRC/$d/" "$HERE/assets/$d/"   # hte-pages.css is ours
 done
 for f in js/shell.js js/theme-init.js js/cortendesk.js; do
   [ -f "$SRC/$f" ] || { echo "missing $SRC/$f" >&2; exit 1; }

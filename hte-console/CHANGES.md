@@ -2,6 +2,8 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.6 (2026-10-25): the sidebar and top bar follow the theme (they were dark in both; PHP has the same fault), and the sidebar's HTE mark is no longer squashed (new css/hte-pages.css, which scripts/sync-assets.sh leaves alone)
+
 ## 0.7.5 (2026-10-25): an invalid theme answers 422 with the messages again (a documented, deliberate difference from PHP's redirect back); the replay expects exactly that
 
 ## 0.7.4 (2026-10-25): an invalid theme is Laravel's redirect back (PHP renders JSON errors for /api/* only), found by the second real-PHP replay; the replay treats http://host and http://host/ as one place

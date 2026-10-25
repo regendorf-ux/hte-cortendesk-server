@@ -1,0 +1,22 @@
+/* Phase 7 (2026-10-25, owner): two fixes to the console's chrome that PHP has too, kept in their own file so
+   scripts/sync-assets.sh never overwrites them (it leaves this file alone). Loaded after hte-brand.css.
+
+   1. The sidebar and top bar followed the theme only in dark: cortendesk.css pins them dark in both themes because its
+      wordmark is white. HTE's wordmark takes its colour from the chrome's own ink, so in the light theme the chrome now
+      uses the light tokens (the same ones the page content uses) and the wordmark darkens with it.
+   2. The sidebar's mark was squashed: shell.css gives every logo image `height: 40px` (a rule that wins on specificity),
+      hte-brand.css gives the 512x512 icon `width: 30px`, so the icon was 30x40. Both sides are set here. */
+
+html[data-bs-theme="light"] {
+    --rd-shell-bg: var(--rd-surface);
+    --rd-shell-2: var(--rd-surface-2);
+    --rd-shell-border: var(--rd-border);
+    --rd-shell-border-strong: var(--rd-border-strong);
+    --rd-shell-ink: var(--rd-ink);
+    --rd-shell-ink-muted: var(--rd-ink-muted);
+    --rd-shell-ink-dim: var(--rd-ink-dim);
+}
+
+.hte-mark-name { color: var(--rd-shell-ink); }
+
+.rd-sidebar-logo .rd-logo-lg .hte-mark img { width: 30px; height: 30px; }
