@@ -2,6 +2,11 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.5.1 (2026-10-25): phase 5, replay fixes
+
+- First replay against PHP: the throwaway PHP's own first-start administrator made the user lists one longer, so the
+  adminapi seed deletes it; the snapshot masks a random book guid in `console_audits.target_id`. No change to the API.
+
 ## 0.5.0 (2026-10-24): phase 5, the admin automation API
 
 - Native: the 48 routes of `/api/v1/*` and `POST /api/devices/cli` (`--assign`), ported from 1.15.0-hte.1 behind PHP's

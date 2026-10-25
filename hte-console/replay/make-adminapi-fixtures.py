@@ -687,6 +687,9 @@ INSERT OR IGNORE INTO users (id, username, name, email, password, is_admin, is_a
 -- the replay's scan wants every value placeholder-shaped hex, so the administrator `seed-sql` makes is renamed
 UPDATE users SET username = 'user-5eed0599', name = 'text-5eed0599', email = 'user-5eed059999@example.invalid' WHERE id = 900001;
 
+-- the image's first start made an administrator of its own (random name): the lists here hold only this world
+DELETE FROM users WHERE id < 900000;
+
 INSERT INTO roles (id, name, description, permissions, created_at, updated_at) VALUES (950101, 'text-5eed0701', NULL, '{"token":"rw","device":"r"}', datetime('now'), datetime('now'));
 
 INSERT INTO users (id, username, name, email, note, password, is_admin, is_active, role_id, remember_token, created_at, updated_at) VALUES
