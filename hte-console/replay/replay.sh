@@ -299,7 +299,7 @@ for f in "$FIXTURES"/*api_sysinfo-new-device*.json "$FIXTURES"/*.json; do
 done
 [ -n "$victim" ] || { echo "no fixture to tamper with" >&2; exit 2; }
 cp -p "$FIXTURES/$victim" "$WORK/tampered/" </dev/null
-sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": 200/"status": 418/' "$WORK/tampered/$victim" </dev/null
+sed -i 's/SYSINFO_UPDATED/SYSINFO_TAMPERED/; s/"status": [0-9][0-9]*/"status": 418/' "$WORK/tampered/$victim" </dev/null
 saved="$FIXTURES"; FIXTURES="$WORK/tampered"
 set +e
 console replay /fixtures "http://$TAG-php:8080" > "$WORK/tamper.out"

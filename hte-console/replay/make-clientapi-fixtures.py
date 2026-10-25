@@ -79,7 +79,7 @@ def not_allowed(slug, method, path, allowed):
 
 # ------------------------------------------------------------------------------------------------ the guard ---
 add("no-token", "auth:client without a bearer: 401 Unauthenticated.", "POST", "/api/ab/personal", status=401, resp=UNAUTH)
-add("unknown-token", "auth:client with a token nobody holds", "POST", "/api/ab/personal", "tok-5eed000000004aff", status=401, resp=UNAUTH)
+add("unknown-token", "auth:client with a token nobody holds", "POST", "/api/ab/personal", "{{nobody}}", status=401, resp=UNAUTH)
 add("disabled-user", "the client-token guard: the owner must be active", "POST", "/api/ab/personal", "off", status=401, resp=UNAUTH)
 add("expired-token", "the client-token guard: expires_at in the past", "POST", "/api/ab/personal", "exp", status=401, resp=UNAUTH)
 add("get-without-token", "auth:client covers the GET routes too", "GET", "/api/users", status=401, resp=UNAUTH)

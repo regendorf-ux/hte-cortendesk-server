@@ -10,7 +10,7 @@
     "headers": {
       "accept": "application/json",
       "x-forwarded-for": "198.18.5.1",
-      "authorization": "Bearer tok-5eed000000004aff"
+      "authorization": "Bearer {{nobody}}"
     },
     "cookies": {},
     "body": {
