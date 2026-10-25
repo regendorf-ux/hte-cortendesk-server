@@ -2,6 +2,11 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.13 (2026-10-25): the replay lists every difference of a page, not the first
+- `page-replay` compares the text and the class sequence with a longest-common-subsequence walk and prints each place that differs (what PHP has that
+  hte-console lacks, what hte-console has extra, with context; 25 places per page and kind at most), so one run shows everything left on a page.
+  No change to the console itself.
+
 ## 0.7.12 (2026-10-25): the last two differences of the server replay of 0.7.11 (both on Settings -> Maintenance / Notifications)
 - The option-group wrappers (Apprise scope pickers, snooze target) carry a `class` only when hidden, so the one in force has no empty `class=""`.
 - Removed the extra "Pruning also runs nightly..." note under Prune now (the confirm dialog already says it saves the retention first).

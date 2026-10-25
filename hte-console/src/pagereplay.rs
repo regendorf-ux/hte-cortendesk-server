@@ -270,13 +270,72 @@ pub fn shape(html: &str) -> (Vec<String>, Vec<String>) {
     (text, classes)
 }
 
-fn first_difference(a: &[String], b: &[String]) -> Option<String> {
+/// Every place where the two sequences differ (a longest-common-subsequence walk, so one extra element does not make
+/// everything after it look different), each with a little context. Empty = equal. At most `MAX_HUNKS` are listed.
+const MAX_HUNKS: usize = 25;
+
+fn all_differences(a: &[String], b: &[String]) -> Vec<String> {
     if a == b {
-        return None;
+        return vec![];
     }
-    let i = a.iter().zip(b).position(|(x, y)| x != y).unwrap_or(a.len().min(b.len()));
-    let ctx = |v: &[String]| v[i.saturating_sub(6)..(i + 8).min(v.len())].join(" ");
-    Some(format!("at item {i}: PHP «{}» / hte-console «{}»", ctx(a), ctx(b)))
+    let pre = a.iter().zip(b).take_while(|(x, y)| x == y).count();
+    let suf = a[pre..].iter().rev().zip(b[pre..].iter().rev()).take_while(|(x, y)| x == y).count();
+    let (ma, mb) = (&a[pre..a.len() - suf], &b[pre..b.len() - suf]);
+    let show = |v: &[String]| -> String {
+        let mut t = v.iter().take(14).cloned().collect::<Vec<_>>().join(" ");
+        if v.len() > 14 {
+            t.push_str(&format!(" … (+{})", v.len() - 14));
+        }
+        t
+    };
+    let hunk = |at: usize, gone: &[String], added: &[String]| -> String {
+        let ctx = a[at.saturating_sub(4)..at].join(" ");
+        format!("at item {at}, after «{ctx}»: PHP has «{}» / hte-console has «{}»", show(gone), show(added))
+    };
+    if ma.len().saturating_mul(mb.len()) > 25_000_000 {
+        return vec![hunk(pre, ma, mb)];
+    }
+    let w = mb.len() + 1;
+    let mut dp = vec![0u16; (ma.len() + 1) * w];
+    for i in (0..ma.len()).rev() {
+        for j in (0..mb.len()).rev() {
+            dp[i * w + j] = if ma[i] == mb[j] { dp[(i + 1) * w + j + 1] + 1 } else { dp[(i + 1) * w + j].max(dp[i * w + j + 1]) };
+        }
+    }
+    let (mut i, mut j) = (0usize, 0usize);
+    let (mut out, mut gone, mut added, mut at) = (vec![], vec![], vec![], 0usize);
+    let mut flush = |gone: &mut Vec<String>, added: &mut Vec<String>, at: usize, out: &mut Vec<String>| {
+        if !gone.is_empty() || !added.is_empty() {
+            out.push(hunk(pre + at, gone, added));
+            gone.clear();
+            added.clear();
+        }
+    };
+    while i < ma.len() || j < mb.len() {
+        if i < ma.len() && j < mb.len() && ma[i] == mb[j] {
+            flush(&mut gone, &mut added, at, &mut out);
+            i += 1;
+            j += 1;
+            continue;
+        }
+        if gone.is_empty() && added.is_empty() {
+            at = i;
+        }
+        if j >= mb.len() || (i < ma.len() && dp[(i + 1) * w + j] >= dp[i * w + j + 1]) {
+            gone.push(ma[i].clone());
+            i += 1;
+        } else {
+            added.push(mb[j].clone());
+            j += 1;
+        }
+    }
+    flush(&mut gone, &mut added, at, &mut out);
+    if out.len() > MAX_HUNKS {
+        let more = out.len() - MAX_HUNKS;
+        out.truncate(MAX_HUNKS);
+        out.push(format!("… and {more} more places"));
+    }
+    out
 }
 
 pub struct Report {
@@ -464,10 +523,10 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
                 (pa, pb)
             };
             let ((ta, ca), (tb, cb)) = (shape(pa), shape(pb));
-            if let Some(d) = first_difference(&ta, &tb) {
+            for d in all_differences(&ta, &tb) {
                 diffs.push(format!("{label}: text {d}"));
             }
-            if let Some(d) = first_difference(&ca, &cb) {
+            for d in all_differences(&ca, &cb) {
                 diffs.push(format!("{label}: classes {d}"));
             }
         }
@@ -802,7 +861,13 @@ mod tests {
         assert_eq!(shape(a), shape(b));
         assert_eq!(shape(a).0, vec!["Go", "&", "stop"]);
         assert_eq!(shape(a).1, vec!["x", "btn btn-primary"]);
-        assert!(first_difference(&["a".into(), "b".into()], &["a".into(), "c".into()]).unwrap().contains("item 1"));
+        let d = all_differences(&["a".into(), "b".into()], &["a".into(), "c".into()]);
+        assert!(d.len() == 1 && d[0].contains("item 1"), "{d:?}");
+        // one extra element, then more differences: each place once, not everything after the first
+        let (x, y): (Vec<String>, Vec<String>) = ("a b c d e f g".split(' ').map(String::from).collect(), "a X b c d Y f g".split(' ').map(String::from).collect());
+        let d = all_differences(&x, &y);
+        assert_eq!(d.len(), 2, "{d:?}");
+        assert!(all_differences(&x, &x).is_empty());
     }
 
     #[test]
