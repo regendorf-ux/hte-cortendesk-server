@@ -2,6 +2,17 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.7 (2026-10-25): phase 7b, the rest of the console's pages
+- Pages: Dashboard (stat cards and sessions refreshing every 15 s, connection and platform charts, versions, alerts, Disconnect), Devices
+  (list, filters, sort, columns, bulk, edit, approve/reject, groups, address books, detail page), Users (list, editor, assign devices, actions,
+  person page), Groups, Address books (books, tags, entries, sharing rules), Strategies (editor with impact review, assign, history/restore,
+  compliance), Settings (eight tabs; secrets are encrypted like Laravel's and never shown back; relay pool; presence snoozes).
+- "Not available yet" pages for Roles, Invitations, API tokens, Client downloads and Setup (not routed by default; PHP keeps them).
+  Not ported inside Settings: the connection/mail/Apprise test buttons, Prune now, the Backups tab, the API-tokens card.
+- `page-seed` and `page-replay` cover the new pages' reads; the writes are covered by the integration tests (`tests/pages7b.rs`) only.
+- CI: actions/checkout v7, upload-artifact v7, download-artifact v8 (Node 24 majors; were v4). Verified only by the next tag's CI run.
+- Caddy: `phase7/caddy-pages-7b.sh` moves one page at a time.
+
 ## 0.7.6 (2026-10-25): the sidebar and top bar follow the theme (they were dark in both; PHP has the same fault), and the sidebar's HTE mark is no longer squashed (new css/hte-pages.css, which scripts/sync-assets.sh leaves alone)
 
 ## 0.7.5 (2026-10-25): an invalid theme answers 422 with the messages again (a documented, deliberate difference from PHP's redirect back); the replay expects exactly that
