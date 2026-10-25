@@ -2,6 +2,10 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.8.3 (2026-10-25): 0.8.2 as it should have been tagged
+- The test e-mail's template was named `templates/mail/test.html`, which the repository's `.gitignore` (`test.*`) left out of the commit:
+  0.8.2's CI failed (Send test email had no template) and no 0.8.2 image exists. Renamed `test-message.html`. Nothing else changed.
+
 ## 0.8.2 (2026-10-25): no console page left on PHP: two-factor, invitations, password reset, e-mailed codes, mail
 - **Mail** (`mail.rs`): PHP's `MailSettings` and Symfony's SMTP transport: TLS from the start (`ssl`) or STARTTLS whenever offered,
   the certificate checked against the public roots (webpki-roots), AUTH LOGIN/PLAIN, 10-second timeouts, text/html quoted-printable;

@@ -20,7 +20,7 @@ pub fn send(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         (false, "Enter a valid address to send the test to.".to_string())
     } else {
         let p = ctx.p;
-        let html = p.view.render("mail/test.html", json!({"app_name": p.n.signin.app_name, "root": ctx.root})).map_err(Fault::Other)?;
+        let html = p.view.render("mail/test-message.html", json!({"app_name": p.n.signin.app_name, "root": ctx.root})).map_err(Fault::Other)?;
         let msg = crate::mail::Message { to: to.clone(), subject: format!("{} \u{2014} test message", p.n.signin.app_name), html };
         let domain = url::Url::parse(&ctx.root).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_default();
         let r = crate::mail::test(c, &p.n.crypt, &p.n.signin.app_name, &domain, &msg, ctx.now)?;
