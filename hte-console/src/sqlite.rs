@@ -13,6 +13,7 @@ use std::path::Path;
 use std::time::Duration;
 
 /// A bound parameter with PDO-under-Laravel typing.
+#[derive(Clone)]
 pub struct P(pub Val);
 
 impl ToSql for P {

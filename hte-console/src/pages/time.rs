@@ -128,6 +128,18 @@ pub fn short_absolute(later: i64, earlier: i64) -> String {
     out.join(" ")
 }
 
+/// `$a->diffAsCarbonInterval($b)->cascade()->forHumans(short: true)`: every non-zero unit, "1h 5m 3s"; "0s" for none.
+pub fn short_full(later: i64, earlier: i64) -> String {
+    let (a, b) = if later < earlier { (later, earlier) } else { (earlier, later) };
+    let p = parts_of(&diff(a, b));
+    let out: Vec<String> = p.iter().enumerate().filter(|(_, v)| **v > 0).map(|(u, v)| label(u, *v, true)).collect();
+    if out.is_empty() {
+        "0s".to_string()
+    } else {
+        out.join(" ")
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

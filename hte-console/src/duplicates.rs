@@ -88,20 +88,34 @@ fn ts_of(d: &Row) -> Result<i64, Fault> {
 pub struct Duplicates {
     /// device id -> [(twin id, reason)] in the order PHP's array holds them
     pairs: HashMap<i64, Vec<(i64, &'static str)>>,
+    /// the keys of `pairs` in PHP's array order (first pairing first)
+    order: Vec<i64>,
     devices: HashMap<i64, Row>,
 }
 
+/// The viewer's part of `Device::visibleTo` (the owner/group condition), as an extra `and (...)`.
+pub type Scope<'a> = Option<(&'a str, &'a [P])>;
+
 impl Duplicates {
     fn empty() -> Duplicates {
-        Duplicates { pairs: HashMap::new(), devices: HashMap::new() }
+        Duplicates { pairs: HashMap::new(), order: vec![], devices: HashMap::new() }
     }
 
     /// Duplicates among every approved device (`DuplicateDevices::in`).
     pub fn all(c: &Connection) -> Result<Duplicates, Fault> {
+        Duplicates::in_scope(c, None)
+    }
+
+    /// Duplicates among the devices in a viewer's scope: `extra` is the ownership condition of `visibleTo`.
+    pub fn in_scope(c: &Connection, extra: Scope) -> Result<Duplicates, Fault> {
+        let (xs, xp): (String, Vec<P>) = match extra {
+            Some((sql, p)) => (format!(" and {sql}"), p.to_vec()),
+            None => (String::new(), vec![]),
+        };
         let uuids: Vec<Vec<u8>> = db::rows(
             c,
-            &format!(r#"select "devices"."uuid" from "devices" where {SCOPE} and "devices"."uuid" != ? group by "devices"."uuid" having COUNT(*) > 1"#),
-            &[P(Val::str(""))],
+            &format!(r#"select "devices"."uuid" from "devices" where {SCOPE}{xs} and "devices"."uuid" != ? group by "devices"."uuid" having COUNT(*) > 1"#),
+            &xp.iter().cloned().chain(std::iter::once(P(Val::str("")))).collect::<Vec<_>>(),
         )?
         .into_iter()
         .map(|r| r.val("uuid").to_php_string())
@@ -110,9 +124,9 @@ impl Duplicates {
         let host_rows = db::rows(
             c,
             &format!(
-                r#"select {HOST_SQL} as host_key from "devices" where {SCOPE} and "devices"."hostname" is not null and "devices"."username" is not null and {USER_SQL} != '' group by {HOST_SQL}, {USER_SQL} having COUNT(*) > 1"#
+                r#"select {HOST_SQL} as host_key from "devices" where {SCOPE}{xs} and "devices"."hostname" is not null and "devices"."username" is not null and {USER_SQL} != '' group by {HOST_SQL}, {USER_SQL} having COUNT(*) > 1"#
             ),
-            &[],
+            &xp,
         )?;
         let mut hosts: Vec<Vec<u8>> = vec![];
         for r in host_rows {
@@ -126,21 +140,32 @@ impl Duplicates {
             return Ok(Duplicates::empty());
         }
         let mut conds: Vec<String> = vec![];
-        let mut params: Vec<P> = vec![];
+        let mut params: Vec<P> = xp.clone();
+        let mut tail: Vec<P> = vec![];
         if !uuids.is_empty() {
             conds.push(format!(r#""devices"."uuid" in ({})"#, vec!["?"; uuids.len()].join(", ")));
-            params.extend(uuids.into_iter().map(|u| P(Val::Str(u))));
+            tail.extend(uuids.into_iter().map(|u| P(Val::Str(u))));
         }
         if !hosts.is_empty() {
             conds.push(format!("{HOST_SQL} in ({})", vec!["?"; hosts.len()].join(", ")));
-            params.extend(hosts.into_iter().map(|h| P(Val::Str(h))));
+            tail.extend(hosts.into_iter().map(|h| P(Val::Str(h))));
         }
-        let rows = db::rows(c, &format!(r#"select {COLUMNS} from "devices" where {SCOPE} and ({}) "#, conds.join(" or ")), &params)?;
+        params.extend(tail);
+        let rows = db::rows(c, &format!(r#"select {COLUMNS} from "devices" where {SCOPE}{xs} and ({}) "#, conds.join(" or ")), &params)?;
         Duplicates::build(c, rows)
     }
 
     /// Duplicates of one device among the approved devices (`DuplicateDevices::of`).
     pub fn of(c: &Connection, device: &Row) -> Result<Duplicates, Fault> {
+        Duplicates::of_scope(c, device, None)
+    }
+
+    /// Duplicates of one device among the devices in a viewer's scope (`DuplicateDevices::of($device, $scope)`).
+    pub fn of_scope(c: &Connection, device: &Row, extra: Scope) -> Result<Duplicates, Fault> {
+        let (xs, xp): (String, Vec<P>) = match extra {
+            Some((sql, p)) => (format!(" and {sql}"), p.to_vec()),
+            None => (String::new(), vec![]),
+        };
         if !device.is_null("deleted_at") {
             return Ok(Duplicates::empty());
         }
@@ -150,7 +175,7 @@ impl Duplicates {
             return Ok(Duplicates::empty());
         }
         let mut conds: Vec<String> = vec![];
-        let mut params: Vec<P> = vec![];
+        let mut params: Vec<P> = xp;
         if !uuid.is_empty() {
             conds.push(r#""devices"."uuid" = ?"#.into());
             params.push(P(Val::Str(uuid)));
@@ -160,7 +185,7 @@ impl Duplicates {
             params.push(P(Val::str(&normalize(&device.val("hostname"))?)));
             params.push(P(Val::str(&normalize(&device.val("username"))?)));
         }
-        let rows = db::rows(c, &format!(r#"select {COLUMNS} from "devices" where {SCOPE} and ({}) "#, conds.join(" or ")), &params)?;
+        let rows = db::rows(c, &format!(r#"select {COLUMNS} from "devices" where {SCOPE}{xs} and ({}) "#, conds.join(" or ")), &params)?;
         // outside the scope (pending): nothing to say
         if !rows.iter().any(|r| r.id() == device.id()) {
             return Ok(Duplicates::empty());
@@ -169,7 +194,7 @@ impl Duplicates {
     }
 
     fn build(c: &Connection, rows: Vec<Row>) -> Result<Duplicates, Fault> {
-        let mut d = Duplicates { pairs: HashMap::new(), devices: HashMap::new() };
+        let mut d = Duplicates::empty();
         for r in &rows {
             d.devices.insert(r.id(), r.clone());
         }
@@ -210,6 +235,9 @@ impl Duplicates {
                 let current = self.pairs.get(&a).and_then(|l| l.iter().find(|(o, _)| *o == b)).map(|(_, r)| *r);
                 if current.map_or(true, |cur| strength(why) > strength(cur)) {
                     for (x, y) in [(a, b), (b, a)] {
+                        if !self.pairs.contains_key(&x) {
+                            self.order.push(x);
+                        }
                         let list = self.pairs.entry(x).or_default();
                         match list.iter_mut().find(|(o, _)| *o == y) {
                             Some(slot) => slot.1 = why,
@@ -238,7 +266,94 @@ impl Duplicates {
             }
         }
         self.pairs.retain(|_, l| !l.is_empty());
+        let pairs = &self.pairs;
+        self.order.retain(|k| pairs.contains_key(k));
         Ok(())
+    }
+
+    // ---- what the device pages ask (the model's own accessors) ----
+
+    pub fn has(&self, id: i64) -> bool {
+        self.pairs.contains_key(&id)
+    }
+
+    /// Every flagged device id, in PHP's array order.
+    pub fn ids(&self) -> Vec<i64> {
+        self.order.clone()
+    }
+
+    pub fn count(&self) -> usize {
+        self.pairs.len()
+    }
+
+    /// `twinsOf($id)`: (the twin, the reason, the label), strongest reason first, then most recently seen.
+    pub fn twins_of(&self, id: i64) -> Result<Vec<(Row, &'static str, &'static str)>, Fault> {
+        let mut twins: Vec<(u8, i64, Row, &'static str)> = vec![];
+        for (other, reason) in self.pairs.get(&id).map(|l| l.as_slice()).unwrap_or(&[]) {
+            let Some(d) = self.devices.get(other) else { continue };
+            twins.push((strength(reason), ts_of(d)?, d.clone(), reason));
+        }
+        twins.sort_by(|x, y| (y.0, y.1).cmp(&(x.0, x.1)));
+        Ok(twins.into_iter().map(|t| (t.2, t.3, if t.3 == "uuid" { "same device UUID" } else { "same hostname and user" })).collect())
+    }
+
+    /// "Possible duplicate of 123 (same device UUID)" for a tooltip.
+    pub fn summary(&self, id: i64) -> Result<String, Fault> {
+        let parts: Vec<String> = self
+            .twins_of(id)?
+            .iter()
+            .map(|(d, _, label)| format!("{} ({label})", String::from_utf8_lossy(&d.val("rustdesk_id").to_php_string().unwrap_or_default())))
+            .collect();
+        Ok(if parts.is_empty() { String::new() } else { format!("Possible duplicate of {}", parts.join(", ")) })
+    }
+
+    /// `clusterOrder()`: flagged ids mapped to the position of their connected cluster, the most recently seen first.
+    pub fn cluster_order(&self) -> Result<HashMap<i64, usize>, Fault> {
+        let mut parent: HashMap<i64, i64> = HashMap::new();
+        fn find(parent: &mut HashMap<i64, i64>, x: i64) -> i64 {
+            let p = *parent.entry(x).or_insert(x);
+            if p == x {
+                x
+            } else {
+                let r = find(parent, p);
+                parent.insert(x, r);
+                r
+            }
+        }
+        for a in &self.order {
+            for (b, _) in &self.pairs[a] {
+                let (ra, rb) = (find(&mut parent, *a), find(&mut parent, *b));
+                if ra != rb {
+                    parent.insert(ra, rb);
+                }
+            }
+        }
+        let mut clusters: Vec<(i64, Vec<i64>)> = vec![];
+        for id in &self.order {
+            let root = find(&mut parent, *id);
+            match clusters.iter_mut().find(|(r, _)| *r == root) {
+                Some((_, ids)) => ids.push(*id),
+                None => clusters.push((root, vec![*id])),
+            }
+        }
+        let mut list: Vec<Vec<i64>> = clusters.into_iter().map(|(_, ids)| ids).collect();
+        let mut latest: HashMap<usize, i64> = HashMap::new();
+        for (i, ids) in list.iter().enumerate() {
+            let mut m = 0;
+            for id in ids {
+                m = m.max(self.devices.get(id).map(ts_of).transpose()?.unwrap_or(0));
+            }
+            latest.insert(i, m);
+        }
+        let mut idx: Vec<usize> = (0..list.len()).collect();
+        idx.sort_by(|x, y| latest[y].cmp(&latest[x]).then_with(|| list[*x].iter().min().cmp(&list[*y].iter().min())));
+        let mut out = HashMap::new();
+        for (pos, i) in idx.into_iter().enumerate() {
+            for id in std::mem::take(&mut list[i]) {
+                out.insert(id, pos);
+            }
+        }
+        Ok(out)
     }
 
     /// `rustdeskIdsOf($id)`: the twins' RustDesk ids, strongest reason first, then most recently seen.

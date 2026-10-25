@@ -14,6 +14,9 @@
 
 pub mod account;
 pub mod assets;
+pub mod device_detail;
+pub mod devices;
+pub mod kit;
 pub mod logs;
 pub mod paginate;
 pub mod session;
@@ -603,6 +606,7 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
                     Ok(false) => match (ROUTES[idx].handler)(&ctx, &conn, &req) {
                         Ok(r) => Out::Done(finish(&ctx, &conn, reply_to_response(&ctx, r, head), head)),
                         Err(f) => {
+                            if let Fault::Other(m) = &f { eprintln!("PAGE FAULT {}: {}", req.path, m); }
                             tracing::error!("page {}: {}", req.path, match &f {
                                 Fault::Other(m) => m.as_str(),
                                 _ => "fault",
@@ -652,6 +656,16 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/logs/logins/export", methods: &["GET"], need: Some(("audit", "rw")), handler: logs::logins_export },
     Route { path: "/logs/console", methods: &["GET"], need: Some(("audit", "rw")), handler: logs::console },
     Route { path: "/logs/console/export", methods: &["GET"], need: Some(("audit", "rw")), handler: logs::console_export },
+    Route { path: "/devices", methods: &["GET"], need: Some(("device", "r")), handler: devices::index },
+    Route { path: "/devices/export", methods: &["GET"], need: Some(("device", "r")), handler: devices::export },
+    Route { path: "/devices/sort", methods: &["POST"], need: Some(("device", "r")), handler: devices::sort },
+    Route { path: "/devices/columns", methods: &["POST"], need: Some(("device", "r")), handler: devices::columns },
+    Route { path: "/devices/bulk", methods: &["POST"], need: Some(("device", "r")), handler: devices::bulk },
+    Route { path: "/devices/save", methods: &["POST"], need: Some(("device", "r")), handler: devices::save },
+    Route { path: "/devices/delete", methods: &["POST"], need: Some(("device", "r")), handler: devices::delete },
+    Route { path: "/devices/act", methods: &["POST"], need: Some(("device", "r")), handler: devices::act },
+    Route { path: "/devices/:id", methods: &["GET"], need: Some(("device", "r")), handler: device_detail::show },
+    Route { path: "/devices/:id/do", methods: &["POST"], need: Some(("device", "r")), handler: device_detail::act },
     Route { path: "/account", methods: &["GET"], need: None, handler: account::show },
     Route { path: "/account/profile", methods: &["POST"], need: None, handler: account::save_profile },
     Route { path: "/account/password", methods: &["POST"], need: None, handler: account::update_password },

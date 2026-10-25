@@ -28,7 +28,7 @@ pub fn days(c: &Connection) -> Result<i64, Fault> {
 }
 
 /// `DevicePassword::pending()`
-fn pending(row: &Row) -> bool {
+pub(crate) fn pending(row: &Row) -> bool {
     let cur = row.val("current_version").to_int();
     cur > 0 && cur != row.val("confirmed_version").to_int()
 }

@@ -1,0 +1,32 @@
+{# Summary chips: each one is a link that filters the list underneath, the active one is marked. Pending only appears when something is waiting. #}
+<div class="rd-chiprow">
+    <a href="{{ urls.all }}" class="rd-chip rd-chip-btn rd-tone-blue{{ ' rd-chip-active' if not st.trashed and not pending_tab and st.status == 'all' else '' }}" title="Show every device">
+        <i class="ri-computer-line rd-chip-icon"></i>
+        <span class="rd-chip-value">{{ chips.total }}</span>
+        <span class="rd-chip-label">Devices</span>
+    </a>
+    <a href="{{ urls.online }}" class="rd-chip rd-chip-btn rd-tone-green{{ ' rd-chip-active' if not st.trashed and not pending_tab and st.status == 'online' else '' }}" title="Only devices online now">
+        <span class="rd-chip-dot"></span>
+        <span class="rd-chip-value">{{ chips.online }}</span>
+        <span class="rd-chip-label">Online</span>
+    </a>
+    <a href="{{ urls.offline }}" class="rd-chip rd-chip-btn rd-tone-muted{{ ' rd-chip-active' if not st.trashed and not pending_tab and st.status == 'offline' else '' }}" title="Only devices currently offline">
+        <span class="rd-chip-dot"></span>
+        <span class="rd-chip-value">{{ chips.total - chips.online }}</span>
+        <span class="rd-chip-label">Offline</span>
+    </a>
+    {% if chips.show_dups %}
+        <a href="{{ urls.dups }}" class="rd-chip rd-chip-btn rd-tone-amber{{ ' rd-chip-active' if not st.trashed and not pending_tab and st.status == 'duplicates' else '' }}" title="Devices that look like another device under a new ID">
+            <i class="ri-file-copy-2-line rd-chip-icon"></i>
+            <span class="rd-chip-value">{{ chips.dups }}</span>
+            <span class="rd-chip-label">Possible duplicates</span>
+        </a>
+    {% endif %}
+    {% if chips.pending > 0 %}
+        <a href="{{ urls.pending }}" class="rd-chip rd-chip-btn rd-tone-amber{{ ' rd-chip-active' if pending_tab else '' }}" title="Devices waiting for approval">
+            <i class="ri-time-line rd-chip-icon"></i>
+            <span class="rd-chip-value">{{ chips.pending }}</span>
+            <span class="rd-chip-label">Pending</span>
+        </a>
+    {% endif %}
+</div>

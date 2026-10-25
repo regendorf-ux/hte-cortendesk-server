@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+<div class="card">
+
+    <div class="card-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <div>
+            <h4 class="header-title">Pending approval
+                <span class="badge bg-warning-subtle text-warning ms-1">{{ pending_count }}</span>
+            </h4>
+            <p class="rd-card-sub mb-0">New devices held by the deployment gate. Approve to make them visible, or reject to remove.</p>
+        </div>
+        <div class="rd-card-actions">
+            <a href="/devices" class="btn btn-light">
+                <i class="ri-arrow-left-line me-1"></i>Back to Devices
+            </a>
+        </div>
+    </div>
+
+    <form class="rd-toolbar" method="get" action="/devices" data-rd-autosubmit hx-disinherit="*"
+          hx-get="/devices" hx-trigger="input delay:300ms from:#dev-search, submit" hx-sync="this:replace"
+          hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+        <input type="hidden" name="pending" value="1">
+        <div class="rd-toolbar-search">
+            <div class="input-group">
+                <span class="input-group-text"><i class="ri-search-line"></i></span>
+                <input type="search" id="dev-search" name="search" value="{{ st.search }}" class="form-control" placeholder="Search ID, hostname, user, IP…" hx-preserve="true">
+            </div>
+        </div>
+    </form>
+
+    {# Desktop table (md and up) #}
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-centered mb-0">
+            <thead>
+            <tr>
+                <th>ID</th>
+                <th>Device</th>
+                <th>OS</th>
+                <th>Version</th>
+                <th>First Seen</th>
+                <th>IP</th>
+                <th class="text-end">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for d in rows %}
+                <tr>
+                    <td>
+                        <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-18 align-middle me-1" title="{{ d.platform.label }}"></i>
+                        <span class="fw-semibold">{{ d.rustdesk_id }}</span>
+                    </td>
+                    <td>
+                        <span class="rd-cell-title">{{ d.hostname or '—' }}</span>
+                        <span class="rd-cell-sub">{{ d.username }}</span>
+                    </td>
+                    <td>{{ d.os or '—' }}</td>
+                    <td><span class="badge bg-secondary-subtle text-secondary">{{ d.version or '?' }}</span></td>
+                    <td><span title="{{ d.created_at }}">{{ d.created_ago }}</span></td>
+                    <td class="rd-mono">{{ d.ip or '—' }}</td>
+                    <td class="text-end rd-rowact">
+                        {% if can_rw %}
+                            <form method="post" action="/devices/act" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
+                                <button type="submit" name="do" value="approve" class="btn btn-link p-0 align-baseline text-success me-2"><i class="ri-check-line me-1"></i>Approve</button>
+                                <button type="submit" name="do" value="reject" class="btn btn-link p-0 align-baseline text-danger"
+                                        data-rd-confirm="Reject device {{ d.rustdesk_id }}? It will be removed from the console."><i class="ri-close-line me-1"></i>Reject</button>
+                            </form>
+                        {% else %}
+                            <span class="text-muted">View only</span>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="7" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-shield-check-line"></i></div>
+                            <p class="rd-empty-title">No devices are awaiting approval.</p>
+                            <p class="rd-empty-text">Everything the deployment gate has held has been dealt with.</p>
+                            <a href="/devices" class="btn btn-sm btn-outline-light">Back to Devices</a>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Mobile card list (below md) #}
+    <div class="d-md-none rd-cardlist">
+        {% for d in rows %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="d-flex align-items-center gap-2 min-width-0">
+                        <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-22 align-middle" title="{{ d.platform.label }}"></i>
+                        <div class="min-width-0">
+                            <span class="rd-mini-title text-truncate">{{ d.rustdesk_id }}</span>
+                            <span class="rd-mini-sub text-truncate">{{ d.hostname or d.os }}</span>
+                        </div>
+                    </div>
+                    <span class="badge bg-warning-subtle text-warning flex-shrink-0">Pending</span>
+                </div>
+                <div class="rd-mini-foot">
+                    <span class="rd-mini-sub min-width-0">
+                        {{ d.username }} · v{{ d.version or '?' }} ·
+                        <span class="text-nowrap">{{ d.created_ago_short }}</span>
+                    </span>
+                    <div class="rd-mini-acts">
+                        {% if can_rw %}
+                            <form method="post" action="/devices/act" class="d-inline">
+                                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
+                                <button type="submit" name="do" value="approve" class="rd-iconbtn text-success" title="Approve"><i class="ri-check-line"></i></button>
+                                <button type="submit" name="do" value="reject" class="rd-iconbtn text-danger" title="Reject"
+                                        data-rd-confirm="Reject device {{ d.rustdesk_id }}?"><i class="ri-close-line"></i></button>
+                            </form>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="ri-shield-check-line"></i></div>
+                <p class="rd-empty-title">No devices are awaiting approval.</p>
+                <p class="rd-empty-text">Everything the deployment gate has held has been dealt with.</p>
+                <a href="/devices" class="btn btn-sm btn-outline-light">Back to Devices</a>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="rd-tablefoot">
+        <span>Showing {{ pager.first_item or 0 }}–{{ pager.last_item or 0 }} of {{ pager.total }}</span>
+        {% include "partials/pager_plain.html" %}
+    </div>
+</div>
+</div>
+{% endblock %}

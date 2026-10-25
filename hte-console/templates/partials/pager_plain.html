@@ -1,0 +1,80 @@
+{# Livewire's bootstrap pagination (previous / numbers / next), as links htmx swaps into the table, the card list and the footer. #}
+{% if pager.has_pages %}
+    <nav class="d-flex justify-items-center justify-content-between">
+        <div class="d-flex justify-content-between flex-fill d-sm-none">
+            <ul class="pagination">
+                {% if pager.on_first %}
+                    <li class="page-item disabled" aria-disabled="true">
+                        <span class="page-link">&laquo; Previous</span>
+                    </li>
+                {% else %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ path }}?{{ query }}page={{ pager.current - 1 }}">&laquo; Previous</a>
+                    </li>
+                {% endif %}
+
+                {% if pager.has_more %}
+                    <li class="page-item">
+                        <a class="page-link" href="{{ path }}?{{ query }}page={{ pager.current + 1 }}">Next &raquo;</a>
+                    </li>
+                {% else %}
+                    <li class="page-item disabled" aria-disabled="true">
+                        <span class="page-link" aria-hidden="true">Next &raquo;</span>
+                    </li>
+                {% endif %}
+            </ul>
+        </div>
+
+        <div class="d-none flex-sm-fill d-sm-flex align-items-sm-center justify-content-sm-between">
+            <div>
+                <p class="small text-muted">
+                    Showing
+                    <span class="fw-semibold">{{ pager.first_item }}</span>
+                    to
+                    <span class="fw-semibold">{{ pager.last_item }}</span>
+                    of
+                    <span class="fw-semibold">{{ pager.total }}</span>
+                    results
+                </p>
+            </div>
+
+            <div>
+                <ul class="pagination">
+                    {% if pager.on_first %}
+                        <li class="page-item disabled" aria-disabled="true" aria-label="&laquo; Previous">
+                            <span class="page-link" aria-hidden="true">&lsaquo;</span>
+                        </li>
+                    {% else %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ path }}?{{ query }}page={{ pager.current - 1 }}" aria-label="&laquo; Previous">&lsaquo;</a>
+                        </li>
+                    {% endif %}
+
+                    {% for element in pager.elements %}
+                        {% if element is string %}
+                            <li class="page-item disabled" aria-disabled="true"><span class="page-link">{{ element }}</span></li>
+                        {% else %}
+                            {% for n in element %}
+                                {% if n == pager.current %}
+                                    <li class="page-item active" aria-current="page"><span class="page-link">{{ n }}</span></li>
+                                {% else %}
+                                    <li class="page-item"><a class="page-link" href="{{ path }}?{{ query }}page={{ n }}">{{ n }}</a></li>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if pager.has_more %}
+                        <li class="page-item">
+                            <a class="page-link" href="{{ path }}?{{ query }}page={{ pager.current + 1 }}" aria-label="Next &raquo;">&rsaquo;</a>
+                        </li>
+                    {% else %}
+                        <li class="page-item disabled" aria-disabled="true" aria-label="Next &raquo;">
+                            <span class="page-link" aria-hidden="true">&rsaquo;</span>
+                        </li>
+                    {% endif %}
+                </ul>
+            </div>
+        </div>
+    </nav>
+{% endif %}

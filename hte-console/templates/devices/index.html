@@ -1,0 +1,412 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+{% set pending_tab = false %}
+{% include "devices/chips.html" %}
+
+<form id="sortform" method="post" action="/devices/sort" class="d-none">
+    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+    <input type="hidden" name="back" value="{{ back }}">
+</form>
+<form id="bulk" method="post" action="/devices/bulk" class="d-none">
+    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+    <input type="hidden" name="back" value="{{ back }}">
+</form>
+
+<div class="card">
+
+    {# Toolbar #}
+    <form class="rd-toolbar" method="get" action="/devices" data-rd-autosubmit hx-disinherit="*"
+          hx-get="/devices" hx-trigger="change, input delay:300ms from:#dev-search, submit" hx-sync="this:replace"
+          hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+        {% if st.trashed %}<input type="hidden" name="trashed" value="1">{% endif %}
+        <div class="rd-toolbar-search">
+            <div class="input-group">
+                <span class="input-group-text"><i class="ri-search-line"></i></span>
+                <input type="search" id="dev-search" name="search" value="{{ st.search }}" class="form-control" placeholder="Search ID, alias, hostname, user, IP…" hx-preserve="true">
+            </div>
+        </div>
+        <select class="form-select rd-toolbar-filter" name="status" aria-label="Status"{{ ' disabled' if st.trashed else '' }}>
+            <option value="all"{{ ' selected' if st.status == 'all' else '' }}>All statuses</option>
+            <option value="online"{{ ' selected' if st.status == 'online' else '' }}>Online</option>
+            <option value="offline"{{ ' selected' if st.status == 'offline' else '' }}>Offline</option>
+            <option value="duplicates"{{ ' selected' if st.status == 'duplicates' else '' }}>Duplicates</option>
+        </select>
+        <select class="form-select rd-toolbar-filter" name="group" aria-label="Group">
+            <option value="0">All groups</option>
+            {% for g in groups %}
+                <option value="{{ g.id }}"{{ ' selected' if st.group == g.id else '' }}>{{ g.name }}</option>
+            {% endfor %}
+        </select>
+        {% if is_admin %}
+            <select class="form-select rd-toolbar-filter" name="owner" aria-label="Owner">
+                <option value="0">All owners</option>
+                <option value="-1"{{ ' selected' if st.owner == -1 else '' }}>Unassigned</option>
+                {% for u in users %}
+                    <option value="{{ u.id }}"{{ ' selected' if st.owner == u.id else '' }}>{{ u.username }}</option>
+                {% endfor %}
+            </select>
+        {% endif %}
+        {# Sorting on a phone: the card list has no headings to click, so the picker and the reverse arrow stand in for them. #}
+        <div class="rd-sort-mobile d-md-none">
+            <select class="form-select rd-toolbar-filter" aria-label="Sort devices by" name="select" form="sortform" data-rd-autosubmit-select>
+                {% for o in sort_options %}
+                    <option value="{{ o.key }}"{{ ' selected' if o.selected else '' }}>Sort: {{ o.label }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit" form="sortform" name="field" value="{{ sort.field }}" class="btn btn-outline-light" aria-label="Reverse sort order" title="Reverse sort order">
+                <i class="{{ 'ri-sort-asc' if sort.dir == 'asc' else 'ri-sort-desc' }}"></i>
+            </button>
+        </div>
+        <div class="rd-toolbar-actions">
+            <a href="/devices" class="btn btn-outline-light">Reset</a>
+            {% if st.trashed %}
+                <a href="{{ urls.all }}" class="btn btn-light"><i class="ri-arrow-left-line"></i>Back to Devices</a>
+            {% elif can_rw %}
+                <a href="{{ urls.create }}" class="btn btn-primary"><i class="ri-add-line"></i>Add Device</a>
+            {% endif %}
+        </div>
+    </form>
+
+    {% if not st.trashed %}
+        <div class="rd-toolbar">
+            <a href="{{ urls.columns }}" class="fs-13 text-muted d-none d-md-inline">
+                <i class="ri-layout-column-line me-1"></i>Columns
+            </a>
+            <a href="{{ urls.export }}" class="fs-13 text-muted" hx-boost="false" title="Download the current view as CSV">
+                <i class="ri-download-2-line me-1"></i>Export CSV
+            </a>
+            {% if chips.pending > 0 %}
+                <a href="{{ urls.pending }}" class="fs-13 text-warning fw-semibold">
+                    <i class="ri-time-line me-1"></i>Pending approval
+                    <span class="badge bg-warning-subtle text-warning ms-1">{{ chips.pending }}</span>
+                </a>
+            {% endif %}
+            <a href="{{ urls.trashed }}" class="fs-13 text-muted ms-auto">
+                <i class="ri-delete-bin-line me-1"></i>Recycle Bin ({{ chips.trashed }})
+            </a>
+        </div>
+
+        {# Column picker: a plain inline panel, desktop only like the table it configures. #}
+        {% if columns_open %}
+            <div class="rd-toolbar d-none d-md-flex">
+                <form class="rd-inset w-100" method="post" action="/devices/columns">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="back" value="{{ back }}">
+                    <div class="d-flex flex-wrap gap-3 align-items-center">
+                        {% for col in col_list %}
+                            <div class="form-check form-check-inline m-0">
+                                <input type="checkbox" class="form-check-input" id="col-{{ col.key }}" name="columns[]" value="{{ col.key }}"{{ ' checked' if col.checked else '' }} data-rd-autosubmit-box>
+                                <label class="form-check-label fs-13" for="col-{{ col.key }}">{{ col.label }}</label>
+                            </div>
+                        {% endfor %}
+                        <div class="ms-auto d-flex gap-2">
+                            <button type="submit" name="reset" value="1" class="btn btn-sm btn-outline-light">Defaults</button>
+                            <button type="submit" name="done" value="1" class="btn btn-sm btn-light">Done</button>
+                        </div>
+                    </div>
+                    <div class="form-text">Your selection is saved to your account.</div>
+                </form>
+            </div>
+        {% endif %}
+    {% else %}
+        <div class="rd-toolbar">
+            <div class="alert alert-warning py-2 mb-0 w-100">
+                <i class="ri-delete-bin-line me-1"></i>Recycle bin — devices here are hidden from the console and API but not destroyed.
+            </div>
+        </div>
+    {% endif %}
+
+    {# Bulk actions bar: shown by the page script while rows are ticked (phones too, the cards carry checkboxes). #}
+    {% if not st.trashed %}
+        <div id="bulk-slot">{% if result %}<div class="rd-toolbar d-flex flex-wrap gap-2 align-items-center"><span class="fs-13 text-success"><i class="ri-check-line me-1"></i>{{ result }}</span></div>{% endif %}</div>
+        <script type="text/html" id="bulk-bar">
+            <div class="rd-toolbar d-flex flex-wrap gap-2 align-items-center">
+                <span class="fs-13 fw-semibold"><span data-rd-selcount>0</span> selected</span>
+                {% if can_book_rw %}
+                    <button type="submit" form="bulk" name="do" value="pick-books" class="btn btn-sm btn-light">
+                        <i class="ri-contacts-book-2-line me-1"></i>Add to Address Book…
+                    </button>
+                {% endif %}
+                {% if can_rw %}
+                    <button type="submit" form="bulk" name="do" value="pick-group" class="btn btn-sm btn-light">
+                        <i class="ri-folder-transfer-line me-1"></i>Move to Group…
+                    </button>
+                    <button type="submit" form="bulk" name="do" value="incoming" class="btn btn-sm btn-light" title="The ID server refuses sessions these devices start">
+                        <i class="ri-login-box-line me-1"></i>Incoming only
+                    </button>
+                    <button type="submit" form="bulk" name="do" value="outgoing" class="btn btn-sm btn-light" title="Let these devices start sessions again">
+                        <i class="ri-arrow-left-right-line me-1"></i>Allow outgoing
+                    </button>
+                    <button type="submit" form="bulk" name="do" value="delete" class="btn btn-sm btn-outline-danger">
+                        <i class="ri-delete-bin-line me-1"></i>Delete
+                    </button>
+                {% endif %}
+                <a href="javascript:void(0);" class="fs-13 text-muted" data-rd-clearsel>Clear</a>
+            </div>
+        </script>
+    {% endif %}
+
+    {# Desktop table (md and up) #}
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-centered mb-0">
+            <thead>
+            <tr>
+                <th class="rd-selcol">
+                    {% if not st.trashed %}<input type="checkbox" class="form-check-input" data-rd-selectall title="Select every row on this page">{% endif %}
+                </th>
+                {% set f = "id" %}{% set label = "ID" %}{% include "devices/th.html" %}
+                {% for key, label in [["device", "Device"], ["alias", "Alias"], ["group", "Group"], ["owner", "Owner"], ["version", "Version"]] %}
+                    {% if cols[key] %}{% set f = key %}{% set label = label %}{% include "devices/th.html" %}{% endif %}
+                {% endfor %}
+                {% if cols.os %}{% set f = "os" %}{% set label = "OS" %}{% include "devices/th.html" %}{% endif %}
+                {% if cols.username %}<th>User</th>{% endif %}
+                {% if cols.ip %}<th>IP</th>{% endif %}
+                {% if cols.lan_ip %}<th title="Last seen during a connection">LAN IP</th>{% endif %}
+                {% if cols.cpu %}<th>CPU</th>{% endif %}
+                {% if cols.memory %}<th>Memory</th>{% endif %}
+                {% if cols.uuid %}<th>UUID</th>{% endif %}
+                {% for key, label in [["first_seen", "First Seen"], ["last_seen", "Last Seen"]] %}
+                    {% if cols[key] %}{% set f = key %}{% set label = label %}{% include "devices/th.html" %}{% endif %}
+                {% endfor %}
+                {% set f = "status" %}{% set label = "Status" %}{% include "devices/th.html" %}
+                <th class="text-end">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for d in rows %}
+                <tr>
+                    <td class="rd-selcol">
+                        {% if not st.trashed %}<input type="checkbox" class="form-check-input" form="bulk" name="selected[]" value="{{ d.id }}" data-rd-rowbox>{% endif %}
+                    </td>
+                    <td>
+                        <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-18 align-middle me-1" title="{{ d.platform.label }}"></i>
+                        {% if st.trashed %}
+                            <span class="fw-semibold">{{ d.rustdesk_id }}</span>
+                        {% else %}
+                            <a href="{{ d.link }}" class="fw-semibold" title="Connect with RustDesk">{{ d.rustdesk_id }}</a>
+                        {% endif %}
+                    </td>
+                    {% if cols.device %}
+                        <td>
+                            {% if st.trashed %}
+                                <span class="rd-cell-title">{{ d.hostname or '—' }}</span>
+                            {% else %}
+                                <a href="/devices/{{ d.id }}" class="rd-cell-title rd-cell-link">{{ d.hostname or '—' }}</a>
+                            {% endif %}
+                            {% set sub_a = d.os_desc_28 if (not cols.os and d.os) else '' %}
+                            {% set sub_b = d.username if (not cols.username and d.username) else '' %}
+                            {% if sub_a or sub_b %}
+                                <span class="rd-cell-sub">{{ sub_a }}{% if sub_a and sub_b %} · {% endif %}{{ sub_b }}</span>
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    {% if cols.alias %}
+                        <td>
+                            {% if d.alias and not st.trashed %}
+                                <a href="/devices/{{ d.id }}" class="rd-cell-link">{{ d.alias }}</a>
+                            {% else %}
+                                {{ d.alias or '—' }}
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    {% if cols.group %}<td>{{ d.group or '—' }}</td>{% endif %}
+                    {% if cols.owner %}
+                        <td>
+                            {% if d.owner %}
+                                <span class="badge bg-info-subtle text-info">{{ d.owner }}</span>
+                            {% else %}
+                                <span class="text-muted">—</span>
+                            {% endif %}
+                        </td>
+                    {% endif %}
+                    {% if cols.version %}
+                        <td><span class="badge bg-secondary-subtle text-secondary">{{ d.version or '?' }}</span></td>
+                    {% endif %}
+                    {% if cols.os %}<td class="rd-nowrap" title="{{ d.os }}">{{ d.os_desc_34 if d.os else '—' }}</td>{% endif %}
+                    {% if cols.username %}<td>{{ d.username or '—' }}</td>{% endif %}
+                    {% if cols.ip %}<td class="rd-mono fs-13 rd-nowrap">{{ d.ip or '—' }}</td>{% endif %}
+                    {% if cols.lan_ip %}
+                        <td class="rd-mono fs-13 rd-nowrap" title="{{ d.lan_title }}">{{ d.lan_ip or '—' }}</td>
+                    {% endif %}
+                    {% if cols.cpu %}
+                        <td><span class="fs-13" title="{{ d.cpu }}">{{ d.cpu_24 if d.cpu else '—' }}</span></td>
+                    {% endif %}
+                    {% if cols.memory %}<td class="fs-13">{{ d.memory or '—' }}</td>{% endif %}
+                    {% if cols.uuid %}
+                        <td><span class="rd-mono fs-13" title="{{ d.uuid }}">{{ d.uuid_12 if d.uuid else '—' }}</span></td>
+                    {% endif %}
+                    {% if cols.first_seen %}
+                        <td><span title="{{ d.created_at }}">{{ d.first_seen }}</span></td>
+                    {% endif %}
+                    {% if cols.last_seen %}
+                        <td>
+                            <span title="{{ d.last_online_at }}">
+                                {{ d.last_seen }}
+                            </span>
+                        </td>
+                    {% endif %}
+                    <td>
+                        {% if st.trashed %}
+                            <span class="badge bg-warning-subtle text-warning">Deleted</span>
+                        {% elif d.online %}
+                            <span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Online</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary"><i class="rd-dot"></i>Offline</span>
+                        {% endif %}
+                        {% if d.incoming_only %}
+                            <span class="badge bg-info-subtle text-info ms-1" title="Can be controlled, cannot start sessions">Incoming only</span>
+                        {% endif %}
+                        {% if d.duplicate %}
+                            <a href="/devices/{{ d.id }}" class="badge bg-warning-subtle text-warning ms-1" title="{{ d.duplicate }}"><i class="ri-file-copy-2-line me-1"></i>Possible duplicate</a>
+                        {% endif %}
+                    </td>
+                    <td class="text-end rd-rowact">
+                        {% if st.trashed %}
+                            {% if can_rw %}
+                                <form method="post" action="/devices/act" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                    <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
+                                    <button type="submit" name="do" value="restore" class="btn btn-link p-0 align-baseline text-success me-2">Restore</button>
+                                    <button type="submit" name="do" value="destroy" class="btn btn-link p-0 align-baseline text-danger"
+                                            data-rd-confirm="PERMANENTLY delete device {{ d.rustdesk_id }}? This cannot be undone.">Destroy</button>
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            {% if native_webclient %}
+                                <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
+                                   title="Connect in the browser (native client)"><i class="ri-remote-control-line me-1"></i>Connect</a>
+                            {% endif %}
+                            {% if webclient_url %}
+                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-act me-2" hx-boost="false"
+                                   title="Connect in the browser">Web Client</a>
+                            {% endif %}
+                            <a href="/devices/{{ d.id }}" class="rd-act me-2" title="View details"><i class="ri-eye-line"></i></a>
+                            {% if can_rw %}
+                                <a href="{{ urls.edit_prefix }}{{ d.id }}" class="rd-act me-2">Edit</a>
+                                <a href="{{ urls.delete_prefix }}{{ d.id }}" class="text-danger">Delete</a>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="{{ colspan }}" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="{{ 'ri-delete-bin-line' if st.trashed else 'ri-computer-line' }}"></i></div>
+                            <p class="rd-empty-title">{{ 'Recycle bin is empty.' if st.trashed else 'No devices match your filters.' }}</p>
+                            <p class="rd-empty-text">
+                                {{ 'Deleted devices land here until they are destroyed for good.' if st.trashed else 'Devices register themselves the first time a RustDesk client signs in to this server.' }}
+                            </p>
+                            {% if not st.trashed %}
+                                <a href="/devices" class="btn btn-sm btn-outline-light">Clear filters</a>
+                                {% if can_setup %}
+                                    <a href="/setup" class="btn btn-sm btn-primary" hx-boost="false">Set up a client</a>
+                                {% endif %}
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    {# Mobile card list (below md) #}
+    <div class="d-md-none rd-cardlist">
+        {% for d in rows %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="d-flex align-items-center gap-2 min-width-0">
+                        <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-22 align-middle" title="{{ d.platform.label }}"></i>
+                        <div class="min-width-0">
+                            {% if st.trashed %}
+                                <span class="rd-mini-title text-truncate">{{ d.rustdesk_id }}</span>
+                                <span class="rd-mini-sub text-truncate">{{ d.alias or d.hostname }}</span>
+                            {% else %}
+                                <a href="{{ d.link }}" class="rd-mini-title text-truncate" title="Connect with RustDesk">{{ d.rustdesk_id }}</a>
+                                <a href="/devices/{{ d.id }}" class="rd-mini-sub text-truncate">{{ d.alias or d.hostname or 'Details' }}</a>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if not st.trashed %}
+                        <input type="checkbox" class="form-check-input flex-shrink-0" form="bulk" name="selected[]" value="{{ d.id }}" data-rd-rowbox aria-label="Select device {{ d.rustdesk_id }}">
+                    {% endif %}
+                    {% if st.trashed %}
+                        <span class="badge bg-warning-subtle text-warning flex-shrink-0">Deleted</span>
+                    {% elif d.online %}
+                        <span class="badge bg-success-subtle text-success flex-shrink-0">Online</span>
+                    {% else %}
+                        <span class="badge bg-secondary-subtle text-secondary flex-shrink-0">Offline</span>
+                    {% endif %}
+                </div>
+                {% if d.incoming_only or d.duplicate %}
+                    <div class="mb-1 d-flex flex-wrap gap-1">
+                        {% if d.incoming_only %}
+                            <span class="badge bg-info-subtle text-info" title="Can be controlled, cannot start sessions">Incoming only</span>
+                        {% endif %}
+                        {% if d.duplicate %}
+                            <a href="/devices/{{ d.id }}" class="badge bg-warning-subtle text-warning" title="{{ d.duplicate }}"><i class="ri-file-copy-2-line me-1"></i>Possible duplicate</a>
+                        {% endif %}
+                    </div>
+                {% endif %}
+                <div class="rd-mini-foot">
+                    <span class="rd-mini-sub min-width-0">
+                        {{ d.username }} · v{{ d.version or '?' }} ·
+                        <span class="text-nowrap">{{ d.last_seen_short }}</span>
+                    </span>
+                    <div class="rd-mini-acts">
+                        {% if st.trashed %}
+                            {% if can_rw %}
+                                <form method="post" action="/devices/act" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                    <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ d.id }}">
+                                    <button type="submit" name="do" value="restore" class="rd-iconbtn text-success" title="Restore"><i class="ri-arrow-go-back-line"></i></button>
+                                    <button type="submit" name="do" value="destroy" class="rd-iconbtn text-danger" title="Destroy"
+                                            data-rd-confirm="PERMANENTLY delete device {{ d.rustdesk_id }}?"><i class="ri-close-circle-line"></i></button>
+                                </form>
+                            {% endif %}
+                        {% else %}
+                            {% if native_webclient %}
+                                <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
+                                   title="Connect in the browser (native client)"><i class="ri-remote-control-line"></i></a>
+                            {% endif %}
+                            {% if webclient_url %}
+                                <a href="{{ webclient_url }}?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="rd-iconbtn" hx-boost="false"
+                                   title="Connect in the browser"><i class="ri-global-line"></i></a>
+                            {% endif %}
+                            <a href="/devices/{{ d.id }}" class="rd-iconbtn" title="View details"><i class="ri-eye-line"></i></a>
+                            {% if can_rw %}
+                                <a href="{{ urls.edit_prefix }}{{ d.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                                <a href="{{ urls.delete_prefix }}{{ d.id }}" class="rd-iconbtn text-danger" title="Delete"><i class="ri-delete-bin-line"></i></a>
+                            {% endif %}
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="{{ 'ri-delete-bin-line' if st.trashed else 'ri-computer-line' }}"></i></div>
+                <p class="rd-empty-title">{{ 'Recycle bin is empty.' if st.trashed else 'No devices match your filters.' }}</p>
+                <p class="rd-empty-text">
+                    {{ 'Deleted devices land here until they are destroyed for good.' if st.trashed else 'Devices register themselves the first time a RustDesk client signs in to this server.' }}
+                </p>
+                {% if not st.trashed %}
+                    <a href="/devices" class="btn btn-sm btn-outline-light">Clear filters</a>
+                    {% if can_setup %}
+                        <a href="/setup" class="btn btn-sm btn-primary" hx-boost="false">Set up a client</a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="rd-tablefoot">
+        <span>Showing {{ pager.first_item or 0 }}–{{ pager.last_item or 0 }} of {{ pager.total }}</span>
+        {% include "partials/pager_plain.html" %}
+    </div>
+</div>
+
+{% include "devices/modals.html" %}
+</div>
+{% endblock %}

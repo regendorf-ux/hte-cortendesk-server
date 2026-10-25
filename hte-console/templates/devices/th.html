@@ -1,0 +1,6 @@
+{# A clickable table heading: the caret is on every heading and only shown on the active one, so the column does not change width. `f` is the field, `label` its text. #}
+{% set active = sort.field == f %}{% set asc = active and sort.dir == 'asc' %}<th class="rd-sort-th" aria-sort="{{ ('ascending' if asc else 'descending') if active else 'none' }}">
+    <button type="submit" form="sortform" name="field" value="{{ f }}" class="rd-sort-btn{{ ' rd-sort-active' if active else '' }}">
+        {{ label }}<i class="{{ 'ri-arrow-up-s-line' if asc else 'ri-arrow-down-s-line' }}"></i>
+    </button>
+</th>

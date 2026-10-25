@@ -1,0 +1,365 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+    {# Header: who this is and how to reach it. #}
+    <div class="card">
+        <div class="card-body d-flex flex-wrap align-items-center gap-3">
+            <i class="{{ d.platform.icon }} {{ d.platform.color }} fs-36 align-middle" title="{{ d.platform.label }}"></i>
+            <div class="min-width-0 me-auto">
+                <h4 class="mb-0 text-truncate">{{ d.title }}</h4>
+                <span class="text-muted">
+                    {{ d.rustdesk_id }}
+                    {% if d.alias and d.hostname %} · {{ d.hostname }} {% endif %}
+                </span>
+            </div>
+            <div class="d-flex flex-wrap gap-2">
+                {% if d.trashed %}
+                    <span class="badge bg-warning-subtle text-warning rd-status-block">In the recycle bin</span>
+                {% elif d.online %}
+                    <span class="badge bg-success-subtle text-success rd-status-block"><i class="rd-dot"></i>Online</span>
+                {% else %}
+                    <span class="badge bg-secondary-subtle text-secondary rd-status-block"><i class="rd-dot"></i>Offline</span>
+                {% endif %}
+                {% if d.incoming_only %}
+                    <span class="badge bg-info-subtle text-info rd-status-block" title="Can be controlled, cannot start sessions">Incoming only</span>
+                {% endif %}
+                {% if not d.trashed %}
+                    <a href="{{ d.link }}" class="btn btn-sm btn-outline-light" title="Connect with RustDesk" hx-boost="false"><i class="ri-links-line me-1"></i>RustDesk</a>
+                    {% if native_webclient %}
+                        <a href="/webclient?id={{ d.rustdesk_id }}" target="cortendesk-webclient" rel="noopener" class="btn btn-sm btn-primary" hx-boost="false">
+                            <i class="ri-remote-control-line me-1"></i>Connect</a>
+                    {% endif %}
+                    {% if can_edit %}
+                        <a href="{{ url }}?edit=1" class="btn btn-sm btn-outline-light">
+                            <i class="ri-pencil-line me-1"></i>Edit</a>
+                        <a href="{{ url }}?delete={{ id }}" class="btn btn-sm btn-outline-danger">
+                            <i class="ri-delete-bin-line me-1"></i>Delete</a>
+                    {% endif %}
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    {# Possible duplicates: the same machine under another RustDesk ID. Each twin gets its facts and the fixes. #}
+    {% if twin_count > 0 %}
+        <div class="alert alert-warning" role="status">
+            <div class="d-flex gap-2">
+                <i class="ri-file-copy-2-line fs-18 lh-1 mt-1"></i>
+                <div class="min-width-0 flex-grow-1">
+                    <p class="fw-semibold mb-1">
+                        Possible duplicate of {{ twin_first if twin_count == 1 else (twin_count ~ ' devices') }}
+                    </p>
+                    <p class="fs-13 mb-2">
+                        RustDesk gives a machine a new ID after a reinstall, a cloned image or a UUID mismatch.
+                        Keep the one that still reports in and delete the other.
+                        If both report in, they are likely two machines cloned from one image: mark them not a duplicate.
+                        This device was {{ d.last_seen_online }}.
+                    </p>
+                    {% for t in twins %}
+                        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 py-2 border-top">
+                            <div class="min-width-0">
+                                <a href="/devices/{{ t.id }}" class="fw-semibold">{{ t.rustdesk_id }}</a>
+                                {% if t.name %}
+                                    <span>· {{ t.name }}</span>
+                                {% endif %}
+                                <span class="d-block fs-13">
+                                    {{ t.label }} ·
+                                    {{ 'online now' if t.online else ('last seen ' ~ t.last_seen) }} ·
+                                    first seen {{ t.first_seen }}
+                                </span>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2">
+                                <a href="/devices/{{ t.id }}" class="btn btn-sm btn-outline-light">Open</a>
+                                {% if can_edit %}
+                                    <a href="{{ url }}?delete={{ t.id }}" class="btn btn-sm btn-outline-danger">
+                                        <i class="ri-delete-bin-line me-1"></i>Delete {{ t.rustdesk_id }}</a>
+                                    <form method="post" action="{{ url }}/do" class="d-inline">
+                                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                        <input type="hidden" name="do" value="dismiss"><input type="hidden" name="twin" value="{{ t.id }}">
+                                        <button type="submit" class="btn btn-sm btn-outline-light"
+                                                data-rd-confirm="Stop flagging {{ d.rustdesk_id }} and {{ t.rustdesk_id }} as the same machine?">
+                                            Not a duplicate</button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                    {% endfor %}
+                    {% if can_edit %}
+                        <div class="border-top pt-2">
+                            <a href="{{ url }}?delete={{ id }}" class="btn btn-sm btn-outline-danger">
+                                <i class="ri-delete-bin-line me-1"></i>Delete this device ({{ d.rustdesk_id }})</a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    {% endif %}
+    {% if duplicate_result %}
+        <div class="fs-13 text-success mb-3"><i class="ri-check-line me-1"></i>{{ duplicate_result }}</div>
+    {% endif %}
+
+    <div class="row g-3">
+        <div class="col-lg-5">
+            {# Facts. Everything the client reports, plus console assignment. #}
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Device</h5></div>
+                <div class="card-body pt-0">
+                    <dl class="rd-deflist">
+                        <div class="rd-def"><dt>OS</dt><dd class="text-end" title="{{ d.os }}">{{ d.os_desc }}</dd></div>
+                        <div class="rd-def"><dt>CPU</dt><dd class="text-end">{{ d.cpu or '—' }}</dd></div>
+                        <div class="rd-def"><dt>Memory</dt><dd>{{ d.memory or '—' }}</dd></div>
+                        <div class="rd-def"><dt>Client version</dt><dd>{{ d.version or '—' }}</dd></div>
+                        <div class="rd-def"><dt>Client user</dt><dd>{{ d.username or '—' }}</dd></div>
+                        <div class="rd-def"><dt>Last IP</dt><dd>{{ d.ip or '—' }}</dd></div>
+                        <div class="rd-def"><dt>LAN IP</dt>
+                            <dd class="text-end" title="Learned by the ID server when a session is set up between devices on the same network. Clients do not report it.">
+                                {% if d.lan_ip %}
+                                    <span>{{ d.lan_ip }}</span>
+                                    <span class="d-block text-muted fs-12">last seen during a connection {{ d.lan_seen }}</span>
+                                {% else %}
+                                    —
+                                {% endif %}
+                            </dd>
+                        </div>
+                        <div class="rd-def"><dt>Sessions</dt><dd>{{ 'Incoming only' if d.incoming_only else 'Incoming and outgoing' }}</dd></div>
+                        <div class="rd-def"><dt>Registered from</dt><dd title="The address this device first appeared from; blank for devices that registered before this was recorded.">{{ d.registered_ip or '—' }}</dd></div>
+                        <div class="rd-def"><dt>UUID</dt><dd class="rd-mono rd-select-all min-width-0">{{ d.uuid or '—' }}</dd></div>
+                        <div class="rd-def"><dt>First seen</dt><dd>{{ d.first_seen }}</dd></div>
+                        <div class="rd-def"><dt>Last seen</dt><dd>{{ d.last_seen }}</dd></div>
+                        <div class="rd-def"><dt>Group</dt><dd>{{ d.group or '—' }}</dd></div>
+                        <div class="rd-def"><dt>Owner</dt>
+                            <dd>
+                                {% if d.owner %}
+                                    <span class="badge bg-info-subtle text-info">{{ d.owner }}</span>
+                                {% else %}—{% endif %}
+                            </dd>
+                        </div>
+                        <div class="rd-def"><dt>Strategy</dt><dd>{{ d.strategy or '—' }}</dd></div>
+                    </dl>
+                </div>
+            </div>
+
+            {# HTE: per-person reach #}
+            {% if reach %}
+                <div class="card" id="hte-reach">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Who can reach this device</h5>
+                        {% if reach.enforced %}
+                            <span class="badge bg-success-subtle text-success rd-status-block" title="The ID server refuses everyone else"><i class="ri-shield-check-line me-1"></i>Enforced</span>
+                        {% else %}
+                            <span class="badge bg-secondary-subtle text-secondary rd-status-block" title="Settings → Server: Each person may reach only the devices they are given">Not enforced</span>
+                        {% endif %}
+                    </div>
+                    <div class="card-body pt-0">
+                        <dl class="rd-deflist">
+                            {% for section in reach.sections %}
+                                <div class="rd-def">
+                                    <dt>{{ section.label }}{% if section.sub %}<br><span class="fs-12 text-muted">{{ section.sub }}</span>{% endif %}</dt>
+                                    <dd>{% for u in section.users %}<a href="/users/{{ u.id }}" class="text-reset" title="{{ u.username }}">{{ u.name }}</a>{% if not loop.last %}<br>{% endif %} {% endfor %}</dd>
+                                </div>
+                            {% else %}
+                                <div class="rd-def"><dt>Nobody</dt><dd>—</dd></div>
+                            {% endfor %}
+                            <div class="rd-def" id="hte-password-row"><dt>Password</dt>
+                                <dd class="{{ reach.pw.tone }}">{{ reach.pw.text }}<br><span class="fs-12 text-muted">{{ reach.pw.sub }}{% if reach.pw.rotate %} · <form method="post" action="{{ url }}/do" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="do" value="rotate-password"><button type="submit" class="btn btn-link p-0 fs-12 align-baseline">change now</button></form>{% endif %}</span></dd>
+                            </div>
+                        </dl>
+                        <div class="form-text mt-2">
+                            {{ reach.count }} {{ reach.people }}. Grants change under Users and Groups and take effect within a few seconds.
+                            {% if reach.last %}
+                                Last refusal: <strong>{{ reach.last.user }}</strong>
+                                from {{ reach.last.from }}{% if reach.last.from_name %} {{ reach.last.from_name }}{% endif %},
+                                {{ reach.last.ago }}.
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            {% endif %}
+
+            {# Note: the one editable field here. #}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Note</h5>
+                    {% if can_edit and not note_editing %}
+                        <a href="{{ url }}?note=1" class="fs-13 text-muted">
+                            <i class="ri-pencil-line me-1"></i>Edit</a>
+                    {% endif %}
+                </div>
+                <div class="card-body pt-0">
+                    {% if note_editing %}
+                        <form method="post" action="{{ url }}/do">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                            <input type="hidden" name="do" value="note">
+                            <textarea class="form-control{{ ' is-invalid' if note_error else '' }}" rows="3" name="note" maxlength="500">{{ note_value }}</textarea>
+                            {% if note_error %}<div class="invalid-feedback">{{ note_error }}</div>{% endif %}
+                            <div class="d-flex gap-2 mt-2">
+                                <button type="submit" class="btn btn-sm btn-primary">Save</button>
+                                <a href="{{ url }}" class="btn btn-sm btn-outline-light">Cancel</a>
+                            </div>
+                        </form>
+                    {% else %}
+                        <p class="mb-0 {{ '' if d.note else 'text-muted' }}">{{ d.note or 'No note.' }}</p>
+                    {% endif %}
+                </div>
+            </div>
+
+            {# Membership: which books hand this device out. #}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Address books</h5>
+                    {% if can_books and not d.trashed and not ab_open %}
+                        <a href="{{ url }}?ab=1" class="fs-13 text-muted">
+                            <i class="ri-add-line me-1"></i>Add</a>
+                    {% endif %}
+                </div>
+                <div class="card-body pt-0">
+                    {% if ab_open %}
+                        <form method="post" action="{{ url }}/do" class="mb-3">
+                            <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                            <input type="hidden" name="do" value="add-book">
+                            <label class="form-label" for="dd-ab-book">Add to address book</label>
+                            <div class="d-flex gap-2">
+                                <select id="dd-ab-book" class="form-select{{ ' is-invalid' if ab_error else '' }}" name="book_id">
+                                    <option value="0">Choose…</option>
+                                    {% for b in addable %}
+                                        <option value="{{ b.id }}">{{ b.name }}{{ ' (personal)' if b.personal else '' }}</option>
+                                    {% endfor %}
+                                </select>
+                                <button type="submit" class="btn btn-sm btn-primary">Add</button>
+                                <a href="{{ url }}" class="btn btn-sm btn-light">Cancel</a>
+                            </div>
+                            {% if ab_error %}<div class="text-danger fs-13 mt-1">{{ ab_error }}</div>{% endif %}
+                            {% if not addable %}
+                                <div class="form-text">It is already in every book you can edit.</div>
+                            {% endif %}
+                        </form>
+                    {% endif %}
+                    {% for b in books %}
+                        <span class="badge bg-secondary-subtle text-secondary me-1 mb-1">
+                            <i class="ri-contacts-book-2-line me-1"></i>{{ b.label }}
+                            {% if b.writable %}
+                                <form method="post" action="{{ url }}/do" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                                    <input type="hidden" name="do" value="remove-book"><input type="hidden" name="book_id" value="{{ b.id }}">
+                                    <button type="submit" class="btn btn-link p-0 text-secondary ms-1 align-baseline" title="Remove from this address book"
+                                            aria-label="Remove from {{ b.name }}"
+                                            data-rd-confirm="Remove this device from {{ b.name }}?"><i class="ri-close-line"></i></button>
+                                </form>
+                            {% endif %}
+                        </span>
+                    {% else %}
+                        <span class="text-muted">In no address book you can see.</span>
+                    {% endfor %}
+                    {% if ab_result %}
+                        <div class="fs-13 text-success mt-2"><i class="ri-check-line me-1"></i>{{ ab_result }}</div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-7">
+            {% if can_audit %}
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent connections</h5>
+                        <a href="/logs/connections?search={{ d.rustdesk_id|urlencode }}" class="fs-13 text-muted">All</a>
+                    </div>
+                    <div class="card-body pt-0">
+                        {% for c in conns %}
+                            <div class="rd-def">
+                                <dt class="fw-normal">
+                                    {{ c.from }}
+                                    <span class="text-muted">· {{ c.ip }}</span>
+                                    {% if c.note %}
+                                        <span class="rd-cell-sub rd-conn-note-full"><i class="ri-sticky-note-line"></i> {{ c.note }}{% if c.note_user %} · {{ c.note_user }}{% endif %}</span>
+                                    {% endif %}
+                                </dt>
+                                <dd class="text-end text-muted mb-0">
+                                    {{ c.ago }}
+                                    {% if c.duration %} · {{ c.duration }} {% endif %}
+                                </dd>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No connections recorded.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Recent file transfers</h5>
+                        <a href="/logs/file-transfers?search={{ d.rustdesk_id|urlencode }}" class="fs-13 text-muted">All</a>
+                    </div>
+                    <div class="card-body pt-0">
+                        {% for t in transfers %}
+                            <div class="rd-def">
+                                <dt class="fw-normal text-truncate" style="max-width: 70%" title="{{ t.title }}">
+                                    {% if t.receive %}
+                                        <i class="ri-arrow-down-line text-warning me-1" title="Receive"></i>
+                                    {% else %}
+                                        <i class="ri-arrow-up-line text-info me-1" title="Send"></i>
+                                    {% endif %}
+                                    {% if t.clipboard %}
+                                        <span class="badge bg-secondary-subtle text-secondary me-1">Clipboard</span>
+                                    {% endif %}
+                                    {{ t.label }}
+                                </dt>
+                                <dd class="text-end text-muted mb-0">{{ t.ago }}</dd>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No file transfers recorded.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <h5 class="card-title mb-0">Alarms</h5>
+                        <a href="/logs/alarms?search={{ d.rustdesk_id|urlencode }}" class="fs-13 text-muted">All</a>
+                    </div>
+                    <div class="card-body pt-0">
+                        {% for a in alarms %}
+                            <div class="rd-def">
+                                <dt class="fw-normal">
+                                    <span class="badge bg-{{ a.severity }}-subtle text-{{ a.severity }}">{{ a.label }}</span>
+                                </dt>
+                                <dd class="text-end text-muted mb-0">{{ a.ago }}</dd>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No alarms recorded.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Notifications</h5></div>
+                    <div class="card-body pt-0">
+                        {% for n in notes %}
+                            <div class="rd-def">
+                                <dt class="fw-normal">
+                                    {{ n.label }}
+                                    {% if n.error %}<span class="d-block text-danger fs-13 text-break">{{ n.error }}</span>{% endif %}
+                                </dt>
+                                <dd class="text-end text-muted mb-0 text-nowrap">
+                                    <span title="{{ n.at }}">{{ n.ago }}</span>
+                                    <span class="badge bg-{{ n.tone }}-subtle text-{{ n.tone }} ms-1">{{ n.status }}</span>
+                                </dd>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No notifications sent for this device.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% else %}
+                <div class="card">
+                    <div class="card-body text-muted">
+                        Activity history needs the audit permission.
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    {% include "devices/modals.html" %}
+</div>
+{% endblock %}

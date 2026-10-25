@@ -1,0 +1,238 @@
+{# The dialog a page is showing, if any: `modal.kind` is edit, delete, books or group. Each is a form that posts and redirects back; Cancel is a link. #}
+{% if modal.kind == "edit" %}
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);">
+        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="post" action="/devices/save">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="id" value="{{ modal.id }}"><input type="hidden" name="return" value="{{ modal.ret }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ modal.title }}</h5>
+                        <a href="{{ modal.return }}" class="btn-close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <div class="mb-3">
+                            <label class="form-label">RustDesk ID</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if modal.errors.rustdesk_id else '' }}" name="rustdesk_id" value="{{ modal.values.rustdesk_id }}"{{ ' disabled' if modal.id != 0 else '' }}>
+                            {% if modal.errors.rustdesk_id %}<div class="invalid-feedback">{{ modal.errors.rustdesk_id }}</div>{% endif %}
+                            {% if modal.id == 0 %}
+                                <div class="form-text">Pre-register a device by its RustDesk ID; details fill in when it first reports.</div>
+                            {% endif %}
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Alias</label>
+                            <input type="text" class="form-control" name="alias" value="{{ modal.values.alias }}" placeholder="Friendly name">
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Group</label>
+                                <select class="form-select" name="group_id">
+                                    <option value="0">No group</option>
+                                    {% for g in modal.groups %}
+                                        <option value="{{ g.id }}"{{ ' selected' if modal.values.group == g.id else '' }}>{{ g.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <label class="form-label">Owner</label>
+                                <select class="form-select" name="user_id">
+                                    <option value="0">Unassigned</option>
+                                    {% for u in modal.users %}
+                                        <option value="{{ u.id }}"{{ ' selected' if modal.values.user == u.id else '' }}>{{ u.username }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Note</label>
+                            <textarea class="form-control" rows="2" name="note" maxlength="500">{{ modal.values.note }}</textarea>
+                        </div>
+                        <div class="mb-1">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="dl-can-initiate" name="can_initiate" value="1"{{ ' checked' if modal.values.can_initiate else '' }}>
+                                <label class="form-check-label" for="dl-can-initiate">Can start sessions</label>
+                            </div>
+                            <div class="form-text">Off makes the device incoming only: it can be controlled but cannot connect to others. Enforced by the ID server.</div>
+                        </div>
+
+                        {% if modal.show_strategy %}
+                            <hr class="my-3">
+                            <label class="form-label" for="dl-strategy">Strategy</label>
+                            <select id="dl-strategy" class="form-select" name="strategy_id">
+                                <option value="0">Inherit (owner, group, or default)</option>
+                                {% for s in modal.strategies %}
+                                    <option value="{{ s.id }}"{{ ' selected' if modal.values.strategy == s.id else '' }}>
+                                        {{ s.name }}{% if not s.enabled %} (disabled){% endif %}
+                                    </option>
+                                {% endfor %}
+                            </select>
+                            <div class="form-text">A strategy set here wins over the owner's, the group's and the default.</div>
+
+                            <div class="mt-2 rd-inset">
+                                <div class="d-flex justify-content-between align-items-center gap-2 flex-wrap">
+                                    <span class="fs-13 text-muted">In force now</span>
+                                    {% if modal.explain.resolved %}
+                                        <span class="badge bg-success-subtle text-success">{{ modal.explain.resolved }}</span>
+                                    {% else %}
+                                        <span class="badge bg-secondary-subtle text-secondary">None</span>
+                                    {% endif %}
+                                </div>
+                                <ul class="list-unstyled mb-0 mt-2 fs-13">
+                                    {% for step in modal.explain.steps %}
+                                        <li class="d-flex justify-content-between align-items-start gap-2 py-1 border-top">
+                                            <span class="text-muted">
+                                                {{ step.label }}{% if step.target %}<span class="text-body"> · {{ step.target }}</span>{% endif %}
+                                            </span>
+                                            <span class="text-end">
+                                                {% if step.state == "applied" %}
+                                                    <span class="fw-semibold">{{ step.name }}</span>
+                                                    <span class="badge bg-success-subtle text-success ms-1">Wins</span>
+                                                {% elif step.state == "overridden" %}
+                                                    <span>{{ step.name }}</span>
+                                                    <span class="badge bg-secondary-subtle text-secondary ms-1">Overridden</span>
+                                                {% elif step.state == "disabled" %}
+                                                    <span>{{ step.name }}</span>
+                                                    <span class="badge bg-warning-subtle text-warning ms-1">Disabled — skipped</span>
+                                                {% elif step.state == "unset" %}
+                                                    <span class="text-muted">Not set</span>
+                                                {% else %}
+                                                    <span class="text-muted">No strategy</span>
+                                                {% endif %}
+                                            </span>
+                                        </li>
+                                    {% endfor %}
+                                </ul>
+                                {% if modal.explain.acked %}
+                                    <div class="fs-13 text-muted mt-2">
+                                        Device last confirmed a policy {{ modal.explain.acked }}.
+                                    </div>
+                                {% elif modal.explain.resolved %}
+                                    <div class="fs-13 text-muted mt-2">
+                                        Not confirmed by the device yet — it applies on its next heartbeat.
+                                    </div>
+                                {% endif %}
+                            </div>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light" data-rd-close>Cancel</a>
+                        <button type="submit" class="btn btn-primary">{{ 'Add Device' if modal.id == 0 else 'Save Changes' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% elif modal.kind == "delete" %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="delete-device-title" style="background: rgba(0,0,0,.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="/devices/delete">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="return" value="{{ modal.ret }}">
+                    {% for i in modal.ids %}<input type="hidden" name="ids[]" value="{{ i }}">{% endfor %}
+                    <div class="modal-header">
+                        <h5 id="delete-device-title" class="modal-title">
+                            {% if modal.count == 1 %}
+                                Delete device {{ modal.first }}?
+                            {% else %}
+                                Delete {{ modal.count }} devices?
+                            {% endif %}
+                        </h5>
+                        <a href="{{ modal.return }}" class="btn-close" aria-label="Close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <p class="mb-3">
+                            {{ 'It moves' if modal.count == 1 else 'They move' }} to the recycle bin and can be restored from there.
+                        </p>
+                        {% if modal.entries > 0 %}
+                            <div class="form-check">
+                                <input type="checkbox" class="form-check-input" id="delete-from-books" name="from_books" value="1"{{ ' checked' if modal.from_books else '' }}>
+                                <label class="form-check-label" for="delete-from-books">
+                                    Also remove from address books ({{ modal.entries }} {{ modal.entries_word }})
+                                </label>
+                            </div>
+                            <div class="form-text">
+                                Only books you can edit are changed. Restoring the device later does not put the entries back.
+                            </div>
+                        {% else %}
+                            <p class="text-muted fs-13 mb-0">{{ 'It is' if modal.count == 1 else 'They are' }} in no address book.</p>
+                        {% endif %}
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light" data-rd-close>Cancel</a>
+                        <button type="submit" class="btn btn-danger">Delete</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% elif modal.kind == "books" %}
+    <div class="modal fade show d-block" tabindex="-1" style="background: rgba(0,0,0,.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="/devices/bulk">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="do" value="add-books">
+                    {% for i in modal.selected %}<input type="hidden" name="selected[]" value="{{ i }}">{% endfor %}
+                    <div class="modal-header">
+                        <h5 class="modal-title">Add {{ modal.count }} {{ modal.word }} to an address book</h5>
+                        <a href="{{ modal.return }}" class="btn-close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label">Address book</label>
+                        <select class="form-select{{ ' is-invalid' if modal.error else '' }}" name="book_id">
+                            <option value="0">Choose…</option>
+                            {% for book in modal.books %}
+                                <option value="{{ book.id }}"{{ ' selected' if modal.chosen == book.id else '' }}>
+                                    {{ book.name }}{{ ' (personal)' if book.personal else '' }}
+                                </option>
+                            {% endfor %}
+                        </select>
+                        {% if modal.error %}<div class="invalid-feedback">{{ modal.error }}</div>{% endif %}
+                        <div class="form-text">
+                            Only books you can add entries to are listed. Devices already in the
+                            chosen book are skipped, and each entry carries the device's alias,
+                            hostname, platform and user.
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light" data-rd-close>Cancel</a>
+                        <button type="submit" class="btn btn-primary">Add</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% elif modal.kind == "group" %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="move-group-title" style="background: rgba(0,0,0,.6);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <form method="post" action="/devices/bulk">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="do" value="move-group">
+                    {% for i in modal.selected %}<input type="hidden" name="selected[]" value="{{ i }}">{% endfor %}
+                    <div class="modal-header">
+                        <h5 id="move-group-title" class="modal-title">Move {{ modal.count }} {{ modal.word }} to a group</h5>
+                        <a href="{{ modal.return }}" class="btn-close" aria-label="Close move to group dialog" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <label class="form-label" for="move-group-id">Device group</label>
+                        <select id="move-group-id" class="form-select{{ ' is-invalid' if modal.error else '' }}" name="group_id">
+                            <option value="-1">Choose…</option>
+                            <option value="0"{{ ' selected' if modal.chosen == 0 else '' }}>No group</option>
+                            {% for g in modal.groups %}
+                                <option value="{{ g.id }}"{{ ' selected' if modal.chosen == g.id else '' }}>{{ g.name }}</option>
+                            {% endfor %}
+                        </select>
+                        {% if modal.error %}<div class="invalid-feedback">{{ modal.error }}</div>{% endif %}
+                        <div class="form-text">Only device groups you can access are listed.</div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light" data-rd-close>Cancel</a>
+                        <button type="submit" class="btn btn-primary">Move</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endif %}

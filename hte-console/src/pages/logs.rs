@@ -167,7 +167,7 @@ fn ts_of(r: &Row, col: &str) -> Option<i64> {
 }
 
 /// `Csv::row`'s guard against spreadsheet formulas, then `fputcsv` (comma, double quote, backslash escape).
-fn csv_line(cells: &[String]) -> String {
+pub(crate) fn csv_line(cells: &[String]) -> String {
     let mut out = vec![];
     for cell in cells {
         let cell = if !cell.is_empty() && "=+-@\t\r".contains(cell.chars().next().unwrap()) { format!("'{cell}") } else { cell.clone() };
