@@ -241,7 +241,7 @@ fn decode(s: &str) -> String {
 /// the page body between `<body>` and the Bootstrap script, with scripts and styles skipped.
 pub fn shape(html: &str) -> (Vec<String>, Vec<String>) {
     // what PHP shows only while a Livewire call is under way ("Saving…", "Calculating…"): no person reads it
-    static LOADING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<span\b[^>]*\bwire:loading\b[^>]*>.*?</span>"#).unwrap());
+    static LOADING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<span\b[^>]*\bwire:loading\b[^>]*>.*?</span>|<div\b[^>]*\bwire:loading\b[^>]*>.*?</div>"#).unwrap());
     let cleaned = LOADING.replace_all(html, |m: &regex::Captures| {
         let tag = &m[0][..m[0].find('>').unwrap_or(0)];
         if tag.contains("wire:loading.remove") || tag.contains("wire:loading.attr") || tag.contains("wire:loading.class") { m[0].to_string() } else { String::new() }

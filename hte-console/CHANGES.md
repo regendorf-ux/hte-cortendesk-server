@@ -2,6 +2,9 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed
+Three differences, two causes: "Stored in <directory>." was empty on the Settings tabs that are not Backups (PHP prints it always); and PHP's "Uploading…" line under the file field (a Livewire loading `<div>`) was compared (the replay now ignores loading `<div>`s as it ignores loading `<span>`s).
+
 ## 0.7.17 (2026-10-25): the rest of the 0.7.15 dialog list, and the Backups tab
 The 0.7.16 replay showed no new differences; it showed what 0.7.16 had not yet done from the 0.7.15 list.
 - Strategy assign: a device is its id with the alias or hostname under it (no dash), "N selected" under the list, "No devices match."; Compliance: "No devices in this state.".

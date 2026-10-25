@@ -55,6 +55,8 @@ pub fn pane(ctx: &Ctx, c: &Connection, tab: &str) -> Result<Value, Fault> {
         "test": ctx.flashed.get("backup_test").cloned().filter(|v| v.is_object()).unwrap_or(Value::Null),
         "f": json!({"ftp_host": "", "ftp_port": "21", "ftp_username": "", "ftp_path": "", "ftp_tls": false, "s3_endpoint": "", "s3_region": "", "s3_bucket": "", "s3_prefix": "", "s3_access_key": "", "s3_path_style": false}), "ftp_password_set": false, "s3_secret_set": false,
     });
+    // PHP prints `config('cortendesk.backups_path')` whether or not the directory works, and on every tab
+    out["dir"] = json!(std::env::var("HTE_CONSOLE_BACKUPS_DIR").ok().or_else(|| std::env::var("CORTENDESK_BACKUPS_PATH").ok()).filter(|v| !v.is_empty()).unwrap_or_else(|| "/data/backups".into()));
     if tab != "backups" {
         return Ok(out);
     }
