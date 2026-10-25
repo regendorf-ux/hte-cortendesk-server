@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 93,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "no field, no change, the same audit line",
+  "method": "PUT",
+  "path": "/api/v1/user-groups/950402",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {}
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950402,
+          "name": "text-5eed0806",
+          "note": null,
+          "users_count": 0
+        },
+        "message": "User group updated."
+      }
+    }
+  }
+}

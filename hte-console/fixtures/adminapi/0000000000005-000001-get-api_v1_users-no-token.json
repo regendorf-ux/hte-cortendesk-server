@@ -1,0 +1,34 @@
+{
+  "format": 1,
+  "seq": 1,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "auth:api-token: no bearer, 401 Unauthenticated.",
+  "method": "GET",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "Unauthenticated."
+      }
+    }
+  }
+}

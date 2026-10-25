@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 156,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...a strategy (a deleted one does not count)",
+  "method": "POST",
+  "path": "/api/devices/cli",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000540",
+        "uuid": "00000000-0000-4000-8000-000000000540",
+        "strategy_name": "text-5eed1102"
+      }
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "omitted"
+    }
+  }
+}

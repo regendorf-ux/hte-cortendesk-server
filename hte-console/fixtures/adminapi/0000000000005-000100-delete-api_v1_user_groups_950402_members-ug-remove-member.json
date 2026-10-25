@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 100,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "removeMember(): detach",
+  "method": "DELETE",
+  "path": "/api/v1/user-groups/{{i950402}}/members",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "user_name": "user-5eed0508"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": null,
+        "message": "Member removed."
+      }
+    }
+  },
+  "vars": {
+    "i950402": "950402"
+  }
+}

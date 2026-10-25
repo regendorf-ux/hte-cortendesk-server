@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "seq": 116,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/response/errors"
+  ],
+  "source": "an owner that is no integer fails the integer rule only: Laravel does not run exists on an attribute that already failed (replay against PHP)",
+  "method": "POST",
+  "path": "/api/v1/address-books",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed0c06",
+        "owner_user_id": "abc"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The owner user id field must be an integer.",
+        "errors": {
+          "owner_user_id": [
+            "The owner user id field must be an integer."
+          ]
+        }
+      }
+    }
+  }
+}

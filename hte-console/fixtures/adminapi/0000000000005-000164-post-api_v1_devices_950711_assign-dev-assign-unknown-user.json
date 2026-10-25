@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 164,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "a user that is named but not found",
+  "method": "POST",
+  "path": "/api/v1/devices/950711/assign",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "user_id": 999999
+      }
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 1,
+        "data": null,
+        "message": "User not found."
+      }
+    }
+  }
+}

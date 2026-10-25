@@ -13,6 +13,7 @@
 //!   saved callback once more;
 //! - an expected body `{"kind": "html", "contains": [...]}`: the page must contain each text;
 //! - phase 3: `"capture_header": {"name": "<response header>"}` (an ETag), sent back as `If-None-Match: {{name}}`;
+//! - phase 5: `"sanitise_expected": true` on a fixture runs its expected JSON body through the sanitiser too;
 //! - phase 3: an expected body `{"kind": "sha256", "prefix": "<16 hex>"}`: the exact body's digest starts so (for an
 //!   answer the leftover scan cannot hold verbatim, such as Laravel's `addrs.0.id` messages, which read as host names;
 //!   the generator script keeps the text).
@@ -326,7 +327,13 @@ pub async fn run(dir: &Path, base: &str, s: &Sanitiser) -> Result<Report, String
                 }
             }
         } else {
-            let (a, b) = (body_json(want.get("body").unwrap_or(&Value::Null)), body_json(&got_body));
+            // phase 5: `"sanitise_expected": true` runs a synthetic expectation through the same sanitiser as the live
+            // answer (a validation message under `name` or `email`, an `action` such as `user.delete`, a `uuid`)
+            let want_body = match (fx["sanitise_expected"].as_bool(), want["body"]["kind"].as_str(), want["body"].get("value")) {
+                (Some(true), Some("json"), Some(v)) => body_value(s, "application/json", &serde_json::to_vec(v).unwrap_or_default()),
+                _ => want.get("body").cloned().unwrap_or(Value::Null),
+            };
+            let (a, b) = (body_json(&want_body), body_json(&got_body));
             if want["body"]["kind"] != "omitted" && a != b {
                 report.differences.push(format!("{name}: body differs\n  expected {a}\n  got      {b}"));
             }

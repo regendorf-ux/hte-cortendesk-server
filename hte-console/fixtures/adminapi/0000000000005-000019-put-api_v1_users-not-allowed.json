@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 19,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "Router: the URI exists, the verb does not; the verbs of the other routes, in Router verb order",
+  "method": "PUT",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 405,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The PUT method is not supported for route api/v1/users. Supported methods: GET, HEAD, POST."
+      }
+    }
+  }
+}

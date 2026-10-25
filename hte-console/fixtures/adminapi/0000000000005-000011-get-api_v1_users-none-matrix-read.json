@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 11,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "ApiTokenCan: level none on user cannot read",
+  "method": "GET",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a03"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 403,
+        "data": null,
+        "message": "Token lacks 'r' permission on 'user'."
+      }
+    }
+  }
+}

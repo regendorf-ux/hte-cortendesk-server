@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 167,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "disable(): a soft delete",
+  "method": "POST",
+  "path": "/api/v1/devices/{{i950716}}/disable",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": null,
+        "message": "Device disabled."
+      }
+    }
+  },
+  "vars": {
+    "i950716": "950716"
+  }
+}

@@ -33,7 +33,7 @@ fn masked(col: &str) -> Option<&'static str> {
         Some("<enc>")
     } else if col == "strategy_version" {
         Some("<time>")
-    } else if matches!(col, "token" | "access_token" | "code" | "state" | "nonce" | "verifier") {
+    } else if matches!(col, "token" | "access_token" | "code" | "state" | "nonce" | "verifier" | "remember_token") {
         Some("<random>")
     } else if col == "totp_last_timestep" {
         Some("<step>")
@@ -53,6 +53,8 @@ fn cell(col: &str, v: ValueRef<'_>) -> Value {
         ValueRef::Real(f) => ("real", format!("{f:?}")),
         ValueRef::Text(t) if t.len() == 60 && t.starts_with(b"$2y$") => ("text", "<bcrypt>".into()),
         // a cached value (PHP serialize) holding an ISO-8601 time: the time masked, its length kept
+        // phase 5: a console-audit line names a book it created by its random guid
+        ValueRef::Text(t) if col == "target_id" && t.len() == 36 && !t.starts_with(b"00000000-0000-4000-8000-") && t.iter().filter(|b| **b == b'-').count() == 4 => ("text", "<uuid>".into()),
         ValueRef::Text(t) if col == "value" => ("text", ISO.replace_all(&String::from_utf8_lossy(t), "<iso-ts:25>").into_owned()),
         ValueRef::Text(t) => ("text", String::from_utf8_lossy(t).into_owned()),
         ValueRef::Blob(b) => ("blob", hex::encode(b)),

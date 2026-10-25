@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 160,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "a pending device is approved by a deploy/assign carrying a device rw token",
+  "method": "POST",
+  "path": "/api/devices/cli",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000514",
+        "uuid": "00000000-0000-4000-8000-000000000514",
+        "note": "text-5eed1602"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

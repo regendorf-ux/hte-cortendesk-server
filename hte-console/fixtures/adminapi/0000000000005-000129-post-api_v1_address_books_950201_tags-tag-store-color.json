@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "seq": 129,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...a color is kept as sent (a string), the integer column reads back as 255",
+  "method": "POST",
+  "path": "/api/v1/address-books/{{i950201}}/tags",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed1005",
+        "color": "255"
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 0,
+          "name": "text-5eed1005",
+          "color": "255"
+        },
+        "message": "Tag added."
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201"
+  }
+}

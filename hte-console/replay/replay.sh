@@ -16,7 +16,9 @@
 # @@IDP@@ and @@ENCRYPT(...)@@ markers (filled in with that provider's URL and the throwaway database's app key);
 # fixtures/signin holds the synthetic sign-in fixtures (nothing of sign-in is ever captured); phase 4: fixtures/clientapi
 # holds the synthetic client-API fixtures (address books, group tab, server-config, audit note) and its own seed
-# (run it as `replay.sh fixtures/clientapi` alone: its lists assume only its own people and computers). The replay is paced below the
+# (run it as `replay.sh fixtures/clientapi` alone: its lists assume only its own people and computers); phase 5:
+# fixtures/adminapi, the same for the admin API (/api/v1/*) and `--assign`, with its own seed (people, API tokens by hash,
+# books, computers, logs): `replay.sh fixtures/adminapi` alone too. The replay is paced below the
 # console's rate limit (110 a minute per address and device; HTE_CONSOLE_REPLAY_PER_MINUTE), so hours of captured
 # heartbeats take a few minutes per side.
 # Phase 3: both consoles get the server link secret (a placeholder) and Laravel's database cache store (as the server
@@ -74,12 +76,12 @@ snapshot() { # snapshot <data-dir> > file: the database in that directory as com
 summary() { # one line per endpoint and kind: how many fixtures, how many matched, how many differ
   echo "== per kind ($2)"
   printf '%-10s %-10s %6s %6s %6s\n' endpoint kind total match differ
-  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback server_policy server_local-addrs server_refusals ab server-config device-group users peers webclient-config; do
+  for ep in heartbeat sysinfo audit version login-options login currentUser logout oidc_auth oidc_auth-query client_callback server_policy server_local-addrs server_refusals ab server-config device-group users peers webclient-config v1 devices_cli; do
     for kind in captured synthetic; do
       if [ "$kind" = synthetic ]; then pat='^000000000000[0-9]-'; else pat='^[1-9]'; fi
       # file names end the path slug with "-" (synthetic) or ".json" (captured); audit/* share one line
       slug="$(echo "$ep" | tr '-' '_')"
-      case "$slug" in client_callback) m="-login_oidc_client_callback[-.]";; audit) m="-api_audit[_-]";; ab) m="-api_ab[_-]";; webclient_config) m="-webclient_config_index_js[-.]";; *) m="-api_${slug}[-.]";; esac
+      case "$slug" in client_callback) m="-login_oidc_client_callback[-.]";; audit) m="-api_audit[_-]";; ab) m="-api_ab[_-]";; webclient_config) m="-webclient_config_index_js[-.]";; v1) m="-api_v1_";; devices_cli) m="-api_devices_cli-";; *) m="-api_${slug}[-.]";; esac
       total="$(ls "$FIXTURES" | grep -E "$pat" | grep -c -- "$m" || true)"
       differ="$(grep -E '^[0-9]{13}-[0-9]{6}-.*\.json: ' "$1" | cut -d: -f1 | sort -u | grep -E "$pat" | grep -c -- "$m" || true)"
       [ "$total" -gt 0 ] || continue

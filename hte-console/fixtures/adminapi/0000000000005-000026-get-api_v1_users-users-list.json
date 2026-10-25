@@ -1,0 +1,166 @@
+{
+  "format": 1,
+  "seq": 26,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "UsersController->index: every user by username, with groups; 10 incl. the seed administrator",
+  "method": "GET",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": [
+          {
+            "id": 950001,
+            "username": "user-5eed0501",
+            "name": "text-5eed0501",
+            "email": "user-5eed050001@example.invalid",
+            "note": null,
+            "is_admin": true,
+            "is_active": true,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950002,
+            "username": "user-5eed0502",
+            "name": null,
+            "email": null,
+            "note": null,
+            "is_admin": false,
+            "is_active": true,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950003,
+            "username": "user-5eed0503",
+            "name": "text-5eed0503",
+            "email": "user-5eed050003@example.invalid",
+            "note": null,
+            "is_admin": false,
+            "is_active": true,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950004,
+            "username": "user-5eed0504",
+            "name": "text-5eed0504",
+            "email": null,
+            "note": null,
+            "is_admin": false,
+            "is_active": false,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950005,
+            "username": "user-5eed0505",
+            "name": "text-5eed0505",
+            "email": "user-5eed050005@example.invalid",
+            "note": "text-5eed0605",
+            "is_admin": false,
+            "is_active": true,
+            "groups": [
+              {
+                "id": 950401,
+                "name": "text-5eed0801"
+              }
+            ],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950006,
+            "username": "user-5eed0506",
+            "name": "text-5eed0506",
+            "email": "user-5eed050006@example.invalid",
+            "note": null,
+            "is_admin": false,
+            "is_active": true,
+            "groups": [
+              {
+                "id": 950401,
+                "name": "text-5eed0801"
+              }
+            ],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950007,
+            "username": "user-5eed0507",
+            "name": "text-5eed0507",
+            "email": null,
+            "note": null,
+            "is_admin": false,
+            "is_active": true,
+            "groups": [
+              {
+                "id": 950403,
+                "name": "text-5eed0803"
+              }
+            ],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950008,
+            "username": "user-5eed0508",
+            "name": null,
+            "email": null,
+            "note": null,
+            "is_admin": false,
+            "is_active": true,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 950009,
+            "username": "user-5eed0509",
+            "name": "text-5eed0509",
+            "email": null,
+            "note": null,
+            "is_admin": false,
+            "is_active": false,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 900001,
+            "username": "user-5eed0599",
+            "name": "text-5eed0599",
+            "email": "user-5eed059999@example.invalid",
+            "note": null,
+            "is_admin": true,
+            "is_active": true,
+            "groups": [],
+            "created_at": "2026-01-01T00:00:00+00:00"
+          }
+        ],
+        "total": 10,
+        "current": 1,
+        "total_pages": 1,
+        "message": ""
+      }
+    }
+  }
+}

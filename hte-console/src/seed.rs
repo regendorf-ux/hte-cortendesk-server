@@ -18,7 +18,8 @@ pub fn sql(dir: &Path) -> Result<String, String> {
     for p in list(dir).map_err(|e| e.to_string())? {
         let fx: Value = serde_json::from_slice(&std::fs::read(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
         // phase 3: the ID server's bearer is the server link secret, never a client token
-        let server_link = fx["path"].as_str().map_or(false, |p| p.starts_with("/api/server/"));
+        // phase 5: nor is the admin API's (fixtures/adminapi seeds its own api_tokens by hash)
+        let server_link = fx["path"].as_str().map_or(false, |p| p.starts_with("/api/server/") || p.starts_with("/api/v1/") || p == "/api/devices/cli");
         if let Some(a) = fx["request"]["headers"]["authorization"].as_str().filter(|_| !server_link) {
             // a `{{template}}` is a token the replay itself signs in for (phase 2), not one to seed
             if let Some(t) = a.strip_prefix("Bearer ").filter(|t| !t.starts_with("{{")) {

@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "seq": 85,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/response/errors"
+  ],
+  "source": "the string rule",
+  "method": "POST",
+  "path": "/api/v1/user-groups",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": 5
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The name field must be a string.",
+        "errors": {
+          "name": [
+            "The name field must be a string."
+          ]
+        }
+      }
+    }
+  }
+}

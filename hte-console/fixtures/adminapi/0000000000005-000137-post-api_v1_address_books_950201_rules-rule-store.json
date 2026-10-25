@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "seq": 137,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "storeRule(): a group rule",
+  "method": "POST",
+  "path": "/api/v1/address-books/{{i950201}}/rules",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "subject_type": "group",
+        "subject_id": 950401,
+        "permission": 2
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 0,
+          "subject_type": "group",
+          "subject_id": 950401,
+          "permission": 2
+        },
+        "message": "Rule added."
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201"
+  }
+}

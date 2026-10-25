@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 183,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "destroy(): not the token owner",
+  "method": "DELETE",
+  "path": "/api/v1/users/950001",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 1,
+        "data": null,
+        "message": "You cannot delete the token owner account."
+      }
+    }
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "seq": 177,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/response/errors"
+  ],
+  "source": "Rule->unique on the username and the email",
+  "method": "POST",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": "user-5eed0501",
+        "email": "user-5eed050005@example.invalid",
+        "password": "tok-5eed00000000c004"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The username has already been taken. (and 1 more error)",
+        "errors": {
+          "username": [
+            "The username has already been taken."
+          ],
+          "email": [
+            "The email has already been taken."
+          ]
+        }
+      }
+    }
+  }
+}

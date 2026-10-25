@@ -1,0 +1,36 @@
+{
+  "format": 1,
+  "seq": 151,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...none at all",
+  "method": "POST",
+  "path": "/api/devices/cli",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000540",
+        "uuid": "00000000-0000-4000-8000-000000000540"
+      }
+    }
+  },
+  "response": {
+    "status": 400,
+    "headers": {
+      "content-type": "text/plain"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "omitted"
+    }
+  }
+}

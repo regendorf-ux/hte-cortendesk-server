@@ -1,0 +1,42 @@
+{
+  "format": 1,
+  "seq": 171,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...with it: the device's entries leave every book, one audit line per book",
+  "method": "DELETE",
+  "path": "/api/v1/devices/950718",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "remove_from_address_books": "yes"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "address_book_entries_removed": 1
+        },
+        "message": "Device deleted."
+      }
+    }
+  }
+}

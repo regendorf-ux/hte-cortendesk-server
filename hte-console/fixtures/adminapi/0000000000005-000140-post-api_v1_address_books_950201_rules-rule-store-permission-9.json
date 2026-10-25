@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "seq": 140,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/response/errors"
+  ],
+  "source": "...a permission that is not 1, 2 or 3",
+  "method": "POST",
+  "path": "/api/v1/address-books/{{i950201}}/rules",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "subject_type": "user",
+        "subject_id": 950006,
+        "permission": 9
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The selected permission is invalid.",
+        "errors": {
+          "permission": [
+            "The selected permission is invalid."
+          ]
+        }
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201"
+  }
+}

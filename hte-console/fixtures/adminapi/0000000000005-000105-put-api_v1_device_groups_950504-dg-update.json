@@ -1,0 +1,45 @@
+{
+  "format": 1,
+  "seq": 105,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "update()",
+  "method": "PUT",
+  "path": "/api/v1/device-groups/950504",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed0a05"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950504,
+          "name": "text-5eed0a05",
+          "note": "text-5eed0b04",
+          "devices_count": 0
+        },
+        "message": "Device group updated."
+      }
+    }
+  }
+}

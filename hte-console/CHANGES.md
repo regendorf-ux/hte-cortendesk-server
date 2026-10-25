@@ -33,6 +33,33 @@ Built on top of 0.4.1 (phase 5, the admin API, is built in parallel and is not i
   `HTE_CONSOLE_RUSTDESK_DIR` (else the directory of `HTE_CONSOLE_HBBS_DB`), `HTE_CONSOLE_LOG_RETENTION_DAYS` (else
   `CORTENDESK_LOG_RETENTION_DAYS`, else 365). Dependency: `flate2` (already in the lockfile).
 
+## 0.5.3 (2026-10-25): phase 5, a flaky test
+
+- `signin_api::pkce_and_client_secret_reach_the_provider` (phase 2) failed about one run in 64: it replaced the first character of
+  the random PKCE verifier with `x`, which is no change when the verifier already starts with `x`. It now always changes it. No change to the console.
+
+## 0.5.2 (2026-10-25): phase 5, the replay against PHP found one difference
+
+- `unique` and `exists` are not run for an attribute that already failed a rule (Laravel's
+  `hasNotFailedPreviousRuleIfPresenceRule`): `owner_user_id: "abc"` gets the integer message only. The first replay against PHP 1.15.0-hte.1
+  matched 185 of 186 fixtures, with hte-console 186 of 186 and identical databases; this was the one difference.
+
+## 0.5.1 (2026-10-25): phase 5, replay fixes
+
+- First replay against PHP: the throwaway PHP's own first-start administrator made the user lists one longer, so the
+  adminapi seed deletes it; the snapshot masks a random book guid in `console_audits.target_id`. No change to the API.
+
+## 0.5.0 (2026-10-24): phase 5, the admin automation API
+
+- Native: the 48 routes of `/api/v1/*` and `POST /api/devices/cli` (`--assign`), ported from 1.15.0-hte.1 behind PHP's
+  api-token guard, `throttle:120,1`, model bindings and `api-token-can` (README section "Phase 5"). Everything else
+  keeps going where it went.
+- Hardening beyond PHP: a per-address limit on failed API authentications (300 a minute, 429), a 1 MiB body cap.
+- `fixtures/adminapi/`: 186 synthetic fixtures and their seed, written by `replay/make-adminapi-fixtures.py`; a synthetic
+  fixture may list `"scan_ignore"` pointers (Laravel's own vocabulary: validation messages, action names) and
+  `"sanitise_expected"`; `seed-sql` no longer seeds `/api/v1/*` bearers as client tokens; the snapshot masks `remember_token`.
+- Version 0.5.0. New env: `HTE_CONSOLE_ADMIN_MAX_BODY_BYTES`.
+
 ## 0.4.1 (2026-10-24): phase 4, the signed-in client, on top of phase 3
 
 0.4.0 was tagged from a branch without phase 3 and must not be deployed; 0.4.1 is the same work merged with 0.3.0.

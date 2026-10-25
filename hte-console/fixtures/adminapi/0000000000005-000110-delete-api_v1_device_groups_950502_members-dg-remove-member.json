@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 110,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "removeMember(): only a device that is in this folder is moved out",
+  "method": "DELETE",
+  "path": "/api/v1/device-groups/{{i950502}}/members",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "rustdesk_id": "990000516"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": null,
+        "message": "Device removed."
+      }
+    }
+  },
+  "vars": {
+    "i950502": "950502"
+  }
+}

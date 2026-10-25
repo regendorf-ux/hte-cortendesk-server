@@ -1,0 +1,47 @@
+{
+  "format": 1,
+  "seq": 42,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...a user with no groups",
+  "method": "GET",
+  "path": "/api/v1/users/950002",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950002,
+          "username": "user-5eed0502",
+          "name": null,
+          "email": null,
+          "note": null,
+          "is_admin": false,
+          "is_active": true,
+          "groups": [],
+          "created_at": "2026-01-01T00:00:00+00:00"
+        },
+        "message": ""
+      }
+    }
+  }
+}

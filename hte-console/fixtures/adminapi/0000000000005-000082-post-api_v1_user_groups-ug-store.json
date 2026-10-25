@@ -1,0 +1,48 @@
+{
+  "format": 1,
+  "seq": 82,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "UserGroupsController->store (Ben's token: the operator is Ben)",
+  "method": "POST",
+  "path": "/api/v1/user-groups",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a08"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed0804",
+        "note": "text-5eed0904",
+        "id": 5,
+        "users_count": 9
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950404,
+          "name": "text-5eed0804",
+          "note": "text-5eed0904",
+          "users_count": 0
+        },
+        "message": "User group created."
+      }
+    }
+  }
+}

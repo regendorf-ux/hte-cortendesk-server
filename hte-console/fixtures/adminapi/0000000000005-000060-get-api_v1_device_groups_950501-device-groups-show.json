@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "seq": 60,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "show(): the folder's devices by RustDesk id",
+  "method": "GET",
+  "path": "/api/v1/device-groups/950501",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950501,
+          "name": "text-5eed0a01",
+          "note": null,
+          "devices_count": 2,
+          "devices": [
+            {
+              "id": 950711,
+              "rustdesk_id": "990000511",
+              "alias": "text-5eed0b11",
+              "hostname": "host-5eed0511"
+            },
+            {
+              "id": 950713,
+              "rustdesk_id": "990000513",
+              "alias": null,
+              "hostname": "host-5eed0513"
+            }
+          ]
+        },
+        "message": ""
+      }
+    }
+  }
+}

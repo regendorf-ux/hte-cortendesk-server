@@ -20,6 +20,16 @@ pub enum Rule {
     Ip,
     Max(i64),
     Min(i64),
+    // phase 5 (the admin API)
+    Sometimes,
+    Boolean,
+    Email,
+    /// `Rule::in([...])`: strict string comparison of `(string) $value`
+    In(&'static [&'static str]),
+    /// `Rule::unique(table, column)`, optionally `->ignore($id)` (an `id <> ?` condition)
+    Unique(&'static str, &'static str, Option<i64>),
+    /// `Rule::exists(table, column)`
+    Exists(&'static str, &'static str),
 }
 
 impl Rule {
@@ -307,7 +317,10 @@ fn size(v: &Val, numeric: bool) -> Option<f64> {
     }
 }
 
-fn passes(rule: Rule, v: &Val, numeric: bool) -> bool {
+/// The database side of `unique` and `exists`: how many rows hold the value. Faults are kept for the caller.
+pub type Probe<'a> = &'a dyn Fn(&Rule, &Val) -> Result<bool, crate::php::Fault>;
+
+fn passes(rule: Rule, v: &Val, numeric: bool, probe: Probe, fault: &std::cell::RefCell<Option<crate::php::Fault>>) -> bool {
     match rule {
         Rule::Required => match v {
             Val::Null => false,
@@ -322,6 +335,30 @@ fn passes(rule: Rule, v: &Val, numeric: bool) -> bool {
         Rule::Ip => filter_ip(v),
         Rule::Max(n) => size(v, numeric).map_or(false, |s| s <= n as f64),
         Rule::Min(n) => size(v, numeric).map_or(false, |s| s >= n as f64),
+        Rule::Sometimes => true,
+        // in_array($value, [true, false, 0, 1, '0', '1'], true)
+        Rule::Boolean => match v {
+            Val::Bool(_) => true,
+            Val::Int(i) => *i == 0 || *i == 1,
+            Val::Str(s) => s == b"0" || s == b"1",
+            _ => false,
+        },
+        Rule::Email => match v {
+            Val::Str(s) => crate::email::is_valid(s),
+            _ => false,
+        },
+        // ! is_array($value) && in_array((string) $value, $parameters, true)
+        Rule::In(list) => match v {
+            Val::Arr(_) => false,
+            other => other.to_php_string().map_or(false, |s| list.iter().any(|p| p.as_bytes() == s.as_slice())),
+        },
+        Rule::Unique(..) | Rule::Exists(..) => match probe(&rule, v) {
+            Ok(b) => b,
+            Err(f) => {
+                fault.borrow_mut().get_or_insert(f);
+                true
+            }
+        },
     }
 }
 
@@ -339,7 +376,11 @@ fn message(rule: Rule, attr: &str, numeric: bool, array: bool) -> String {
         (Rule::Min(n), "numeric") => format!("The :attribute field must be at least {n}."),
         (Rule::Min(n), "array") => format!("The :attribute field must have at least {n} items."),
         (Rule::Min(n), _) => format!("The :attribute field must be at least {n} characters."),
-        (Rule::Nullable, _) => String::new(),
+        (Rule::Nullable, _) | (Rule::Sometimes, _) => String::new(),
+        (Rule::Boolean, _) => "The :attribute field must be true or false.".to_string(),
+        (Rule::Email, _) => "The :attribute field must be a valid email address.".to_string(),
+        (Rule::In(_), _) | (Rule::Exists(..), _) => "The selected :attribute is invalid.".to_string(),
+        (Rule::Unique(..), _) => "The :attribute has already been taken.".to_string(),
     };
     m.replace(":attribute", attr)
 }
@@ -370,6 +411,24 @@ fn displayable(attr: &str) -> String {
 
 /// Run the rules over `$request->all()`.
 pub fn validate(data: &Arr, rules: &[(&str, &[Rule])]) -> Outcome {
+    // no database rule in these lists: the probe is never asked
+    match validate_db(data, rules, &|_, _| Ok(true)) {
+        Ok(o) => o,
+        Err(_) => Err(r#"{"message":"The given data was invalid."}"#.into()),
+    }
+}
+
+/// `validate`, with the database rules (`unique`, `exists`) answered by `probe`; a database fault is the caller's 500.
+pub fn validate_db(data: &Arr, rules: &[(&str, &[Rule])], probe: Probe) -> Result<Outcome, crate::php::Fault> {
+    let fault = std::cell::RefCell::new(None);
+    let out = validate_inner(data, rules, probe, &fault);
+    match fault.into_inner() {
+        Some(f) => Err(f),
+        None => Ok(out),
+    }
+}
+
+fn validate_inner(data: &Arr, rules: &[(&str, &[Rule])], probe: Probe, fault: &std::cell::RefCell<Option<crate::php::Fault>>) -> Outcome {
     let ex = explode(rules, data);
     let mut errors: Vec<(String, Vec<String>)> = vec![];
     for (attr, rs) in &ex.rules {
@@ -377,6 +436,8 @@ pub fn validate(data: &Arr, rules: &[(&str, &[Rule])]) -> Outcome {
         let array = rs.contains(&Rule::Array);
         let nullable = rs.contains(&Rule::Nullable);
         let has_implicit = rs.iter().any(|r| r.implicit());
+        // passesOptionalCheck: `sometimes` skips an attribute the request does not carry
+        let sometimes = rs.contains(&Rule::Sometimes) && exists(data, attr).is_none();
         let null = Val::Null;
         let value = arr_get(data, attr).unwrap_or(&null);
         let present_any = arr_has(data, attr);
@@ -389,7 +450,9 @@ pub fn validate(data: &Arr, rules: &[(&str, &[Rule])]) -> Outcome {
                 _ => present_any || rule.implicit(),
             };
             let not_null = rule.implicit() || !nullable || !is_null;
-            if present && not_null && !passes(rule, value, numeric) {
+            // hasNotFailedPreviousRuleIfPresenceRule: unique and exists are not run for an attribute that already failed a rule
+            let skipped = matches!(rule, Rule::Unique(..) | Rule::Exists(..)) && errors.iter().any(|(k, _)| k == attr);
+            if present && not_null && !sometimes && !skipped && !passes(rule, value, numeric, probe, fault) {
                 let shown = if ex.implicit.iter().any(|(k, _)| k == attr) { attr.clone() } else { displayable(attr) };
                 let msg = message(rule, &shown, numeric, array);
                 match errors.iter_mut().find(|(k, _)| k == attr) {

@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "seq": 123,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "updatePeer(): partial validation (sometimes), dirty-only update",
+  "method": "PUT",
+  "path": "/api/v1/address-books/{{i950201}}/peers/{{i950211}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "alias": "text-5eed1502",
+        "tag_ids": [
+          950232
+        ],
+        "force_always_relay": false
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950211,
+          "rustdesk_id": "990000511",
+          "alias": "text-5eed1502",
+          "hostname": "host-5eed0511",
+          "platform": "linux",
+          "username": "user-5eed0e11",
+          "login_name": null,
+          "force_always_relay": false,
+          "rdp_port": "3389",
+          "rdp_username": "user-5eed0f11",
+          "tags": [
+            950232
+          ]
+        },
+        "message": "Peer updated."
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201",
+    "i950211": "950211"
+  }
+}

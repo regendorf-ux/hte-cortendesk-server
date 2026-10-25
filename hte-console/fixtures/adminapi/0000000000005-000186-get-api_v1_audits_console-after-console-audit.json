@@ -1,0 +1,577 @@
+{
+  "format": 1,
+  "seq": 186,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/query/operator",
+    "/response/data/action"
+  ],
+  "source": "every change above is a console-audit line by the token's owner, from the request's address, newest first",
+  "method": "GET",
+  "path": "/api/v1/audits/console",
+  "query": {
+    "operator": "(API)",
+    "page_size": "200"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": [
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.delete",
+            "target_type": "user",
+            "target_id": "user-5eed0506",
+            "summary": "Deleted user user-5eed0506 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.force-logout",
+            "target_type": "user",
+            "target_id": "user-5eed0508",
+            "summary": "Forced logout of user-5eed0508 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.disable",
+            "target_type": "user",
+            "target_id": "user-5eed0507",
+            "summary": "Disabled user user-5eed0507 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.enable",
+            "target_type": "user",
+            "target_id": "user-5eed0509",
+            "summary": "Enabled user user-5eed0509 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.enable",
+            "target_type": "user",
+            "target_id": "user-5eed0505",
+            "summary": "Enabled user user-5eed0505 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.create",
+            "target_type": "user",
+            "target_id": "user-5eed0511",
+            "summary": "Created user user-5eed0511 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "user.create",
+            "target_type": "user",
+            "target_id": "user-5eed0510",
+            "summary": "Created user user-5eed0510 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.destroy",
+            "target_type": "device",
+            "target_id": "990000519",
+            "summary": "Destroyed device 990000519 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.peer-delete",
+            "target_type": "address-book",
+            "target_id": "text-5eed0c01",
+            "summary": "Removed 1 entry (990000518) from address book text-5eed0c01 after device delete (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.destroy",
+            "target_type": "device",
+            "target_id": "990000518",
+            "summary": "Destroyed device 990000518 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.enable",
+            "target_type": "device",
+            "target_id": "990000512",
+            "summary": "Enabled device 990000512 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.enable",
+            "target_type": "device",
+            "target_id": "990000515",
+            "summary": "Enabled device 990000515 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.disable",
+            "target_type": "device",
+            "target_id": "990000516",
+            "summary": "Disabled device 990000516 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.assign",
+            "target_type": "device",
+            "target_id": "990000511",
+            "summary": "Reassigned device 990000511 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.assign",
+            "target_type": "device",
+            "target_id": "990000511",
+            "summary": "Reassigned device 990000511 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.assign",
+            "target_type": "device",
+            "target_id": "990000514",
+            "summary": "Assigned device 990000514 via --assign (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.assign",
+            "target_type": "device",
+            "target_id": "990000511",
+            "summary": "Assigned device 990000511 via --assign (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "device.assign",
+            "target_type": "device",
+            "target_id": "990000540",
+            "summary": "Registered and assigned device 990000540 via --assign (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.delete",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000503",
+            "summary": "Deleted address book text-5eed0c07 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.rule-delete",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Deleted AB rule (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.rule-update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Updated AB rule (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.rule-update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Updated AB rule (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.rule-add",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Added AB rule (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.rule-add",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Added AB rule (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.tag-delete",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Deleted tag text-5eed1002 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.tag-update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Updated tag text-5eed1007 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.tag-add",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Added tag text-5eed1005 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.tag-add",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Added tag text-5eed1004 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.peer-delete",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Deleted peer 990000512 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.peer-update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Updated peer 990000511 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.peer-add",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000501",
+            "summary": "Added peer 990000530 to text-5eed0c01 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000503",
+            "summary": "Updated address book text-5eed0c07 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.update",
+            "target_type": "address_book",
+            "target_id": "00000000-0000-4000-8000-000000000503",
+            "summary": "Updated address book text-5eed0c07 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.create",
+            "target_type": "address_book",
+            "target_id": "{{random}}",
+            "summary": "Created address book text-5eed0c05 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "address-book.create",
+            "target_type": "address_book",
+            "target_id": "{{random}}",
+            "summary": "Created address book text-5eed0c04 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.delete",
+            "target_type": "group",
+            "target_id": "text-5eed0a03",
+            "summary": "Deleted device group text-5eed0a03 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0a02",
+            "summary": "Removed device 990000511 from text-5eed0a02 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0a02",
+            "summary": "Removed device 990000516 from text-5eed0a02 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0a05",
+            "summary": "Added device 990000512 to text-5eed0a05 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0a02",
+            "summary": "Added device 990000516 to text-5eed0a02 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0a05",
+            "summary": "Updated device group text-5eed0a05 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.create",
+            "target_type": "group",
+            "target_id": "text-5eed0a04",
+            "summary": "Created device group text-5eed0a04 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.delete",
+            "target_type": "group",
+            "target_id": "text-5eed0803",
+            "summary": "Deleted user group text-5eed0803 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Removed user-5eed0508 from user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Added user-5eed0505 to user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Added user-5eed0508 to user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Added user-5eed0508 to user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Updated user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Updated user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Updated user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.update",
+            "target_type": "group",
+            "target_id": "text-5eed0806",
+            "summary": "Updated user group text-5eed0806 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0501",
+            "action": "group.create",
+            "target_type": "group",
+            "target_id": "text-5eed0805",
+            "summary": "Created user group text-5eed0805 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          },
+          {
+            "id": 0,
+            "username": "user-5eed0503",
+            "action": "group.create",
+            "target_type": "group",
+            "target_id": "text-5eed0804",
+            "summary": "Created user group text-5eed0804 (API)",
+            "ip": "198.18.5.1",
+            "created_at": "2026-01-01T00:00:00+00:00"
+          }
+        ],
+        "total": 53,
+        "current": 1,
+        "total_pages": 1,
+        "message": ""
+      }
+    }
+  }
+}

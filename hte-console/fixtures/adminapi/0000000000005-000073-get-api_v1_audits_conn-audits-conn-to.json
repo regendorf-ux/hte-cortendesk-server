@@ -1,0 +1,60 @@
+{
+  "format": 1,
+  "seq": 73,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/response/data/action"
+  ],
+  "source": "whereDate <= date_to",
+  "method": "GET",
+  "path": "/api/v1/audits/conn",
+  "query": {
+    "date_to": "2026-01-31"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": [
+          {
+            "id": 950601,
+            "action": "new",
+            "rustdesk_id": "990000511",
+            "from_peer": "990000601",
+            "from_name": "text-5eed1201",
+            "conn_type": 0,
+            "ip": "198.18.5.60",
+            "session_id": "tok-5eed000000006001",
+            "created_at": "2026-01-01T00:00:00+00:00",
+            "closed_at": "2026-01-01T00:00:00+00:00",
+            "note": "text-5eed1301",
+            "note_by": "user-5eed0501",
+            "noted_at": "2026-01-01T00:00:00+00:00"
+          }
+        ],
+        "total": 1,
+        "current": 1,
+        "total_pages": 1,
+        "message": ""
+      }
+    }
+  }
+}

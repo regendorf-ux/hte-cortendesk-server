@@ -1,0 +1,41 @@
+{
+  "format": 1,
+  "seq": 12,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "ApiTokenCan: user r cannot rw",
+  "method": "POST",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a02"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": "user-5eed0599",
+        "password": "tok-5eed00000000c001"
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 403,
+        "data": null,
+        "message": "Token lacks 'rw' permission on 'user'."
+      }
+    }
+  }
+}
