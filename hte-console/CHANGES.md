@@ -2,6 +2,8 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.4 (2026-10-25): an invalid theme is Laravel's redirect back (PHP renders JSON errors for /api/* only), found by the second real-PHP replay; the replay treats http://host and http://host/ as one place
+
 ## 0.7.3 (2026-10-25): first real-PHP replay findings: Laravel's hasPages() (a page past the end keeps its pager) and empty first/last item in the pager; the replay fetches PHP's CSVs through Livewire's export call, asks for JSON on the theme calls, and turns the release check off on both sides
 
 ## 0.7.2 (2026-10-25): page-replay uses only the path of Livewire's announced update address, and reports an error part way together with the differences found before it

@@ -230,7 +230,12 @@ pub fn update_password(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fa
 pub fn theme(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let rules: [(&str, &[Rule]); 1] = [("theme", &[Rule::Required, Rule::String, Rule::In(&["dark", "light", "system"])])];
     match validate::validate_db(req.input.all(), &rules, &|_, _| Ok(true))? {
-        Err(body) => Ok(Reply::Json(422, body)),
+        // the controller's `$request->validate()` on a web route: `shouldRenderJsonWhen` limits JSON errors to /api/*, so a
+        // refusal is Laravel's redirect back (the Referer, as `url()->previous()`; here only one of our own pages, else "/")
+        Err(_) => {
+            let back = req.headers.get("referer").and_then(|v| v.to_str().ok()).filter(|r| r.starts_with(&ctx.root)).unwrap_or("/");
+            Ok(Reply::Redirect(back.to_string()))
+        }
         Ok(valid) => {
             let mut row = ctx.user.clone();
             db::update_dirty(c, "users", &mut row, vec![("theme", Val::str(&text(valid.get_str("theme"))), Cast::Plain)], &crate::laravel::ts(ctx.now))?;

@@ -527,10 +527,10 @@ async fn the_theme_is_saved_and_validated() {
     assert_eq!(r.status, 204);
     assert_eq!(h.text("select theme from users where id = 1"), "light");
     let r = post(r#"{"theme":"purple"}"#).await;
-    assert_eq!(r.status, 422);
-    assert!(r.body.contains("The selected theme is invalid."));
+    // a refusal on a web route is Laravel's redirect back, not JSON
+    assert_eq!((r.status, r.path().as_str()), (302, "/"));
     let r = post("{}").await;
-    assert_eq!(r.status, 422);
+    assert_eq!(r.status, 302);
     assert_eq!(h.text("select theme from users where id = 1"), "light");
     // the page follows the saved choice
     let r = h.get("/account", &cookie).await;

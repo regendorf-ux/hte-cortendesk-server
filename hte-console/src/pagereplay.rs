@@ -197,7 +197,8 @@ async fn fetch(c: &reqwest::Client, base: &str, cookie: &str, method: &str, path
     let h = |n: &str| r.headers().get(n).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let (ctype, mut location, disposition) = (h("content-type"), h("location"), h("content-disposition"));
     if let Some(i) = location.find("://") {
-        location = location[i + 3..].find('/').map(|j| location[i + 3 + j..].to_string()).unwrap_or_default();
+        // "http://host" is the same place as "http://host/"
+        location = location[i + 3..].find('/').map(|j| location[i + 3 + j..].to_string()).unwrap_or_else(|| "/".into());
     }
     Ok(Out { status, ctype, location, disposition, body: r.text().await.map_err(|e| e.to_string())? })
 }
@@ -457,8 +458,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("hteadmin POST /account/theme on {side}: {}", r.status));
         }
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"purple"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
-        if r.status != 422 {
-            diffs.push(format!("hteadmin POST /account/theme (purple) on {side}: {}", r.status));
+        // a refusal on a web route is Laravel's redirect back (JSON errors are for /api/* only)
+        if r.status != 302 {
+            diffs.push(format!("hteadmin POST /account/theme (purple) on {side}: {}, not 302", r.status));
         }
     }
     // a write with no token is refused by both
