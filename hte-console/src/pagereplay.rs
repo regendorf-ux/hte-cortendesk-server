@@ -325,6 +325,8 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             "/",
             "/dashboard/stats",
             "/dashboard/sessions",
+            "/webclient",
+            "/webclient?id=1001",
             "/devices",
             "/devices?status=online",
             "/devices?search=front",
