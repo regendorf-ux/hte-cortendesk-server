@@ -2,7 +2,23 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
-## Next (not yet tagged)
+## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie
+- New modules `pages/websession.rs` (hte-console's own session: cookie `__Host-hte-remote` over https, a random 40-character id,
+  only its sha256 in the new table `hte_console_sessions`, idle 60 min / absolute 12 h, rotated at sign-in, revoked when the
+  account's `remember_token` rotates or the account is disabled) and `pages/login.rs` (`/login` with the break-glass password,
+  `/login/oidc` and its callback for Microsoft sign-in, `/logout`; the 2FA/e-mail steps redirect to `/login`, password reset and
+  invitations say "not available"). Templates `auth/guest.html`, `auth/login.html`, `auth/unavailable.html` (PHP's HTE views).
+- Switched by `HTE_CONSOLE_SIGNIN=1` (off by default: an upgrade alone changes nothing). The bridge
+  (`HTE_CONSOLE_PHP_SESSION_BRIDGE`, on) mints PHP's session beside ours so PHP's remaining pages keep working;
+  `HTE_CONSOLE_LARAVEL_SESSIONS` (on) keeps accepting sessions PHP signed in until phase 9.
+- The page gate reads our session first; without one it sends the person to our sign-in page (remembering the page) when the
+  switch is on. `finish()` re-sends PHP's bridged cookie with ours.
+- `hte_console_sessions` is skipped by backups and restores like `sessions`.
+- Replay: `replay/replay-signin-web.sh` and `hte-console web-signin-replay` / `web-signin-seed` (the scenario against PHP, rows
+  compared, mutation check). Never run against PHP yet.
+- Tests: `tests/console_signin.rs` (19), `websession` unit tests (5).
+- The fake identity provider advertises an `end_session_endpoint` (logout through the provider).
+- CI: docker/setup-buildx-action v4, docker/login-action v4, docker/build-push-action v7 (Node 24; checked by the next tag's run only).
 - `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.
 
 ## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP

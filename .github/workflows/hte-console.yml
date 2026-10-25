@@ -66,8 +66,8 @@ jobs:
         with:
           name: bin-amd64
           path: hte-console/bin/amd64
-      - uses: docker/setup-buildx-action@v3
-      - uses: docker/login-action@v3
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -78,7 +78,7 @@ jobs:
           ref="${GITHUB_REF_NAME}"
           case "$ref" in hte-console-v*) version="${ref#hte-console-v}" ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
           echo "tags=${IMAGE}:${version}" >> "$GITHUB_OUTPUT"
-      - uses: docker/build-push-action@v6
+      - uses: docker/build-push-action@v7
         with:
           context: hte-console
           platforms: linux/amd64

@@ -249,13 +249,13 @@ fn login_log(c: &Connection, input: &Input, username: Val, user_id: Val, ok: boo
 }
 
 /// `LoginEmailVerification::isActive()`
-fn email_verification_active(c: &Connection) -> Result<bool, Fault> {
+pub(crate) fn email_verification_active(c: &Connection) -> Result<bool, Fault> {
     let t = |k: &str| -> Result<Vec<u8>, Fault> { Ok(php::trim(&db::setting(c, k, "")?).to_vec()) };
     Ok(db::setting(c, "email_login_verification", "0")? == b"1" && t("smtp_enabled")? == b"1" && !t("smtp_host")?.is_empty() && !t("smtp_from_address")?.is_empty())
 }
 
 /// `RequireTwoFactor::isRequiredFor($user)`
-fn two_factor_required(c: &Connection, user: &Row) -> Result<bool, Fault> {
+pub(crate) fn two_factor_required(c: &Connection, user: &Row) -> Result<bool, Fault> {
     if db::setting(c, "two_factor_required", "0")? == b"1" {
         return Ok(true);
     }

@@ -43,7 +43,8 @@ use std::time::Duration;
 pub const FORMAT: i64 = 1;
 pub const PREFIX: &str = "cortendesk-backup-";
 /// Per-process or per-request state, not data: neither backed up nor touched on restore.
-pub const SKIP_TABLES: [&str; 9] = ["cache", "cache_locks", "sessions", "jobs", "job_batches", "failed_jobs", "oidc_auth_requests", "password_reset_tokens", "password_resets"];
+/// (`hte_console_sessions`: phase 8's own console sessions, the same kind of state as `sessions`.)
+pub const SKIP_TABLES: [&str; 10] = ["cache", "cache_locks", "sessions", "jobs", "job_batches", "failed_jobs", "oidc_auth_requests", "password_reset_tokens", "password_resets", "hte_console_sessions"];
 /// In the archive for the record; the live schema owns it on restore.
 pub const KEEP_ON_RESTORE: [&str; 1] = ["migrations"];
 /// Laravel-encrypted columns, re-keyed on restore when the archive's APP_KEY differs (see the header for the last one).

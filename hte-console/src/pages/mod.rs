@@ -22,6 +22,8 @@ pub mod logs;
 pub mod overview;
 pub mod paginate;
 pub mod session;
+pub mod login;
+pub mod websession;
 pub mod api_tokens;
 pub mod backups;
 pub mod settings;
@@ -63,6 +65,8 @@ pub struct Pages {
     pub view: view::View,
     pub store: crate::cache::Store,
     pub config: PageConfig,
+    /// Phase 8: hte-console's own sign-in and session (`websession`, `login`).
+    pub own: websession::OwnConfig,
 }
 
 /// What the PHP console reads from `config()` for its layout: the same environment variables.
@@ -416,17 +420,39 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
         Out::Done(error_response(500, "Server Error", false))
     };
     let cookie_header = parts.headers.get_all(header::COOKIE).iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join("; ");
-    let sess = match session::load(c, &p.session, &p.n.crypt, now, &cookie_header) {
-        Ok(Some(s)) => s,
-        Ok(None) => return Err(Out::Forward),
+    let trusted = &p.n.trusted;
+    let xff: Vec<&str> = parts.headers.get_all("x-forwarded-for").iter().filter_map(|v| v.to_str().ok()).collect();
+    let ip = laravel::client_ip(peer.ip(), &xff, trusted);
+    let root = crate::api::request_root(&p.n, &parts.headers, peer.ip()).unwrap_or_default();
+    let secure = root.starts_with("https://");
+    // phase 8: without a session, hte-console's own sign-in page when it has one (HTE_CONSOLE_SIGNIN), else PHP's
+    let to_login = |message: Option<&str>| {
+        if !p.own.signin {
+            return Out::Forward;
+        }
+        let pq = parts.uri.path_and_query().map_or("/", |x| x.as_str());
+        let ua = hstr(&parts.headers, "user-agent").unwrap_or("");
+        Out::Done(login::to_login(p, c, &cookie_header, &root, secure, &ip, ua, parts.method.as_str(), pq, now, message))
+    };
+    let sess = match session::load_any(c, &p.session, &p.own, &p.n.crypt, now, &cookie_header, secure) {
+        Ok(Some(s)) if s.user_id().is_some() => s,
+        Ok(_) => return Err(to_login(None)),
         Err(f) => return Err(fault(f)),
     };
-    let Some(uid) = sess.user_id() else { return Err(Out::Forward) };
+    let Some(uid) = sess.user_id() else { return Err(to_login(None)) };
     let user = match db::first(c, r#"select * from "users" where "id" = ? limit 1"#, &[P(Val::Int(uid))]) {
         Ok(Some(u)) => u,
-        Ok(None) => return Err(Out::Forward),
+        Ok(None) => return Err(to_login(None)),
         Err(f) => return Err(fault(f)),
     };
+    // our own session: revoked anywhere (remember_token rotated) or the account disabled ends it here
+    if sess.own {
+        match websession::still_valid(c, &sess, &user) {
+            Ok(true) => {}
+            Ok(false) => return Err(to_login(None)),
+            Err(f) => return Err(fault(f)),
+        }
+    }
     // EnsureUserIsActive: PHP signs the person out
     if !user.val("is_active").to_bool() {
         return Err(Out::Forward);
@@ -440,15 +466,12 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
     };
     // RequireTwoFactor / RequireEmailAddress / RequireMailHealthy: PHP redirects, so PHP answers
     match enforced_elsewhere(c, &user, role.as_ref(), &sess) {
+        // PHP knows nothing of our session: its two-factor and mail steps are not offered, so the person is told
+        Ok(true) if sess.own => return Err(to_login(Some(STEP_UNAVAILABLE))),
         Ok(true) => return Err(Out::Forward),
         Ok(false) => {}
         Err(f) => return Err(fault(f)),
     }
-    let trusted = &p.n.trusted;
-    let xff: Vec<&str> = parts.headers.get_all("x-forwarded-for").iter().filter_map(|v| v.to_str().ok()).collect();
-    let ip = laravel::client_ip(peer.ip(), &xff, trusted);
-    let root = crate::api::request_root(&p.n, &parts.headers, peer.ip()).unwrap_or_default();
-    let secure = root.starts_with("https://");
     let flashed = sess.flashed();
     let ctx = Ctx {
         p,
@@ -490,6 +513,9 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
     }
     Ok((ctx, req))
 }
+
+/// What a person signed in by hte-console hears when the console requires a step only PHP offers.
+const STEP_UNAVAILABLE: &str = "This console now requires two-factor authentication or an e-mail address for your account, which it cannot set up yet. Contact an administrator.";
 
 /// The three middlewares that redirect somewhere other than where the person asked (all answered by PHP).
 fn enforced_elsewhere(c: &Connection, user: &Row, role: Option<&Row>, sess: &session::Session) -> Result<bool, Fault> {
@@ -547,7 +573,7 @@ fn finish(ctx: &Ctx, c: &Connection, mut resp: Response<Body>, _head: bool) -> R
     let mut id = ctx.session.id.clone();
     if let Some(new) = ctx.new_session_id.borrow().clone() {
         // the regenerated session row carries the (unchanged) data as it was when it was copied; bring it up to date
-        if let Ok(Some(s)) = session::load_id(c, &ctx.p.session, ctx.now, &new) {
+        if let Ok(Some(s)) = session::reload(c, &ctx.p.session, &ctx.p.own, ctx.now, &ctx.session, &new) {
             if let Some(t) = s.data.get("_token") {
                 data.insert("_token".into(), t.clone());
             }
@@ -560,9 +586,17 @@ fn finish(ctx: &Ctx, c: &Connection, mut resp: Response<Body>, _head: bool) -> R
     } else {
         let _ = session::touch(c, &ctx.session, ctx.now);
     }
-    let cookie = session::set_cookie(&ctx.p.session, &ctx.p.n.crypt, &id, ctx.secure, ctx.now);
+    let cookie = websession::cookie_for(&ctx.p.session, &ctx.p.own, &ctx.p.n.crypt, &ctx.session, &id, ctx.secure, ctx.now);
     if let Ok(v) = HeaderValue::from_str(&cookie) {
         resp.headers_mut().append(header::SET_COOKIE, v);
+    }
+    // phase 8: PHP's bridged session is re-sent with ours, so PHP's pages keep working as long as ours does
+    if ctx.session.own {
+        if let Ok(Some(l)) = websession::bridged_id(c, &ctx.session) {
+            if let Ok(v) = HeaderValue::from_str(&session::set_cookie(&ctx.p.session, &ctx.p.n.crypt, &l, ctx.secure, ctx.now)) {
+                resp.headers_mut().append(header::SET_COOKIE, v);
+            }
+        }
     }
     resp
 }
@@ -633,6 +667,11 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
             match gate(&p2, &conn, &parts, &bytes_c, peer, &ROUTES[idx]) {
                 Err(o) => o,
                 Ok((ctx, req)) => match email_gate(&conn, &ctx.user, &ctx.session, &req.path) {
+                    Ok(true) if ctx.session.own => {
+                        let ua = hstr(&req.headers, "user-agent").unwrap_or("");
+                        let cookie = req.headers.get_all(header::COOKIE).iter().filter_map(|v| v.to_str().ok()).collect::<Vec<_>>().join("; ");
+                        Out::Done(login::to_login(&p2, &conn, &cookie, &ctx.root, ctx.secure, &ctx.ip, ua, &req.method, &req.path, ctx.now, Some(STEP_UNAVAILABLE)))
+                    }
                     Ok(true) => Out::Forward,
                     Err(_) => Out::Done(error_response(500, "Server Error", head)),
                     Ok(false) => match (ROUTES[idx].handler)(&ctx, &conn, &req) {
@@ -667,7 +706,7 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
 }
 
 /// Hand the request to PHP unchanged (its session redirect, its own page); without PHP, to the sign-in page.
-async fn forward(p: &Pages, req: Request<Body>) -> Response<Body> {
+pub(super) async fn forward(p: &Pages, req: Request<Body>) -> Response<Body> {
     match &p.php {
         Some(php) => match php.clone().oneshot(req).await {
             Ok(r) => r,
@@ -761,8 +800,16 @@ pub static ROUTES: &[Route] = &[
 
 /// The pages' routes and `/assets/*`. Merge with the API router; `php` is the fallback for what is not served here.
 pub fn routes(n: Arc<Native>, php: Option<Router>) -> Result<Router, String> {
+    routes_with(n, php, websession::OwnConfig::from_env())
+}
+
+/// `routes` with phase 8's switches given (tests).
+pub fn routes_with(n: Arc<Native>, php: Option<Router>, own: websession::OwnConfig) -> Result<Router, String> {
     let store = crate::cache::Store::from_env()?;
+    // phase 8's table (additive; PHP never reads it)
+    websession::migrate(&n.db.lock().unwrap_or_else(|e| e.into_inner()))?;
     let pages = Arc::new(Pages {
+        own,
         session: session::SessionConfig::from_env(&n.signin.app_name),
         view: view::View::from_env()?,
         store,
@@ -774,6 +821,7 @@ pub fn routes(n: Arc<Native>, php: Option<Router>) -> Result<Router, String> {
     for (i, route) in ROUTES.iter().enumerate() {
         r = r.route(route.path, any(move |s: State<Arc<Pages>>, c: ConnectInfo<SocketAddr>, req: Request<Body>| serve(s, c, req, i)));
     }
+    r = login::routes(r);
     r = r.route("/assets/*path", any(asset));
     r = r.route("/rdclient/*path", any(rdclient));
     Ok(r.with_state(pages))

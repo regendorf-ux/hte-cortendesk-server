@@ -48,3 +48,4 @@ pub mod sync;
 pub mod tarfile;
 pub mod totp;
 pub mod validate;
+pub mod webreplay;

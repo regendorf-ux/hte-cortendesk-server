@@ -410,3 +410,25 @@ container's schedule before listing them here.
 - A BLOB column is dumped as text with invalid UTF-8 replaced, as PHP's `JSON_INVALID_UTF8_SUBSTITUTE` does; the
   console's tables have none.
 - U+2028/2029 are written unescaped (PHP escapes them); any JSON reader takes both.
+
+## Phase 8: the console's sign-in and session cookie
+
+`/login` (the HTE Remote welcome card: Microsoft sign-in, the break-glass password behind a link), `/login/oidc` and
+`/login/oidc/callback` (OIDC authorization code with PKCE S256, nonce, and phase 2's token checks), `/logout`, with
+hte-console's OWN session (`pages/websession.rs`, `pages/login.rs`). Design, switches and the transition with PHP's
+remaining pages: `notes/phase8/NOTES.md`. Off unless `HTE_CONSOLE_SIGNIN=1`.
+
+### Phase 8: deliberate differences
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| session cookie | Laravel's encrypted `hte-remote-session`, the id in clear in `sessions` | `__Host-hte-remote` (random id), only sha256(id) in `hte_console_sessions` |
+| lifetime | 120 min idle, no absolute limit; remember-me cookie for years | 60 min idle, 12 h absolute; "Remember me" only keeps the cookie across a browser restart within those 12 h |
+| revocation | `revokeAllAccess` deletes `sessions` rows | the same, and every own session of the account dies with its `remember_token` (whoever rotated it) |
+| logout | cycles the remember token | the same; so it signs the person out of every hte-console session |
+| logout at the provider | `id_token_hint` (the ID token in a URL) | `client_id` (no token in a URL, none stored) |
+| unknown or disabled account | answered at once | as long as a wrong password (dummy bcrypt) |
+| TOTP enrolled, TOTP required, e-mailed codes | second step / enrolment | refused with a message (not used at HTE; deploy stops when on) |
+| "Forgot password?" link | shown when mail is configured | never (reset not offered) |
+| password reset, invitations | pages | "not available" (404) |
+| a guest page | a session row per visit | one row per browser, at most 60 new rows a minute per address |

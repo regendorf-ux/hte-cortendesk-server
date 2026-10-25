@@ -1,0 +1,32 @@
+{#- PHP's layouts/guest.blade.php of the hte fork (HTE Remote's welcome-card theme), markup kept as it is. -#}
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8"/>
+    <title>{{ title }} | {{ app_name }}</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf }}">
+    <link rel="icon" type="image/png" href="{{ root }}/assets/images/hte-remote.png?v={{ version }}">
+
+    <script src="{{ root }}/assets/js/theme-init.js?v={{ version }}"></script>
+    <link href="{{ root }}/assets/vendor/bootstrap/bootstrap.min.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/vendor/remixicon/remixicon.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/fonts/figtree/figtree.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/css/spacing.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/css/shell.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/css/cortendesk.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/css/hte-brand.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+    <link href="{{ root }}/assets/css/hte-auth.css?v={{ version }}" rel="stylesheet" type="text/css"/>
+</head>
+
+<body class="hte-auth position-relative">
+
+    <div class="hte-auth-page">
+        {% block content %}{% endblock %}
+        <p class="hte-auth-note">HTE Remote &mdash; remote support for HTE</p>
+    </div>
+
+    <script src="{{ root }}/assets/vendor/bootstrap/bootstrap.bundle.min.js?v={{ version }}"></script>
+    <script src="{{ root }}/assets/js/shell.js?v={{ version }}"></script>
+</body>
+</html>

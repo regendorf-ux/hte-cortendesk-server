@@ -78,6 +78,24 @@ async fn main() {
             None => fail("usage: hte-console page-seed <unix-now>"),
         },
         Some("page-replay") => page_replay(&args[1..]).await,
+        // phase 8: phase 2's sign-in seed (accounts, SSO settings) for the web sign-in replay, filled in for a provider
+        Some("web-signin-seed") => match args.get(1) {
+            Some(idp) => web_signin_seed(idp),
+            None => fail("usage: hte-console web-signin-seed <idp-url>"),
+        },
+        // phase 8: the console's sign-in, PHP against hte-console (replay/replay-signin-web.sh)
+        Some("web-signin-replay") => match (args.get(1), args.get(2)) {
+            (Some(php), Some(rust)) => match hte_console::webreplay::run(php, rust).await {
+                Ok(r) => {
+                    println!("{} sign-in steps, {} differences, {} by design", r.total, r.differences.len(), r.by_design.len());
+                    r.by_design.iter().for_each(|d| println!("by design: {d}"));
+                    r.differences.iter().for_each(|d| println!("DIFFERENCE: {d}"));
+                    if r.differences.is_empty() { 0 } else { 1 }
+                }
+                Err(e) => fail(&e),
+            },
+            _ => fail("usage: hte-console web-signin-replay <php-url> <rust-url>"),
+        },
         // the cookie `page-seed`'s session row for a person goes with (for a browser or curl against the throwaway PHP)
         Some("page-cookie") => match (args.get(1), args.get(2).and_then(|n| n.parse::<i64>().ok())) {
             (Some(who), Some(now)) => page_cookie(who, now),
@@ -116,6 +134,26 @@ async fn page_replay(args: &[String]) -> i32 {
             r.by_design.iter().for_each(|d| println!("by design: {d}"));
             r.differences.iter().for_each(|d| println!("DIFFERENCE: {d}"));
             if r.differences.is_empty() { 0 } else { 1 }
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// The sign-in seed (fixtures/signin, embedded) with the provider's URL and ciphertexts under the replay's app key.
+fn web_signin_seed(idp: &str) -> i32 {
+    const SEED: &str = include_str!("../fixtures/signin/0000000000002-signin-seed.sql");
+    let key = match std::fs::read_to_string(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())) {
+        Ok(k) => k,
+        Err(e) => return fail(&format!("cannot read the app key: {e}")),
+    };
+    let crypt = match hte_console::laravel::Encrypter::from_app_key(key.trim()) {
+        Ok(c) => c,
+        Err(e) => return fail(&e),
+    };
+    match hte_console::seed::expand(SEED, idp, &crypt) {
+        Ok(s) => {
+            print!("{s}");
+            0
         }
         Err(e) => fail(&e),
     }

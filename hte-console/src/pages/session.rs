@@ -59,6 +59,10 @@ pub struct Session {
     pub stored: String,
     pub data: Map<String, Value>,
     pub last_activity: i64,
+    /// Phase 8: hte-console's own session (`websession`), not a row PHP wrote.
+    pub own: bool,
+    /// When an own session was signed in (its absolute lifetime counts from here); `last_activity` for PHP's.
+    pub created: i64,
 }
 
 impl Session {
@@ -161,6 +165,33 @@ pub fn load(c: &Connection, cfg: &SessionConfig, crypt: &Encrypter, now: i64, co
     load_id(c, cfg, now, &id)
 }
 
+/// Phase 8: the session a request carries. hte-console's own when it is signed in; else (while
+/// `HTE_CONSOLE_LARAVEL_SESSIONS` allows) one PHP signed in, never a PHP row the bridge minted (that one exists only for
+/// PHP's pages and lives and dies with ours); else our guest session, if any.
+pub fn load_any(c: &Connection, cfg: &SessionConfig, own: &super::websession::OwnConfig, crypt: &Encrypter, now: i64, cookie_header: &str, secure: bool) -> Result<Option<Session>, Fault> {
+    let mine = super::websession::load(c, own, now, cookie_header, secure)?;
+    if mine.as_ref().map_or(false, |s| s.user_id().is_some()) {
+        return Ok(mine);
+    }
+    if own.laravel_read {
+        if let Some(s) = load(c, cfg, crypt, now, cookie_header)? {
+            if s.user_id().is_some() && !s.data.contains_key(super::websession::BRIDGED) {
+                return Ok(Some(s));
+            }
+        }
+    }
+    Ok(mine)
+}
+
+/// Reload a session after its id changed (`regenerate`), from the right table.
+pub fn reload(c: &Connection, cfg: &SessionConfig, own: &super::websession::OwnConfig, now: i64, s: &Session, id: &str) -> Result<Option<Session>, Fault> {
+    if s.own {
+        super::websession::load_id(c, own, now, id)
+    } else {
+        load_id(c, cfg, now, id)
+    }
+}
+
 pub fn load_id(c: &Connection, cfg: &SessionConfig, now: i64, id: &str) -> Result<Option<Session>, Fault> {
     let Some(row) = db::first(c, r#"select * from "sessions" where "id" = ? limit 1"#, &[P(Val::str(id))])? else { return Ok(None) };
     let last = row.val("last_activity").to_int();
@@ -170,7 +201,7 @@ pub fn load_id(c: &Connection, cfg: &SessionConfig, now: i64, id: &str) -> Resul
     let stored = String::from_utf8_lossy(&row.val("payload").to_php_string()?).into_owned();
     let Ok(raw) = base64::engine::general_purpose::STANDARD.decode(stored.trim()) else { return Ok(None) };
     let Ok(Value::Object(data)) = serde_json::from_slice::<Value>(&raw) else { return Ok(None) };
-    Ok(Some(Session { id: id.to_string(), stored, data, last_activity: last }))
+    Ok(Some(Session { id: id.to_string(), stored, data, last_activity: last, own: false, created: last }))
 }
 
 fn encode(data: &Map<String, Value>) -> String {
@@ -220,6 +251,9 @@ pub fn flash(data: &mut Map<String, Value>, key: &str, value: Value) {
 
 /// Compare-and-swap the payload (and `last_activity`); false when another writer got there first.
 pub fn save(c: &Connection, s: &Session, data: &Map<String, Value>, now: i64) -> Result<bool, Fault> {
+    if s.own {
+        return super::websession::save(c, s, data, now);
+    }
     let n = db::exec(
         c,
         r#"update "sessions" set "payload" = ?, "last_activity" = ? where "id" = ? and "payload" = ?"#,
@@ -230,6 +264,9 @@ pub fn save(c: &Connection, s: &Session, data: &Map<String, Value>, now: i64) ->
 
 /// Slide the expiry like the next PHP request would, but at most once a minute.
 pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
+    if s.own {
+        return super::websession::touch(c, s, now);
+    }
     if now - s.last_activity >= 60 {
         db::exec(c, r#"update "sessions" set "last_activity" = ? where "id" = ? and "last_activity" < ?"#, &[P(Val::Int(now)), P(Val::str(&s.id)), P(Val::Int(now))])?;
     }
@@ -239,6 +276,9 @@ pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
 /// `session()->regenerate()` with a fresh `_token` (`regenerateToken()`), and the old row deleted: the person gets the
 /// new cookie in this same response, and a copy of the old cookie must stop working: the new id.
 pub fn regenerate(c: &Connection, s: &Session, now: i64) -> Result<String, Fault> {
+    if s.own {
+        return super::websession::regenerate(c, s, now);
+    }
     let id = crate::laravel::str_random(40);
     let old = db::first(c, r#"select * from "sessions" where "id" = ? limit 1"#, &[P(Val::str(&s.id))])?;
     let (ip, ua, uid) = match &old {
@@ -316,7 +356,7 @@ mod tests {
 
     fn sess(data: Value) -> Session {
         let Value::Object(m) = data else { panic!() };
-        Session { id: "x".repeat(40), stored: String::new(), data: m, last_activity: 0 }
+        Session { id: "x".repeat(40), stored: String::new(), data: m, last_activity: 0, own: false, created: 0 }
     }
 
     #[test]

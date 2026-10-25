@@ -194,7 +194,7 @@ impl Oidc {
         Oidc::new(std::env::var("HTE_CONSOLE_OIDC_ALLOW_HTTP").map_or(false, |v| v.trim() == "1"), env_disabled())
     }
 
-    fn url_allowed(&self, u: &str) -> bool {
+    pub(crate) fn url_allowed(&self, u: &str) -> bool {
         match url::Url::parse(u) {
             Ok(p) => p.scheme() == "https" || (self.allow_http && p.scheme() == "http"),
             Err(_) => false,

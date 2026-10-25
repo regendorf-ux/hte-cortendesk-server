@@ -192,6 +192,7 @@ async fn discovery(State(s): State<Arc<FakeIdp>>) -> Json<Value> {
         "token_endpoint": format!("{i}/token"),
         "jwks_uri": format!("{i}/jwks"),
         "userinfo_endpoint": format!("{i}/userinfo"),
+        "end_session_endpoint": format!("{i}/logout"),
         "response_types_supported": ["code"],
         "id_token_signing_alg_values_supported": ["RS256"],
         "code_challenge_methods_supported": ["S256"],
