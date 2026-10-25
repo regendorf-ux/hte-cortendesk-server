@@ -260,12 +260,20 @@ pub async fn run(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64) 
 /// `writes` false: only the reads (the writes need PHP's Livewire endpoint; a run of hte-console against itself,
 /// which checks this tool, has none).
 pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool) -> Result<Report, String> {
+    let mut diffs: Vec<String> = vec![];
+    let mut total = 0usize;
+    // an error part way (a write PHP will not take, say) is reported with the differences found before it, not instead of them
+    if let Err(e) = run_inner(php, rust, key, cookie_name, now, writes, &mut diffs, &mut total).await {
+        diffs.push(format!("the replay stopped: {e}"));
+    }
+    Ok(Report { total, differences: diffs })
+}
+
+async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool, diffs: &mut Vec<String>, total: &mut usize) -> Result<(), String> {
     let crypt = Encrypter::from_app_key(key)?;
     let cfg = session::SessionConfig { cookie: cookie_name.to_string(), lifetime_min: 120, secure: None };
     let c = reqwest::Client::builder().redirect(reqwest::redirect::Policy::none()).build().map_err(|e| e.to_string())?;
     let (day, week) = (laravel::ts(now - 90_000)[..10].to_string(), laravel::ts(now - 9_000)[..10].to_string());
-    let mut diffs: Vec<String> = vec![];
-    let mut total = 0;
     let mut cases: Vec<(&str, String)> = vec![];
     for user in ["hteadmin", "dana", "erin"] {
         for path in [
@@ -307,7 +315,7 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
         let cookie = cookie_for(&cfg, &crypt, user, now);
         let a = fetch(&c, php, &cookie, "GET", path, None, String::new(), &[]).await?;
         let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), &[]).await?;
-        total += 1;
+        *total += 1;
         let label = format!("{user} GET {path}");
         if (a.status, &a.location) != (b.status, &b.location) {
             diffs.push(format!("{label}: PHP {} {} / hte-console {} {}", a.status, a.location, b.status, b.location));
@@ -331,7 +339,7 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
         }
     }
     if !writes {
-        return Ok(Report { total, differences: diffs });
+        return Ok(());
     }
     // the writes, hte-console through its forms, PHP through Livewire; the caller compares the databases afterwards
     let post_form = |path: &'static str, fields: Vec<(&'static str, String)>| {
@@ -348,6 +356,8 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
             // Livewire 4 posts to a hashed address the page announces (`data-update-uri`), not to /livewire/update
             static URI: Lazy<Regex> = Lazy::new(|| Regex::new(r#"data-update-uri="([^"]+)""#).unwrap());
             let uri = URI.captures(&page.body).map(|m| m[1].to_string()).unwrap_or_else(|| "/livewire/update".into());
+            // the page announces it in full (scheme and host as PHP saw them): only the path is ours to use
+            let uri = match uri.find("://") { Some(i) => uri[i + 3..].find('/').map(|j| uri[i + 3 + j..].to_string()).unwrap_or(uri), None => uri };
             let r = fetch(&c, &php, &cookie, "POST", &uri, Some("application/json"), body.to_string(), &[("x-livewire", "true"), ("x-csrf-token", TOKEN)]).await?;
             if r.status != 200 {
                 return Err(format!("PHP's Livewire ({uri}) answered {} to {component}.{method}: {}", r.status, &r.body[..r.body.len().min(300)]));
@@ -363,14 +373,14 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
     wire("dana", "account-profile", vec![("name", "Dana S"), ("email", "dana2@example.test")], "saveProfile").await?;
     let (p, b) = post_form("/account/profile", vec![("name", "Dana S".into()), ("email", "dana2@example.test".into())]);
     let r = rust_post("dana", p, b, "application/x-www-form-urlencoded").await?;
-    total += 1;
+    *total += 1;
     if r.status != 302 {
         diffs.push(format!("dana POST /account/profile: hte-console answered {}", r.status));
     }
     wire("dana", "account-profile", vec![("name", "Dana S"), ("email", "admin@example.test")], "saveProfile").await?;
     let (p, b) = post_form("/account/profile", vec![("name", "Dana S".into()), ("email", "admin@example.test".into())]);
     let r = rust_post("dana", p, b, "application/x-www-form-urlencoded").await?;
-    total += 1;
+    *total += 1;
     if r.status != 422 {
         diffs.push(format!("dana POST /account/profile (a taken email): hte-console answered {}, not 422", r.status));
     }
@@ -381,14 +391,14 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
     wire("erin", "account-profile", vec![("currentPassword", "wrong password"), ("password", "newpassword1"), ("passwordConfirmation", "newpassword1")], "updatePassword").await?;
     let (p, b) = post_form("/account/password", vec![("current_password", "wrong password".into()), ("password", "newpassword1".into()), ("password_confirmation", "newpassword1".into())]);
     let r = rust_post("erin", p, b, "application/x-www-form-urlencoded").await?;
-    total += 1;
+    *total += 1;
     if r.status != 422 || !r.body.contains("That is not your current password.") {
         diffs.push(format!("erin POST /account/password (wrong current): hte-console answered {}", r.status));
     }
     wire("erin", "account-profile", vec![("currentPassword", PASSWORD), ("password", "newpassword1"), ("passwordConfirmation", "newpassword1")], "updatePassword").await?;
     let (p, b) = post_form("/account/password", vec![("current_password", PASSWORD.into()), ("password", "newpassword1".into()), ("password_confirmation", "newpassword1".into())]);
     let r = rust_post("erin", p, b, "application/x-www-form-urlencoded").await?;
-    total += 1;
+    *total += 1;
     if r.status != 302 {
         diffs.push(format!("erin POST /account/password: hte-console answered {}", r.status));
     }
@@ -397,7 +407,7 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
     for (side, base) in both.iter().zip([php, rust]) {
         let cookie = cookie_for(&cfg, &crypt, "hteadmin", now);
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"light"}"#.into(), &[("x-csrf-token", TOKEN)]).await?;
-        total += 1;
+        *total += 1;
         if r.status != 204 {
             diffs.push(format!("hteadmin POST /account/theme on {side}: {}", r.status));
         }
@@ -410,12 +420,12 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
     for (side, base) in both.iter().zip([php, rust]) {
         let cookie = cookie_for(&cfg, &crypt, "hteadmin", now);
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"dark"}"#.into(), &[]).await?;
-        total += 1;
+        *total += 1;
         if r.status != 419 {
             diffs.push(format!("POST /account/theme without a token on {side}: {}, not 419", r.status));
         }
     }
-    Ok(Report { total, differences: diffs })
+    Ok(())
 }
 
 #[cfg(test)]

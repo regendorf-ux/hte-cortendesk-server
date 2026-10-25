@@ -2,6 +2,8 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.2 (2026-10-25): page-replay uses only the path of Livewire's announced update address, and reports an error part way together with the differences found before it
+
 ## 0.7.1 (2026-10-25): page-replay finds Livewire 4's hashed update address (`data-update-uri`); replay-pages.sh hands the copy to uid 82 and reads WAL databases writable
 
 ## 0.7.0 (2026-10-25): phase 7a, the page layer (sessions, CSRF, templates, htmx) and the first pages
