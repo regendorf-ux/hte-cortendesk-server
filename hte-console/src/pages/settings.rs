@@ -654,7 +654,7 @@ fn render(ctx: &Ctx, c: &Connection, p: Page) -> Result<Reply, Fault> {
         "scope": {"tone": scope_tone, "text": scope_text}, "pw": {"tone": pw_tone, "text": pw_text},
         "day_choices": DAY_CHOICES.iter().map(|(d, l)| json!({"d": d, "label": l, "suffix": if *d != 0 { format!(" ({d})") } else { String::new() }})).collect::<Vec<_>>(),
         "default_groups": opt(&default_groups), "user_groups": opt(&user_groups), "all_groups": opt(&all_groups), "devices": dev_opts, "events": events,
-        "mail_enabled": mail_on, "mail_broken": mail_broken.0, "mail_error": mail_broken.1, "mail_flash": ctx.flashed.get("mail_broken").and_then(|v| v.as_str()).unwrap_or(""),
+        "mail_enabled": mail_on, "mail_broken": mail_broken.0, "mail_error": mail_broken.1, "mail_flash": ctx.flashed.get("mail_broken").and_then(|v| v.as_str()).unwrap_or(""), "mail_test": ctx.flashed.get("mail_test").cloned().unwrap_or(Value::Null),
         "no_email": no_email, "snoozes": snoozes, "snooze": Value::Object(p.snooze.clone()), "deliveries": delivery_items,
         "tok": super::api_tokens::card(ctx, c)?, "about": {"version": crate::REMOTE_VERSION, "api": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
     });

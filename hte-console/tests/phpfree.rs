@@ -123,11 +123,17 @@ async fn health_and_the_sign_in_work_with_nothing_behind_them() {
 #[tokio::test]
 async fn what_only_php_served_answers_404_and_never_hangs() {
     let h = harness().await;
-    // Livewire's endpoints, the two-factor and invitation pages, the downloads: gone with PHP (none is used at HTE)
-    for path in ["/livewire-abc123/update", "/livewire/livewire.js", "/account/two-factor", "/invite/abc", "/downloads", "/storage/x", "/ws/id", "/ws/relay"] {
+    // Livewire's endpoints, the downloads, PHP's storage: gone with PHP; /ws/* is Caddy's (to hbbs/hbbr), never this port
+    for path in ["/livewire-abc123/update", "/livewire/livewire.js", "/downloads", "/downloads/x.exe", "/storage/x", "/ws/id", "/ws/relay"] {
         let (s, _, _) = h.req("GET", path).await;
-        assert!(s == 404 || s == 302, "{path}: {s}");
+        assert_eq!(s, 404, "{path}");
     }
+    // served here since 0.8.2 (two-factor, invitations): without a session the account page sends to the sign-in, an unknown
+    // invitation is refused; neither is a 5xx or a hang
+    let (s, _, _) = h.req("GET", "/account/two-factor").await;
+    assert_eq!(s, 302, "/account/two-factor");
+    let (s, _, _) = h.req("GET", "/invite/abc").await;
+    assert!(s < 500, "/invite/abc: {s}");
     let (s, _, body) = h.req("GET", "/api/nothing-here").await;
     assert_eq!(s, 404);
     assert!(String::from_utf8_lossy(&body).contains("Not Found"));

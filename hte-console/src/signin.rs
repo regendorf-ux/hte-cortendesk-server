@@ -313,9 +313,7 @@ fn login_inner(n: &Native, c: &Connection, input: &Input, ip: &str, now: i64) ->
         return error("Two-factor authentication is required. Set it up in the web console, then sign in again.");
     }
     if email_verification_active(c)? && !php::trim(&user.val("email").to_php_string()?).is_empty() {
-        // PHP would mail a code here; hte-console has no mail relay, so it answers as PHP does when sending fails.
-        tracing::warn!("client sign-in refused: emailed sign-in codes are on and hte-console does not send mail");
-        return error("Sign-in is temporarily unavailable: this console cannot send verification codes. Contact an administrator.");
+        return email_challenge(n, c, input, &user, ip, now);
     }
     sign_in(c, input, &user, ip, now)
 }
@@ -340,6 +338,43 @@ fn challenge(n: &Native, input: &Input, user: &Row, now: i64) -> Result<Reply, F
     let mut s = String::new();
     php::enc_str(secret.as_bytes(), &mut s).ok_or_else(|| Fault::Other("json".into()))?;
     Ok(Reply::Json(200, format!(r#"{{"type":"email_check","tfa_type":"tfa_check","secret":{s},"user":{user_obj}}}"#)))
+}
+
+/// `challenge($request, $user, 'email')` (phase 8, 0.8.2): a 6-digit code mailed through the console's relay, its bcrypt
+/// hash kept with the prompt; when it cannot be sent the client gets PHP's fail-closed answer (it cannot repair a relay).
+fn email_challenge(n: &Native, c: &Connection, input: &Input, user: &Row, ip: &str, now: i64) -> Result<Reply, Fault> {
+    use rand::Rng;
+    static VIEW: once_cell::sync::Lazy<Option<crate::pages::view::View>> = once_cell::sync::Lazy::new(|| crate::pages::view::View::embedded().ok());
+    let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));
+    let email = String::from_utf8_lossy(&user.val("email").to_php_string()?).into_owned();
+    let username = String::from_utf8_lossy(&user.val("username").to_php_string()?).into_owned();
+    let root = n.signin.public_url.clone().unwrap_or_default();
+    let html = VIEW
+        .as_ref()
+        .ok_or_else(|| Fault::Other("templates unavailable".into()))?
+        .render("mail/login-code.html", serde_json::json!({"app_name": n.signin.app_name, "root": root, "code": code, "username": username, "ip": ip, "minutes": CHALLENGE_TTL / 60}))
+        .map_err(Fault::Other)?;
+    let msg = crate::mail::Message { to: email.clone(), subject: format!("{code} is your {} sign-in code", n.signin.app_name), html };
+    let domain = url::Url::parse(&root).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_default();
+    if !crate::mail::send(c, &n.crypt, &n.signin.app_name, &domain, &msg, now)? {
+        return error("Sign-in is temporarily unavailable: this console cannot send verification codes. Contact an administrator.");
+    }
+    let pending = Challenge { user_id: user.id(), tfa: false, device_id: input.string("id")?, expires: now + CHALLENGE_TTL, tries: 0, code_hash: Some(laravel::hash_make(code.as_bytes())?) };
+    let secret = laravel::str_random(40);
+    n.signin.challenges.lock().unwrap_or_else(|e| e.into_inner()).put(challenge_key(secret.as_bytes()), pending, now + CHALLENGE_TTL, now);
+    let mut u = vec![];
+    if user.val("username").to_bool() {
+        u.push(("name".to_string(), user.val("username")));
+    }
+    let masked = crate::pages::challenge::mask_email(&email);
+    if !masked.is_empty() {
+        u.push(("email".to_string(), Val::str(&masked)));
+    }
+    let user_obj = if u.is_empty() { "[]".to_string() } else { php::json_encode(&php::assoc(u)).ok_or_else(|| Fault::Other("json".into()))? };
+    let mut s = String::new();
+    php::enc_str(secret.as_bytes(), &mut s).ok_or_else(|| Fault::Other("json".into()))?;
+    tracing::info!("client sign-in: e-mailed code sent");
+    Ok(Reply::Json(200, format!(r#"{{"type":"email_check","tfa_type":"email_check","secret":{s},"user":{user_obj}}}"#)))
 }
 
 /// `verifyCode($request)`: the code step.
@@ -421,7 +456,7 @@ fn sha1_of(b: &[u8]) -> [u8; 20] {
 }
 
 /// `TwoFactor::consumeTotp($user, $code)`: None when accepted (and the step burnt), else the message.
-fn consume_totp(n: &Native, c: &Connection, user: &Row, code: &[u8], now: i64) -> Result<Option<&'static str>, Fault> {
+pub(crate) fn consume_totp(n: &Native, c: &Connection, user: &Row, code: &[u8], now: i64) -> Result<Option<&'static str>, Fault> {
     // `totp_secret` has the `encrypted` cast: Crypt::decryptString on read, a DecryptException (500) when it fails
     let secret = match user.val("totp_secret") {
         Val::Null => Val::Null,

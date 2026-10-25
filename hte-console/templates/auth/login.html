@@ -1,5 +1,5 @@
 {#- PHP's auth/login.blade.php of the hte fork: the programs' welcome card with Microsoft's own button, the console
-    password behind a link. Not shown here: "Forgot password?" (password reset is not offered by hte-console). -#}
+    password behind a link. -#}
 {% extends "auth/guest.html" %}
 {% block content %}
     <div class="wcard">
@@ -56,6 +56,9 @@
                         <input type="checkbox" class="form-check-input" id="remember" name="remember" checked>
                         <label class="form-check-label" for="remember">Remember me</label>
                     </div>
+                    {% if forgot %}
+                        <a href="{{ root }}/forgot-password" class="rd-auth-quiet">Forgot password?</a>
+                    {% endif %}
                 </div>
                 <div class="d-grid">
                     <button class="btn btn-primary" type="submit"><i class="ri-login-circle-fill me-1"></i> Log In</button>

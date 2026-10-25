@@ -33,6 +33,7 @@ pub mod laravel;
 pub mod link;
 pub mod maintenance;
 pub mod migrate;
+pub mod mail;
 pub mod multipart;
 pub mod oidc;
 pub mod pagereplay;

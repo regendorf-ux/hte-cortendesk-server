@@ -1,0 +1,26 @@
+{% extends "mail/layout.html" %}
+{% block content %}
+    <p style="margin:0 0 12px;font-size:17px;font-weight:600;">You have been invited to {{ app_name }}.</p>
+
+    <p style="margin:0 0 12px;">{{ invited_by }} invited you to the remote-support console. Your username is
+        <strong style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace;">{{ username }}</strong>.
+        Choose a password to finish setting up your account.</p>
+
+    <p style="margin:20px 0;">
+        <a href="{{ url }}"
+           style="display:inline-block;background:#e2652e;color:#ffffff;text-decoration:none;padding:11px 22px;border-radius:6px;font-weight:600;">
+            Accept invitation
+        </a>
+    </p>
+
+    <p style="margin:0 0 12px;font-size:13px;color:#7b8794;">If the button does not work, copy this link into your browser:</p>
+    <p style="margin:0 0 16px;font-size:12px;word-break:break-all;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:#26303e;">
+        {{ url }}
+    </p>
+
+    <p style="margin:0;font-size:13px;color:#7b8794;">
+        The link works once and expires {{ expires_human }}
+        ({{ expires_at }} UTC). If you were not expecting this, ignore the message —
+        no account is created until someone follows the link.
+    </p>
+{% endblock %}

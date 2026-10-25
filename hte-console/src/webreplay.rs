@@ -10,8 +10,8 @@
 //! of CSS classes. The rows both consoles write are compared afterwards by the script (`replay-signin-web.sh`) with
 //! `snapshot`.
 //!
-//! Differences listed as "by design" (never counted): the token kinds phase 2 hardened (no `exp`, several audiences
-//! without `azp`), which PHP accepts and hte-console refuses. `HTE_WEBREPLAY_MUTATE=1` changes one of hte-console's
+//! The token kinds phase 2 hardened (no `exp`, several audiences without `azp`), which PHP accepts and hte-console refuses, are
+//! not in the scenario (the rows could never match); should one be added, its steps count as "by design". `HTE_WEBREPLAY_MUTATE=1` changes one of hte-console's
 //! answers before the comparison, to prove the comparison can fail.
 
 use crate::pagereplay::shape;
@@ -39,6 +39,8 @@ const SSO_CREATED: (&str, &str) = ("user-5eed0004", "tok-5eed00000000b004");
 const WAITING: &str = "user-5eed0005";
 const THROTTLED: &str = "user-5eed0008";
 const WRONG: &str = "tok-5eed0000wrongpw1";
+/// The seed's TOTP account (its secret is `totp::REPLAY_SECRET`).
+const TOTP_USER: &str = "user-5eed0006";
 
 /// Modes PHP accepts and hte-console refuses (phase 2's hardening, `README.md` of the crate).
 const HARDENED: &[&str] = &["no-exp", "multi-aud"];
@@ -146,6 +148,17 @@ async fn scenario(base: &str) -> Result<Vec<(String, Obs)>, String> {
     out.push(("logout".into(), b.logout().await?));
     out.push(("after logout".into(), b.obs("GET", "/account", None).await?));
     out.push(("logout again (no session)".into(), b.obs("POST", "/logout", Some(vec![])).await?));
+    // two-factor (0.8.2): the TOTP account of the seed (RFC 6238's test key): the challenge page, a wrong code, the right one
+    let mut f = Browser::new(base);
+    out.push(("two-factor: password step".into(), f.password(TOTP_USER, BREAK_GLASS.1).await?));
+    out.push(("two-factor: the challenge page".into(), f.obs("GET", "/login/2fa", None).await?));
+    let t = f.token("/login/2fa").await?;
+    out.push(("two-factor: a wrong code".into(), f.obs("POST", "/login/2fa", Some(vec![("_token", t.clone()), ("code", "000000".into())])).await?));
+    out.push(("two-factor: the page after".into(), f.obs("GET", "/login/2fa", None).await?));
+    let key = crate::totp::base32_decode(crate::totp::REPLAY_SECRET.as_bytes()).unwrap_or_default();
+    let code = crate::totp::at(&key, chrono::Utc::now().timestamp() / crate::totp::PERIOD);
+    out.push(("two-factor: the right code".into(), f.obs("POST", "/login/2fa", Some(vec![("_token", t), ("code", code)])).await?));
+    out.push(("two-factor: logout".into(), f.logout().await?));
     // the per-account throttle: five failures, then even the right password waits (alarm 100, one row)
     let mut t = Browser::new(base);
     for i in 0..5 {
@@ -158,7 +171,9 @@ async fn scenario(base: &str) -> Result<Vec<(String, Obs)>, String> {
     out.push(("throttle: the page after".into(), t.obs("GET", "/login", None).await?));
     // Microsoft sign-in through the fake provider
     let mut modes: Vec<(&str, &str)> = vec![("ok", "linked"), ("ok", "known"), ("ok", "anna"), ("ok", "outsider"), ("ok", "disabled")];
-    modes.extend(crate::fake_idp::MODES.iter().filter(|m| !["ok", "slow-token", "wrong-tid"].contains(m)).map(|m| (*m, "known")));
+    // the hardened kinds (HARDENED) are left out: PHP signs those in, so the rows could never be equal; tests/console_signin.rs
+    // and phase 2's tests cover them
+    modes.extend(crate::fake_idp::MODES.iter().filter(|m| !["ok", "slow-token", "wrong-tid"].contains(m) && !HARDENED.contains(m)).map(|m| (*m, "known")));
     for (mode, user) in modes {
         let label = format!("sso {mode} {user}");
         let mut s = Browser::new(base);

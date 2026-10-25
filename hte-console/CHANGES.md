@@ -4,7 +4,9 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
 
 ## 2.0.0 (2026-10-25): phase 9, HTE Remote's own console in the PHP-free image
 Version 2.0.0 is HTE Remote's version from now on: the version of the image `ghcr.io/regendorf-ux/hte-rd-server` (git tag `hte-rd-server-v2.0.0`).
-(0.9.0 was this release before the rename and was never tagged.)
+(0.9.0 was this release before the rename and was never tagged.) Includes 0.8.2/0.8.3 (two-factor, e-mailed codes, mail, invitations, password
+reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing codes unaffected) and the recovery codes file `hte-remote-recovery-codes.txt`.
+`tests/naming.rs` fails on any old name a person could read, a `CORTENDESK_` setting read around `envvar`, or a page showing `api_version` as its version.
 - One image with hbbs, hbbr and hte-console (`Dockerfile.hte`); hte-console serves `/assets/*`, `/rdclient/*`, `/robots.txt` and `/favicon.ico`
   itself (`tests/phpfree.rs`: every embedded asset, health, sign-in and 404s with no upstream).
 - `migrate.rs`: `HTE_CONSOLE_MIGRATE=1` (set in the image) checks that the 41 migrations of the archived PHP console are recorded in `migrations`
@@ -25,6 +27,45 @@ Version 2.0.0 is HTE Remote's version from now on: the version of the image `ghc
   `cortendesk-backup-*` too.
 - The image defaults: SIGNIN=1, LARAVEL_SESSIONS=0, PHP_SESSION_BRIDGE=0, SWEEPS=reach,passwords,stale,diagnostics, JOBS=backup,prune-logs,prune-invitations.
   `HTE_CONSOLE_UPSTREAM` is not set: nothing is forwarded to PHP any more.
+
+## 0.8.3 (2026-10-25): 0.8.2 as it should have been tagged
+- The test e-mail's template was named `templates/mail/test.html`, which the repository's `.gitignore` (`test.*`) left out of the commit:
+  0.8.2's CI failed (Send test email had no template) and no 0.8.2 image exists. Renamed `test-message.html`. Nothing else changed.
+
+## 0.8.2 (2026-10-25): no console page left on PHP: two-factor, invitations, password reset, e-mailed codes, mail
+- **Mail** (`mail.rs`): PHP's `MailSettings` and Symfony's SMTP transport: TLS from the start (`ssl`) or STARTTLS whenever offered,
+  the certificate checked against the public roots (webpki-roots), AUTH LOGIN/PLAIN, 10-second timeouts, text/html quoted-printable;
+  the health record (`smtp_ok_at`, `smtp_failed_at`, `smtp_last_error`). Mail templates `templates/mail/` (PHP's). Settings → Email's
+  **Send test email** works (`/settings/mail-test`, `settings.mail-test` audit row).
+- **Two-factor** (`pages/twofactor.rs`, `pages/challenge.rs`): Account → Two-Factor Authentication (enrol with a QR code via qrcodegen,
+  recovery codes shown once, regenerate, disable; refused while required) and the sign-in challenge `/login/2fa` (TOTP with the replay
+  guard, recovery codes burnt atomically, 5 tries a minute + alarm). Required-but-not-enrolled people are sent to enrol (the gate's
+  `RequireTwoFactor`), as PHP. Deliberate difference: the candidate secret travels in an encrypted, account-bound form field, not the session.
+- **E-mailed sign-in codes**: `/login/email` (+ resend), trusted browsers (`cd_device`, `trusted_devices`), a broken relay lets only
+  someone who can repair it in (`mail_repair` → Settings → Email until it works), `RequireEmailAddress`. The RustDesk client's code step
+  (phase 2) now mails its code too.
+- **Password reset**: `/forgot-password`, `/reset-password/{token}` (only with mail on), neutral answers, one live link, the link burnt
+  before the change, every session and client token revoked, `login_logs` note `password reset`; "Forgot password?" on the sign-in page.
+- **Invitations**: the card at the end of Users (invite, resend, revoke, the link shown once and mailed when mail is on; delegated
+  managers clamped) and `/invite/{token}` (the account created from the row, signed in, `login_logs` note `invitation`, audit rows).
+  `/invitations` goes to Users. The page replay now compares the whole Users page (the card was "by design" before).
+- The gate answers `RequireTwoFactor` / `RequireEmailAddress` / `RequireMailHealthy` itself (no forwarding to PHP).
+- hte-console's own `hte-*` CSS/JS are revalidated on every load (a cached older copy hid the row-action button styles).
+- Sign-in replay: the two-factor challenge (password step, page, wrong code, right code) is compared with PHP too.
+- Independent Fable review (medium): one high, fixed: the unauthenticated "Forgot password?" post sent its mail while holding the
+  database lock (a dead relay could stall the device API); the reset mail now goes after the answer, outside the lock (which also
+  hides whether the account exists by timing). Medium, fixed (hardened beyond PHP): "starttls" now requires TLS; a relay that does not
+  offer it gets nothing ("none" stays opportunistic). Lows fixed: no username in the stored SMTP error, a 4 KiB bound on a relay reply
+  line, the enrolment blob expires after 15 minutes. Left (need a valid password or an administrator): the e-mailed code steps and the
+  test mail still send under the lock, bounded by the 10 s timeouts.
+- Tests: `tests/console_steps.rs` (6, with a fake SMTP relay), `mail` and `challenge`/`twofactor` unit tests.
+
+## 0.8.1 (2026-10-25): what the 0.8.0 replay against PHP showed
+- Pages (7a/7b/7c): 164 requests, 0 differences. Sign-in: 100 steps, one difference: a POST /logout with no session and no token
+  was answered 302 (to the sign-in page); PHP's CSRF check runs before `auth` and answers 419. Now the same order.
+- The sign-in replay leaves out the two token kinds phase 2 hardened (no `exp`, several audiences without `azp`): PHP signs those
+  in, so their `login_logs` rows could never match; tests cover them. `replay-pages.sh` leaves `hte_console_sessions` out of its
+  database comparison (only hte-console creates it).
 
 ## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie (and all of 0.7.19, phase 7c)
 - One image for 7c and 8: phase 7c's branch is merged in (Diagnostics, Roles, health routes, below). Phase 7c's scripts accept 0.8.x.

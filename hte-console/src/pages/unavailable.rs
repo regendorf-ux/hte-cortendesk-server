@@ -18,6 +18,3 @@ pub fn setup(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
     show(ctx, c, "setup", "Setup", "System")
 }
 
-pub fn invitations(ctx: &Ctx, c: &Connection, _: &Req) -> Result<Reply, Fault> {
-    show(ctx, c, "users", "Invitations", "Manage")
-}

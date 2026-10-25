@@ -71,6 +71,8 @@ pub enum Modal {
     None,
     Edit { id: i64, values: Map<String, Value>, errors: Map<String, Value> },
     Assign { id: i64, search: String, picked: Vec<i64> },
+    /// Phase 8: the Invite dialog (`invitations.rs`).
+    Invite { values: Map<String, Value>, errors: Map<String, Value> },
 }
 
 /// `guardTarget`: a role-holder may only touch plain users, never themselves.
@@ -84,7 +86,9 @@ fn can_touch(ctx: &Ctx, u: &Row) -> bool {
 
 pub fn index(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let st = St::from(req);
-    let modal = if q(req, "create") == "1" && ctx.allows("user", "rw") {
+    let modal = if q(req, "invite") == "1" && ctx.allows("user", "rw") {
+        Modal::Invite { values: super::invitations::blank(), errors: Map::new() }
+    } else if q(req, "create") == "1" && ctx.allows("user", "rw") {
         Modal::Edit { id: 0, values: editor_values(ctx, c, None)?, errors: Map::new() }
     } else if let Some(id) = Some(qint(req, "edit")).filter(|i| *i > 0) {
         if !ctx.allows("user", "rw") {
@@ -115,7 +119,12 @@ pub fn index(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     } else {
         Modal::None
     };
-    render(ctx, c, &st, 200, modal)
+    render(ctx, c, &st, 200, modal, Value::Null)
+}
+
+/// The Users page for the invitations module: `back` is the list's query, `notice` the invitation link shown once.
+pub(super) fn page(ctx: &Ctx, c: &Connection, back: &str, status: u16, modal: Modal, notice: Value) -> Result<Reply, Fault> {
+    render(ctx, c, &St::from_back(back), status, modal, notice)
 }
 
 fn editor_values(ctx: &Ctx, c: &Connection, u: Option<&Row>) -> Result<Map<String, Value>, Fault> {
@@ -153,7 +162,7 @@ fn assignable(ctx: &Ctx, c: &Connection) -> Result<Where, Fault> {
     }
 }
 
-fn render(ctx: &Ctx, c: &Connection, st: &St, status: u16, modal: Modal) -> Result<Reply, Fault> {
+fn render(ctx: &Ctx, c: &Connection, st: &St, status: u16, modal: Modal, notice: Value) -> Result<Reply, Fault> {
     let mut w = Where::default();
     if !st.search.is_empty() {
         let like = format!("%{}%", st.search);
@@ -217,6 +226,7 @@ fn render(ctx: &Ctx, c: &Connection, st: &St, status: u16, modal: Modal) -> Resu
         "can_manage": ctx.allows("user", "rw"), "super": ctx.is_admin(), "me": ctx.uid(),
         "modal": modal_json(ctx, c, &modal, &roles, &url)?,
         "result": flag(ctx, "users_result"),
+        "inv": super::invitations::card(ctx, c, notice)?, "invite_url": join(&url, "invite=1"),
     });
     Ok(Reply::Html(status, ctx.render("users/index.html", layout, page_json)?))
 }
@@ -224,6 +234,7 @@ fn render(ctx: &Ctx, c: &Connection, st: &St, status: u16, modal: Modal) -> Resu
 fn modal_json(ctx: &Ctx, c: &Connection, modal: &Modal, roles: &[Row], url: &str) -> Result<Value, Fault> {
     Ok(match modal {
         Modal::None => json!({"kind": ""}),
+        Modal::Invite { values, errors } => super::invitations::modal_json(ctx, c, values, errors, url)?,
         Modal::Edit { id, values, errors } => {
             let mut filled = errors.clone();
             for k in ["username", "name", "email", "password", "role_id", "user_group_ids", "device_group_ids"] {
@@ -324,7 +335,7 @@ pub fn save(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
             values.insert(k.into(), v);
         }
         let st = St::from_back(ret.strip_prefix("/users?").unwrap_or(""));
-        return render(ctx, c, &st, 422, Modal::Edit { id, values, errors });
+        return render(ctx, c, &st, 422, Modal::Edit { id, values, errors }, Value::Null);
     }
 
     // ---- privilege-escalation guards for a delegated user-manager: the authority, not the form

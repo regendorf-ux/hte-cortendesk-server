@@ -1,0 +1,63 @@
+{#- PHP's auth/email-challenge.blade.php (hte fork). -#}
+{% extends "auth/guest.html" %}
+{% block content %}
+    <div class="card">
+
+        <div class="card-header rd-auth-head py-3 text-center d-flex align-items-center justify-content-center">
+            <a href="{{ root }}" class="rd-auth-brand mb-0">
+                <img src="{{ root }}/assets/images/hte-remote.png" alt="HTE Remote" width="60" height="60" class="rd-auth-brand-logo">
+                <span class="rd-auth-brand-wordmark">HTE <span>Remote</span></span>
+            </a>
+        </div>
+
+        <div class="card-body p-4">
+
+            <div class="text-center mb-4">
+                <h4 class="rd-auth-title">Check your email</h4>
+                <p class="rd-auth-sub">
+                    This browser is new to the console, so we emailed a 6-digit code {% if sent_to %} to <span class="rd-mono">{{ sent_to }}</span>{% endif %}. Enter it below.
+                </p>
+            </div>
+
+            {% if error %}
+                <div class="alert alert-danger" role="alert">
+                    {{ error }}
+                </div>
+            {% endif %}
+
+            {% if status %}
+                <div class="alert alert-success" role="alert">{{ status }}</div>
+            {% endif %}
+
+            <form method="POST" action="{{ root }}/login/email">
+                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+
+                <div class="mb-3">
+                    <label for="code" class="form-label">Verification code</label>
+                    <input class="form-control rd-code-input rd-mono" type="text" id="code" name="code"
+                           required autofocus autocomplete="one-time-code" inputmode="numeric" maxlength="6"
+                           placeholder="123456">
+                </div>
+
+                <div class="mb-0 d-grid">
+                    <button class="btn btn-primary" type="submit">
+                        <i class="ri-mail-check-line me-1"></i> Verify
+                    </button>
+                </div>
+            </form>
+
+            <div class="rd-auth-foot">
+                <form method="POST" action="{{ root }}/login/email/resend" class="d-inline">
+                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+
+                    <button type="submit" class="btn btn-link btn-sm p-0">Send a new code</button>
+                </form>
+                <span class="mx-1">·</span>
+                <a href="{{ root }}/login">Sign in as someone else</a>
+                <span class="rd-auth-foot-note">
+                    Once verified, this browser is remembered for {{ trust_days }} days.
+                </span>
+            </div>
+        </div>
+    </div>
+{% endblock %}

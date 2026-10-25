@@ -90,6 +90,49 @@ fn settings_go_through_envvar() {
     assert!(bad.is_empty(), "settings read around the HTE_REMOTE_* names:\n{}", bad.join("\n"));
 }
 
+/// Lower case in what the browser gets (file names, placeholders): only the credit's links may name the old project.
+#[test]
+fn no_old_name_in_templates_lower_case() {
+    let mut list = vec![];
+    files(&root().join("templates"), &["html", "txt"], &mut list);
+    let mut bad = vec![];
+    for f in &list {
+        for (n, line) in fs::read_to_string(f).unwrap().lines().enumerate() {
+            if line.contains("github.com/marcpope/cortendesk") {
+                continue; // the credit line (Settings > About)
+            }
+            let rest = line.replace("hte-cortendesk-server", "");
+            if rest.to_ascii_lowercase().contains("cortendesk") && !is_comment(line) {
+                bad.push(format!("{}:{}: {}", f.strip_prefix(root()).unwrap().display(), n + 1, line.trim()));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "the old name in a template (say hte-remote):\n{}", bad.join("\n"));
+}
+
+/// The pages show HTE Remote's version (`crate::REMOTE_VERSION`); `api_version` (the PHP release the client API matches) is for the
+/// client API, the web client's config, Diagnostics' export and the About card's "Client API level" only.
+#[test]
+fn pages_show_hte_remote_s_version() {
+    let mut list = vec![];
+    files(&root().join("src/pages"), &["rs"], &mut list);
+    let mut bad = vec![];
+    for f in &list {
+        let name = f.file_name().unwrap().to_str().unwrap();
+        if ["webclient.rs", "diagnostics.rs"].contains(&name) {
+            continue;
+        }
+        for (n, line) in fs::read_to_string(f).unwrap().lines().enumerate() {
+            let l: String = line.chars().filter(|c| !c.is_whitespace()).collect();
+            let from_api = ["\"version\":p.n.api_version", "\"version\":ctx.p.n.api_version", "\"version\":self.p.n.api_version", "\"version\".into(),json!(p.n.api_version", "\"version\".into(),json!(ctx.p.n.api_version"];
+            if from_api.iter().any(|x| l.contains(x)) {
+                bad.push(format!("{}:{}: {}", f.strip_prefix(root()).unwrap().display(), n + 1, line.trim()));
+            }
+        }
+    }
+    assert!(bad.is_empty(), "a page's \"version\" from api_version (use crate::REMOTE_VERSION):\n{}", bad.join("\n"));
+}
+
 #[test]
 fn new_archives_have_the_new_name() {
     assert_eq!(hte_console::backup::PREFIX, "hte-remote-backup-");
