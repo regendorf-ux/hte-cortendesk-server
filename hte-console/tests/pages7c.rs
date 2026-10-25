@@ -331,6 +331,15 @@ async fn health_routes() {
     h.sql(&format!("insert into settings (key, value, created_at, updated_at) values ('relay_servers', '[{{\"address\":\"127.0.0.1:{closed}\",\"geo\":\"\"}}]', '2025-01-01 00:00:00', '2025-01-01 00:00:00');"));
     let r = h.go("GET", "/health/ready", None, None, "", &[]).await;
     assert_eq!((r.status, r.body.as_str()), (503, r#"{"ready":false,"database":true,"id_server":true,"relay_server":false}"#));
+    // PHP's global limit: 30 readiness probes a minute (3 used above), then 429 with Retry-After
+    let mut last = 0;
+    for _ in 0..30 {
+        last = h.go("GET", "/health/ready", None, None, "", &[]).await.status;
+    }
+    assert_eq!(last, 429);
+    let r = h.go("GET", "/health/ready", None, None, "", &[]).await;
+    assert_eq!((r.status, r.headers["retry-after"].to_str().unwrap()), (429, "60"));
+    assert_eq!(r.body, r#"{"ready":false,"database":false,"id_server":false,"relay_server":false}"#);
     let r = h.go("GET", "/up", None, None, "", &[]).await;
     assert_eq!(r.status, 200);
     assert!(r.body.contains("Application up"));

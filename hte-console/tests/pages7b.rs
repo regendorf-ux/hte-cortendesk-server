@@ -889,6 +889,10 @@ async fn backups_prune_and_api_tokens() {
     assert_eq!(r.headers.get("content-type").unwrap(), "application/x-tar");
     assert_eq!(r.headers.get("cache-control").unwrap(), "no-store, private");
     assert_eq!(h.get("/settings/backups/download?name=../../etc/passwd", &admin).await.status, 404);
+    // 7c: PHP's audit row for it, and PHP's own URL for the same file
+    assert_eq!(h.text("select summary from console_audits where action = 'backup.download' order by id desc limit 1"), format!("Downloaded backup {name}"));
+    let r = h.get(&format!("/settings/backups/{name}"), &admin).await;
+    assert_eq!((r.status, r.path()), (302, format!("/settings/backups/download?name={name}")));
 
     // restore: what changed since is undone, and the log says so
     h.sql("insert into settings (key, value) values ('marker', 'after the backup')");

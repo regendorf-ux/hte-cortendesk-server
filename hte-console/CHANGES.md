@@ -19,6 +19,9 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
 - Replay: Diagnostics, its JSON (clock and probe latency masked), Roles and the health JSON for every person; the New/Edit
   Role dialogs; writes: create a role, a taken name, edit, delete a role someone holds. The seed adds an ID and a relay
   server that refuse at once on both sides.
+- From the independent review: `/health/ready` reads its targets under the database lock and probes after releasing it;
+  `/health/live` and `/health/ready` have PHP's global limits (120 and 30 a minute, 429 with `Retry-After: 60`). A backup
+  download now writes PHP's `backup.download` audit row (missing since 7b).
 - `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.
 
 ## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP

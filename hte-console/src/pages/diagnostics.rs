@@ -448,32 +448,54 @@ pub fn json_pretty(v: &Val) -> Option<String> {
 
 // ----------------------------------------------------------------------------------------------------- health ---
 
-/// `FleetDiagnostics::readiness()`: the database, the ID server when configured, every relay of the active pool.
-pub fn readiness(c: &Connection) -> (bool, bool, bool, bool) {
+/// What `FleetDiagnostics::readiness()` probes, read from the database: whether it answered, the ID server, every relay
+/// of the active pool. Read under the database lock; the probes run after it is released (`readiness`).
+pub fn readiness_targets(c: &Connection) -> (bool, (String, u16), Vec<(String, u16)>) {
     let database = database_ok(c);
-    let (mut id_ok, mut relay_ok) = (false, false);
-    if database {
-        let mut targets: Vec<(String, u16)> = vec![];
-        let id = super::settings::server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"]).map(|v| parse_server(&v, 21116)).unwrap_or_default();
-        targets.push(id.clone());
-        let relays = super::settings::relay_pool(c).unwrap_or_default();
-        for r in &relays {
-            targets.push(parse_server(r, 21117));
-        }
-        let results: Vec<bool> = std::thread::scope(|s| {
-            let hs: Vec<_> = targets.iter().map(|(h, p)| s.spawn(move || h.is_empty() || tcp_check(h, *p, 1.0).ok)).collect();
-            hs.into_iter().map(|h| h.join().unwrap_or(false)).collect()
-        });
-        id_ok = results[0];
-        relay_ok = results[1..].iter().all(|b| *b);
+    if !database {
+        return (false, (String::new(), 21116), vec![]);
     }
-    (database && id_ok && relay_ok, database, id_ok, relay_ok)
+    let id = super::settings::server_value(c, "id_server", &["HTE_CONSOLE_ID_SERVER", "CORTENDESK_ID_SERVER"]).map(|v| parse_server(&v, 21116)).unwrap_or_default();
+    let relays = super::settings::relay_pool(c).unwrap_or_default().iter().map(|r| parse_server(r, 21117)).collect();
+    (true, id, relays)
 }
 
-/// `GET /health/ready`: 200 when ready, else 503.
-pub fn ready_body(c: &Connection) -> (u16, String) {
-    let (ready, database, id, relay) = readiness(c);
+/// `FleetDiagnostics::readiness()`: (ready, database, id_server, relay_server). An unconfigured ID server and an empty
+/// relay pool are not dependencies. No database lock is held here.
+pub fn readiness((database, id, relays): (bool, (String, u16), Vec<(String, u16)>)) -> (bool, bool, bool, bool) {
+    if !database {
+        return (false, false, false, false);
+    }
+    let mut targets = vec![id];
+    targets.extend(relays);
+    let results: Vec<bool> = std::thread::scope(|s| {
+        let hs: Vec<_> = targets.iter().map(|(h, p)| s.spawn(move || h.is_empty() || tcp_check(h, *p, 1.0).ok)).collect();
+        hs.into_iter().map(|h| h.join().unwrap_or(false)).collect()
+    });
+    let (id_ok, relay_ok) = (results[0], results[1..].iter().all(|b| *b));
+    (id_ok && relay_ok, true, id_ok, relay_ok)
+}
+
+/// `GET /health/ready`'s answer: 200 when ready, else 503.
+pub fn ready_body(r: (bool, bool, bool, bool)) -> (u16, String) {
+    let (ready, database, id, relay) = r;
     (if ready { 200 } else { 503 }, format!(r#"{{"ready":{ready},"database":{database},"id_server":{id},"relay_server":{relay}}}"#))
+}
+
+/// `ThrottleHealthProbe` with `config/health.php`: one global bucket per probe (live 120, ready 30 a minute; a forwarded
+/// address is no identity behind proxies), Laravel's RateLimiter window: 60 s from the first hit.
+pub fn probe_allowed(endpoint: &str, now: i64) -> bool {
+    static BUCKETS: std::sync::Mutex<[(i64, u32); 2]> = std::sync::Mutex::new([(0, 0); 2]);
+    let (i, max) = if endpoint == "live" { (0, 120) } else { (1, 30) };
+    let mut b = BUCKETS.lock().unwrap_or_else(|e| e.into_inner());
+    if now >= b[i].0 + 60 {
+        b[i] = (now, 0);
+    }
+    if b[i].1 >= max {
+        return false;
+    }
+    b[i].1 += 1;
+    true
 }
 
 #[cfg(test)]

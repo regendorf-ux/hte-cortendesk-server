@@ -695,27 +695,45 @@ async fn asset(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::ex
     assets::respond(&path, req.method() == Method::HEAD)
 }
 
-/// `GET /health/live`: `{"live":true}`.
-async fn health_live(req: Request<Body>) -> Response<Body> {
+/// `GET /health/live`: `{"live":true}`; 429 past PHP's limit.
+async fn health_live(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return error_response(405, "Method Not Allowed", false);
     }
-    Response::builder().status(StatusCode::OK).header(header::CONTENT_TYPE, "application/json").header(header::CACHE_CONTROL, "no-cache, private").body(Body::from(r#"{"live":true}"#)).unwrap()
+    if !diagnostics::probe_allowed("live", p.n.now()) {
+        return health_json(429, r#"{"live":false}"#.into());
+    }
+    health_json(200, r#"{"live":true}"#.into())
 }
 
-/// `GET /health/ready`: the database, the ID server and every relay (`FleetDiagnostics::readiness`); 503 when not ready.
+fn health_json(status: u16, body: String) -> Response<Body> {
+    let mut b = Response::builder().status(StatusCode::from_u16(status).unwrap_or(StatusCode::SERVICE_UNAVAILABLE)).header(header::CONTENT_TYPE, "application/json").header(header::CACHE_CONTROL, "no-cache, private");
+    if status == 429 {
+        b = b.header(header::RETRY_AFTER, "60");
+    }
+    b.body(Body::from(body)).unwrap()
+}
+
+/// `GET /health/ready`: the database, the ID server and every relay (`FleetDiagnostics::readiness`); 503 when not ready, 429
+/// past PHP's limit. The database lock is held only to read the targets, never while probing.
 async fn health_ready(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return error_response(405, "Method Not Allowed", false);
     }
+    if !diagnostics::probe_allowed("ready", p.n.now()) {
+        return health_json(429, r#"{"ready":false,"database":false,"id_server":false,"relay_server":false}"#.into());
+    }
     let p2 = p.clone();
     let (status, body) = tokio::task::spawn_blocking(move || {
-        let conn = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
-        diagnostics::ready_body(&conn)
+        let targets = {
+            let conn = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
+            diagnostics::readiness_targets(&conn)
+        };
+        diagnostics::ready_body(diagnostics::readiness(targets))
     })
     .await
     .unwrap_or((503, r#"{"ready":false,"database":false,"id_server":false,"relay_server":false}"#.into()));
-    Response::builder().status(StatusCode::from_u16(status).unwrap_or(StatusCode::SERVICE_UNAVAILABLE)).header(header::CONTENT_TYPE, "application/json").header(header::CACHE_CONTROL, "no-cache, private").body(Body::from(body)).unwrap()
+    health_json(status, body)
 }
 
 /// `GET /up`: Laravel's health page (status 200, "Application up"), without its external font and Tailwind script.
