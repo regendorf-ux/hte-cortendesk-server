@@ -1,4 +1,4 @@
-//! Areas HTE does not use (invitations, client downloads, the setup wizard): the Rust console has no port of them. The page says so and points at the previous console, where they still work on the same data.
+//! Areas HTE does not use (client downloads, the setup wizard): HTE Remote has no port of them, and the page says so. Their data is untouched.
 
 use super::{Ctx, Reply, Req};
 use crate::php::Fault;

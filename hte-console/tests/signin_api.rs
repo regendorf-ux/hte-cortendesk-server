@@ -593,7 +593,7 @@ async fn redirect_uri_comes_from_the_public_url_not_the_host_header() {
     let (code, url) = h.oidc_start("990000251").await;
     let _ = code;
     let page = h.req("GET", &h.authorize(&url, "deny", "anna").await, None, &[("host", "evil.example.test")]).await;
-    assert!(page.body.contains("https://remote.example.test/assets/css/hte-auth.css?v=1.15.0-hte.1"));
+    assert!(page.body.contains(concat!("https://remote.example.test/assets/css/hte-auth.css?v=", env!("CARGO_PKG_VERSION"))));
     assert!(!page.body.contains("evil"));
     // without a public URL: as Laravel (https from X-Forwarded-Proto, the Host header), and a Host Symfony refuses
     let h = harness().await;

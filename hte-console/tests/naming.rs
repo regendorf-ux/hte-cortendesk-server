@@ -48,16 +48,34 @@ fn no_old_name_where_a_person_reads_it() {
     for f in &list {
         let text = fs::read_to_string(f).unwrap();
         let rs = f.extension().map_or(false, |x| x == "rs");
+        let block_comments = f.extension().map_or(false, |x| x == "css" || x == "js" || x == "rs");
         let mut in_tests = false;
+        let mut in_block = false;
         for (n, line) in text.lines().enumerate() {
+            // inside a /* ... */ block (CSS, JS, Rust): the line is a comment
+            let was_in_block = in_block;
+            if block_comments {
+                if let (Some(o), c) = (line.rfind("/*"), line.rfind("*/")) {
+                    in_block = c.map_or(true, |c| c < o);
+                } else if line.contains("*/") {
+                    in_block = false;
+                }
+            }
             if rs && line.starts_with("#[cfg(test)]") {
                 in_tests = true; // unit tests may name the old strings they check against
             }
-            if in_tests || !line.contains("CortenDesk") || ALLOWED.iter().any(|a| line.contains(a)) {
+            if in_tests || !line.contains("CortenDesk") {
                 continue;
             }
-            if rs && is_comment(line) {
-                continue; // history in comments is fine; strings are not
+            // an allowed phrase counts in a comment, or in the files whose job it is (the credit, the web client's replacements, a slug test)
+            let fname = f.file_name().unwrap().to_str().unwrap();
+            let owner = ["webclient.rs", "cache.rs", "index.html"].contains(&fname);
+            let comment = was_in_block || is_comment(line);
+            if (comment || owner) && ALLOWED.iter().any(|a| line.contains(a)) {
+                continue;
+            }
+            if (rs || block_comments) && comment && !f.to_string_lossy().contains("/templates/") {
+                continue; // history in source comments is fine; strings are not
             }
             bad.push(format!("{}:{}: {}", f.strip_prefix(root()).unwrap().display(), n + 1, line.trim()));
         }
@@ -79,7 +97,8 @@ fn settings_go_through_envvar() {
         let text = fs::read_to_string(f).unwrap();
         for (n, line) in text.lines().enumerate() {
             let at = format!("{}:{}: {}", f.strip_prefix(root()).unwrap().display(), n + 1, line.trim());
-            if name != "main.rs" && line.contains("std::env::var(") {
+            let bare = line.replace("envvar::var(", "");
+            if name != "main.rs" && ["env::var(", "env::var_os(", "env::vars("].iter().any(|x| bare.contains(x)) {
                 bad.push(format!("{at}   <- use crate::envvar::var"));
             }
             if line.contains("CORTENDESK_") && !is_comment(line) {
@@ -115,7 +134,7 @@ fn no_old_name_in_templates_lower_case() {
 #[test]
 fn pages_show_hte_remote_s_version() {
     let mut list = vec![];
-    files(&root().join("src/pages"), &["rs"], &mut list);
+    files(&root().join("src"), &["rs"], &mut list);
     let mut bad = vec![];
     for f in &list {
         let name = f.file_name().unwrap().to_str().unwrap();
@@ -125,7 +144,7 @@ fn pages_show_hte_remote_s_version() {
         for (n, line) in fs::read_to_string(f).unwrap().lines().enumerate() {
             let l: String = line.chars().filter(|c| !c.is_whitespace()).collect();
             let from_api = ["\"version\":p.n.api_version", "\"version\":ctx.p.n.api_version", "\"version\":self.p.n.api_version", "\"version\".into(),json!(p.n.api_version", "\"version\".into(),json!(ctx.p.n.api_version"];
-            if from_api.iter().any(|x| l.contains(x)) {
+            if from_api.iter().any(|x| l.contains(x)) || (l.contains("render_page(") && l.contains("api_version")) {
                 bad.push(format!("{}:{}: {}", f.strip_prefix(root()).unwrap().display(), n + 1, line.trim()));
             }
         }

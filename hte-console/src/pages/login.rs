@@ -5,11 +5,8 @@
 //!   GET      /login/oidc/callback OidcController::callback (+ OidcUserResolver, the same as the client flow's)
 //!   POST     /logout              AuthController::logout (and the provider's end-session page when it is switched on)
 //!
-//! and, not used at HTE, a fixed answer: `/login/2fa`, `/login/email`, `/login/email/resend` redirect to `/login` (what
-//! PHP does with no challenge pending, and none is ever started here); `/forgot-password`, `/reset-password/*`,
-//! `/invite/*` show "not available". A password sign-in that PHP would send on to a second step (TOTP enrolled, TOTP
-//! required but not enrolled, an emailed code) is refused with a message instead: none of that is switched on at HTE
-//! and `phase8/deploy.sh` stops when it is.
+//! Since 0.8.2 the second steps (`/login/2fa`, `/login/email`: `challenge.rs`), password reset and invitations
+//! (`invitations.rs`) are served here too. The "Download the client" link is never shown: HTE Remote has no downloads page.
 //!
 //! The session is hte-console's own (`websession`); the rows written are PHP's (`login_logs`, `alarm_logs`, `users`
 //! when single sign-on links or provisions, `sessions` for the bridge). With `HTE_CONSOLE_SIGNIN` off every path here
@@ -385,9 +382,9 @@ fn show_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     let error = flashed.get("errors").and_then(|e| e.as_object()).and_then(|m| m.values().next()).and_then(|v| v.get(0)).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let old = flashed.get("_old_input").and_then(|o| o.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let sso = settings.is_enabled(env_off);
-    let downloads_default = crate::envvar::var("HTE_REMOTE_DOWNLOADS_ON_LOGIN").map_or(true, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"));
-    let show_downloads = flag(c, "downloads_on_login", if downloads_default { "1" } else { "0" })?
-        && db::first(c, r#"select 1 as "exists" from "client_downloads" where "is_published" = 1 limit 1"#, &[]).ok().flatten().is_some();
+    // PHP showed "Download the client" (setting `downloads_on_login`, a published row in `client_downloads`); HTE Remote has no
+    // downloads page (`/downloads` answers 404), so the link would be dead: never shown.
+    let show_downloads = false;
     let domain = crate::envvar::var("HTE_SIGNIN_DOMAIN").unwrap_or_default().trim_matches(|ch| " \t@".contains(ch)).to_string();
     let page = p
         .view

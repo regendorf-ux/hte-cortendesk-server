@@ -678,7 +678,7 @@ async fn oidc_auth(n: &Arc<Native>, input: Arc<Input>, root: Option<String>, now
 async fn client_callback(n: Arc<Native>, input: Arc<Input>, ip: String, root: Option<String>, head: bool, now: i64) -> Response<Body> {
     use crate::signin::{error_page, render_page, CallbackStart, Page};
     let Some(root) = root else { return page_response(404, error_page(404, "Not Found"), head) };
-    let show = |p: Page| page_response(p.status, render_page(&p, &root, &n.signin.app_name, &n.api_version), head);
+    let show = |p: Page| page_response(p.status, render_page(&p, &root, &n.signin.app_name, crate::REMOTE_VERSION), head);
     let server_error = |w: &str, f: &crate::php::Fault| {
         let _ = fail(w, f);
         page_response(500, error_page(500, "Server Error"), head)

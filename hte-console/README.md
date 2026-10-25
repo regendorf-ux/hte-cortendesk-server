@@ -69,21 +69,21 @@ Environment (nothing HTE-specific is in this repository):
 | `APP_KEY` or `HTE_CONSOLE_APP_KEY_FILE` | Laravel's app key, as the PHP image reads it (env first, else `/data/.app_key`) |
 | `HTE_CONSOLE_HBBS_DB` | hbbs's database for device keys, read only; default `/data/rustdesk/db_v2.sqlite3` |
 | `HTE_CONSOLE_TRUSTED_PROXIES` | else `TRUSTED_PROXIES`, else PHP's default `127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16`. Read as PHP reads it: addresses and ranges, `*` alone (every peer), `REMOTE_ADDR` (the request's own peer), `PRIVATE_SUBNETS` (Symfony's list); other entries trust nothing and are named in a warning at start |
-| `HTE_CONSOLE_API_VERSION` | what `/api/version` says; else `CORTENDESK_API_VERSION`, else `1.15.0-hte.1` |
+| `HTE_CONSOLE_API_VERSION` | what `/api/version` says; else `HTE_REMOTE_API_VERSION` (old: `CORTENDESK_API_VERSION`), else `1.15.0-hte.1` |
 | `HTE_CONSOLE_DEVICE_MAX_BODY_BYTES` | default 1048576 |
 | `HTE_CONSOLE_DB_BUSY_MS` | how long a write waits for PHP's lock, default 10000 |
 | `HTE_CONSOLE_DB_WAL` | default 1: switch the file to WAL once (persistent; PHP needs no change) |
 | **Phase 2** | |
 | `HTE_CONSOLE_PUBLIC_URL` | the console's origin as browsers and the identity provider know it (`https://rustdesk.<domain>`). Set, the OIDC redirect URI and the page's links come from it and never from the Host header; unset, they are built from the request as Laravel does, and `serve` warns when SSO is on |
-| `APP_NAME` | page titles, as the PHP image has it (default `CortenDesk`) |
-| `CORTENDESK_OIDC_DISABLED` | PHP's kill switch for SSO, read the same way (`true`/`1`/`on`/`yes`) |
+| `APP_NAME` | page titles, mail From name and subjects (default `HTE Remote`) |
+| `HTE_REMOTE_OIDC_DISABLED` (old: `CORTENDESK_OIDC_DISABLED`) | PHP's kill switch for SSO, read the same way (`true`/`1`/`on`/`yes`) |
 | `BCRYPT_ROUNDS` | cost of new bcrypt hashes (provisioned accounts), as Laravel (default 12) |
 | `HTE_CONSOLE_SIGNIN_MAX_BODY_BYTES` | default 65536 |
 | `HTE_CONSOLE_CLIENT_MAX_BODY_BYTES` | phase 4: default 2097152 (the legacy address book is pushed whole) |
-| `HTE_CONSOLE_ID_SERVER`, `HTE_CONSOLE_PUBLIC_KEY` | phase 4: what `/api/server-config` says when the settings table has no `id_server`/`public_key` (else `CORTENDESK_ID_SERVER`, `CORTENDESK_PUBLIC_KEY`) |
+| `HTE_CONSOLE_ID_SERVER`, `HTE_CONSOLE_PUBLIC_KEY` | phase 4: what `/api/server-config` says when the settings table has no `id_server`/`public_key` (else `HTE_REMOTE_ID_SERVER`, `HTE_REMOTE_PUBLIC_KEY`) |
 | `HTE_CONSOLE_OIDC_ALLOW_HTTP` | `1` lets the identity provider be plain http: the replay's fake provider only, never on the server |
 | **Phase 3** | |
-| `CORTENDESK_SERVER_SECRET` | the server link secret, as PHP gets it; else the file `HTE_CONSOLE_SERVER_SECRET_FILE` (default `/data/.server_secret`, which the PHP image writes root-only: the deploy passes the variable). Empty: `/api/server/*` answer 404, as an unlinked PHP |
+| `HTE_REMOTE_SERVER_SECRET` (old: `CORTENDESK_SERVER_SECRET`) | the server link secret, as PHP gets it; else the file `HTE_CONSOLE_SERVER_SECRET_FILE` (default `/data/.server_secret`, which the PHP image writes root-only: the deploy passes the variable). Empty: `/api/server/*` answer 404, as an unlinked PHP |
 | `HTE_CONSOLE_CACHE_PREFIX` | PHP's `cache.prefix` (else `CACHE_PREFIX`, else `Str::slug(APP_NAME)-cache-`); the deploy passes PHP's own value |
 | `HTE_CONSOLE_SWEEPS` | which scheduled jobs run here: `reach,passwords,stale,diagnostics` or `all`; default none |
 | `HTE_CONSOLE_SERVER_LINK_MAX_BODY_BYTES` | default 4194304 (500 refusals of the longest values fit) |
@@ -134,7 +134,7 @@ Known differences that depend on configuration HTE does not use:
 
 ## Phase 3: the server link and the sweeps
 
-The ID server runs inside the PHP container and reaches the console at `CORTENDESK_CONSOLE_URL` (loopback by
+The ID server runs inside the PHP container and reaches the console at `HTE_REMOTE_CONSOLE_URL` (loopback by
 default), so it moves here when that URL points at hte-console, not through Caddy. Answers as PHP's: the policy
 byte for byte (`mode`, `allow` and `incoming_only` by device id, `tokens` and `scope.token_users` as sha256 of each
 live token, ksorted, `ip_match`, and `scope` = `{enforce, users: {id: {name, all, devices}}, token_users}`, empty
@@ -274,9 +274,9 @@ success is an empty 200 body where PHP's is; 404/405/OPTIONS/preflight answer as
 other verbs of that URI in `Router::$verbs` order).
 
 Configuration read at call time (no restart for settings): `id_server` and `public_key` come from the settings table
-(PHP's `Setting::server`), else `HTE_CONSOLE_ID_SERVER`/`CORTENDESK_ID_SERVER` and
-`HTE_CONSOLE_PUBLIC_KEY`/`CORTENDESK_PUBLIC_KEY`; the online window is the `online_window` setting, else
-`CORTENDESK_ONLINE_WINDOW`, else 60 seconds (`0` means 60, as `Device::onlineWindow()`).
+(PHP's `Setting::server`), else `HTE_CONSOLE_ID_SERVER`/`HTE_REMOTE_ID_SERVER` and
+`HTE_CONSOLE_PUBLIC_KEY`/`HTE_REMOTE_PUBLIC_KEY`; the online window is the `online_window` setting, else
+`HTE_REMOTE_ONLINE_WINDOW`, else 60 seconds (`0` means 60, as `Device::onlineWindow()`).
 
 Proven by `tests/client_api.rs` (12 end-to-end tests: the 118 synthetic fixtures, routing, 413, reach, paging, the online
 window, a form-encoded PUT, the non-transactional push, the note length, the log holding no secret) and by the fixtures in
