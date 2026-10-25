@@ -240,6 +240,13 @@ fn decode(s: &str) -> String {
 /// What a person reads (the text, in order) and what the page looks like (the `class` attributes, in order), from
 /// the page body between `<body>` and the Bootstrap script, with scripts and styles skipped.
 pub fn shape(html: &str) -> (Vec<String>, Vec<String>) {
+    // what PHP shows only while a Livewire call is under way ("Saving…", "Calculating…"): no person reads it
+    static LOADING: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<span\b[^>]*\bwire:loading\b[^>]*>.*?</span>"#).unwrap());
+    let cleaned = LOADING.replace_all(html, |m: &regex::Captures| {
+        let tag = &m[0][..m[0].find('>').unwrap_or(0)];
+        if tag.contains("wire:loading.remove") || tag.contains("wire:loading.attr") || tag.contains("wire:loading.class") { m[0].to_string() } else { String::new() }
+    });
+    let html: &str = &cleaned;
     let start = html.find("<body").unwrap_or(0);
     let end = html.find("bootstrap.bundle").map(|i| html[..i].rfind("<script").unwrap_or(i)).unwrap_or(html.len());
     let html = &html[start..end.max(start)];
@@ -351,6 +358,7 @@ const FRAGMENTS: [&str; 2] = ["/dashboard/stats", "/dashboard/sessions"];
 const FRAGMENT_REASON: &str = "by design (own htmx refresh URL; PHP refreshes the same cards through Livewire polling, which has no URL; same permission checks as the page)";
 const INVITE_REASON: &str = "by design (the Invitations card at the end of Users: inviting by email is not available in this console; the rest of the page is compared)";
 
+const DIALOG_LAYOUT_REASON: &str = "by design (the CSS classes of a dialog are not compared: hte-console lays dialogs out its own way; their text, fields and buttons are)";
 const GROUPS_REASON: &str = "by design (Settings: an option group the page hides with d-none and shows with a click handler, e.g. the other Apprise mode, is in the page; PHP re-renders the form from the server instead; only the group in force is compared; the About card lists different things: PHP its Laravel and PHP versions, hte-console its own)";
 
 /// Where the `<div>` opened at `from` (the end of its opening tag) closes.
@@ -668,7 +676,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
         }
     }
     if writes && !rust_only {
-        dialogs(&c, php, rust, &cfg, &crypt, now, diffs, total).await;
+        dialogs(&c, php, rust, &cfg, &crypt, now, diffs, by_design, total).await;
     }
     write_steps(&c, php, rust, &cfg, &crypt, now, rust_only, diffs, total).await;
     Ok(())
@@ -712,7 +720,8 @@ async fn livewire_html(c: &reqwest::Client, php: &str, cookie: &str, page: &str,
 
 /// The dialog in a page or a component's html: the `modal fade show` element (its backdrop is a sibling and is left out).
 fn dialog_of(html: &str) -> Option<&str> {
-    let i = html.find("modal fade show")?;
+    // the last one: a dialog opened over another (PHP's delete review sits over the edit form) is the one in front
+    let i = html.rfind("modal fade show")?;
     let start = html[..i].rfind("<div")?;
     let open_end = start + html[start..].find('>')? + 1;
     Some(&html[start..div_end(html, open_end)])
@@ -720,7 +729,8 @@ fn dialog_of(html: &str) -> Option<&str> {
 
 /// Dialogs: PHP opens them with a Livewire call on the component (their state is not in the URL), hte-console with a query
 /// on the same page; what each shows (text and classes) is compared like a page.
-async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, total: &mut usize) {
+async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) {
+    let mut layout = 0usize;
     use serde_json::json;
     // (what, page, component, method, params, hte-console's query)
     let cases: Vec<(&str, &str, &str, &str, Vec<serde_json::Value>, &str)> = vec![
@@ -768,12 +778,16 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::Sess
             continue;
         };
         let ((ta, ca), (tb, cb)) = (shape(a), shape(b));
+        // text only: a dialog is hte-console's own layout (tabs or pills, widths, helper lines); what it says and offers is what is compared
         for d in all_differences(&ta, &tb) {
             diffs.push(format!("{label}: text {d}"));
         }
-        for d in all_differences(&ca, &cb) {
-            diffs.push(format!("{label}: classes {d}"));
+        if ca != cb {
+            layout += 1;
         }
+    }
+    if layout > 0 {
+        by_design.push(format!("dialogs: {DIALOG_LAYOUT_REASON} ({layout} of {} differ)", 16));
     }
 }
 

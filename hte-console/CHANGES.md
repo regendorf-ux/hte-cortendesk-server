@@ -2,6 +2,12 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.15 (2026-10-25): the dialog comparison, made fair
+From the first run that opened the dialogs (0.7.14): its report was dominated by noise, none of it in the console.
+- A dialog opened over another (PHP's delete review sits over the edit form) is now taken as the one in front, not the one behind.
+- Text that PHP shows only while a Livewire call runs (`wire:loading` spans: "Saving…", "Calculating…") is not compared, on any page.
+- Dialogs are compared by what they say and offer (text); their CSS classes are not (listed once as "by design").
+
 ## 0.7.14 (2026-10-25): the replay opens the dialogs; Add/Edit Device answered 500
 - `page-replay` opens 16 dialogs on both sides (PHP by a Livewire call, hte-console by its query) and compares them like pages: strategies add/edit/assign/
   history/compliance/delete, users add/edit/devices, groups add (both kinds)/edit, devices add/delete, device edit/delete.
