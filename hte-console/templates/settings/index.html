@@ -1,0 +1,626 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+{% if not can_manage %}
+    <div class="alert alert-info py-2"><i class="ri-eye-line me-1"></i>You have view-only access to settings. Changes are disabled.</div>
+{% endif %}
+
+{% if mail_broken or mail_flash %}
+    <div class="alert alert-danger">
+        <i class="ri-mail-close-line me-1"></i><strong>Email is failing.</strong>
+        {{ mail_flash or 'Nobody else can sign in while sign-in verification is enabled. Fix the settings below and send a test message.' }}
+        {% if mail_error %}<div class="mt-2 rd-mono">{{ mail_error }}</div>{% endif %}
+    </div>
+{% endif %}
+
+{% if saved %}
+    <div class="alert alert-success py-2"><i class="ri-check-line me-1"></i>Settings saved.</div>
+{% endif %}
+
+{% if any_errors %}
+    <div class="alert alert-danger py-2"><i class="ri-error-warning-line me-1"></i>Settings were <strong>not</strong> saved — fix the highlighted field below.</div>
+{% endif %}
+
+<ul class="nav nav-tabs nav-bordered rd-tabbar mb-3" data-rd-tabs>
+    {% for t in tabs %}
+    <li class="nav-item">
+        <a href="/settings?tab={{ t.key }}" hx-boost="false" data-rd-tab="{{ t.key }}" class="nav-link {{ 'active' if tab == t.key else '' }}"><i class="{{ t.icon }} me-1"></i><span>{{ t.label }}</span></a>
+    </li>
+    {% endfor %}
+</ul>
+
+<form method="post" action="/settings/save" autocomplete="off">
+<input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="tab" value="{{ tab }}">
+<div class="tab-content">
+
+    {# ============================ SERVER ============================ #}
+    <div class="tab-pane {{ 'show active' if tab == 'server' else '' }}" data-rd-pane="server">
+        <div class="row"><div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">RustDesk Server</h5></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">ID Server (hbbs)</label>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.id_server else '' }}" name="id_server" value="{{ v.id_server }}" placeholder="e.g. hbbs.example.com:21116">
+                        {% if e.id_server %}<div class="invalid-feedback">{{ e.id_server }}</div>{% endif %}
+                        <div class="form-text">Host:port of the rendezvous server clients register with.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Relay Server (hbbr)</label>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.relay_server else '' }}" name="relay_server" value="{{ v.relay_server }}" placeholder="e.g. hbbs.example.com:21117">
+                        {% if e.relay_server %}<div class="invalid-feedback">{{ e.relay_server }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Public Key</label>
+                        <input type="text" class="form-control rd-mono{{ ' is-invalid' if e.public_key else '' }}" name="public_key" value="{{ v.public_key }}" placeholder="contents of id_ed25519.pub">
+                        {% if e.public_key %}<div class="invalid-feedback">{{ e.public_key }}</div>{% endif %}
+                        <div class="form-text">The server's ed25519 public key — clients need it when <code>ENCRYPTED_ONLY</code> is enabled.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Build Installers URL</label>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.rdgen_url else '' }}" name="rdgen_url" value="{{ v.rdgen_url }}" placeholder="https://rdgen.crayoneater.org">
+                        {% if e.rdgen_url %}<div class="invalid-feedback">{{ e.rdgen_url }}</div>{% endif %}
+                        <div class="form-text">Opened by the sidebar's <strong>Build Installers</strong> entry — point it at your own rdgen instance. Leave empty to hide the menu entry.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Client URL scheme</label>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.client_url_scheme else '' }}" name="client_url_scheme" value="{{ v.client_url_scheme }}" placeholder="rustdesk" style="max-width: 280px;">
+                        {% if e.client_url_scheme %}<div class="invalid-feedback">{{ e.client_url_scheme }}</div>{% endif %}
+                        <div class="form-text">Used by the links that open a device in the RustDesk client. A client built with rdgen under another app name registers its own, such as <code>level1-tech-support</code>.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="downloadsOnLogin" name="downloads_on_login" value="1"{{ ' checked' if v.downloads_on_login else '' }}>
+                            <label class="form-check-label" for="downloadsOnLogin">Link to client downloads on the sign-in page</label>
+                        </div>
+                        <div class="form-text">Adds a link beneath the sign-in form when builds are published under <a href="/client-downloads" hx-boost="false">Client Downloads</a>. The <a href="/downloads" target="_blank" rel="noopener" hx-boost="false">/downloads</a> page stays reachable either way — unpublish a build to withdraw it.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Online window (seconds)</label>
+                        <input type="number" class="form-control{{ ' is-invalid' if e.online_window else '' }}" name="online_window" value="{{ v.online_window }}" min="20" max="600" style="max-width: 140px;">
+                        {% if e.online_window %}<div class="invalid-feedback">{{ e.online_window }}</div>{% endif %}
+                        <div class="form-text">Seconds without a heartbeat before a device shows as offline. Clients report every ~15s.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="requireDeviceApproval" name="require_device_approval" value="1"{{ ' checked' if v.require_device_approval else '' }}>
+                            <label class="form-check-label" for="requireDeviceApproval">Require device approval</label>
+                        </div>
+                        <div class="form-text">When on, a newly seen device is held as <strong>Pending</strong> and hidden from the console and API until an operator approves it on the Devices &rarr; Pending tab. Deployed devices (via an API token) are pre-approved.</div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="autoApproveSignedIn" name="auto_approve_signed_in" value="1"{{ ' checked' if v.auto_approve_signed_in else '' }}>
+                            <label class="form-check-label" for="autoApproveSignedIn">Approve when the device's user signs in</label>
+                        </div>
+                        <div class="form-text">With the gate on, a pending device whose RustDesk client is signed in to this console with a user account is approved on arrival, and that user becomes its owner. Works in either order: device first or sign-in first.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="defaultDeviceGroupId">Default group for new devices</label>
+                        <select id="defaultDeviceGroupId" name="default_device_group_id" class="form-select{{ ' is-invalid' if e.default_device_group_id else '' }}" style="max-width: 320px;">
+                            <option value="0">None</option>
+                            {% for g in default_groups %}<option value="{{ g.id }}"{{ ' selected' if v.default_device_group_id == (g.id | string) else '' }}>{{ g.name }}</option>{% endfor %}
+                        </select>
+                        {% if e.default_device_group_id %}<div class="invalid-feedback">{{ e.default_device_group_id }}</div>{% endif %}
+                        <div class="form-text">Every device that first appears, pending or not, is placed in this group. Give a user group access to it and your support staff can see new devices without an administrator filing each one. Existing devices are not moved.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label" for="serverAccessMode">Server access</label>
+                        <select id="serverAccessMode" name="server_access_mode" class="form-select{{ ' is-invalid' if e.server_access_mode else '' }}" style="max-width: 320px;">
+                            <option value="open"{{ ' selected' if v.server_access_mode == 'open' else '' }}>Open: any device with the key</option>
+                            <option value="approved"{{ ' selected' if v.server_access_mode == 'approved' else '' }}>Approved devices only</option>
+                        </select>
+                        {% if e.server_access_mode %}<div class="invalid-feedback">{{ e.server_access_mode }}</div>{% endif %}
+                        <div class="form-text">Enforced by the ID server. With approved devices only, pending, recycled and unknown devices still come online and show as Pending, but cannot start or receive sessions, and only clients signed in to this console (and the web client) can start one. Turn on Require device approval as well, or every device that reports here is approved on arrival. Incoming-only devices are refused when they start a session in either mode.</div>
+                        <div class="form-check form-switch mt-2">
+                            <input class="form-check-input" type="checkbox" role="switch" id="serverIpMatch" name="server_ip_match" value="1"{{ ' checked' if v.server_ip_match else '' }}>
+                            <label class="form-check-label" for="serverIpMatch">Identify signed-out devices by IP address</label>
+                        </div>
+                        <div class="form-text">Approved devices only: lets a signed-out client start sessions when an approved device registered from the same IP. Weak: devices sharing a public IP, or behind a proxy that rewrites source addresses (Docker's userland proxy, IPv6 port publishing, Docker Desktop), can pass as each other.</div>
+
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="hteScopeEnforce" name="hte_scope_enforce" value="1"{{ ' checked' if v.hte_scope_enforce else '' }}>
+                            <label class="form-check-label" for="hteScopeEnforce">Each person may reach only the devices they are given</label>
+                        </div>
+                        <div class="form-text">Enforced by the ID server. A signed-in user can start a session only to a device this console shows them: the devices assigned to them and the device groups granted to them or to their user groups. Administrators reach every device. A client that is not signed in cannot start sessions. Refused attempts appear under Logs &rarr; Alarms and on the device's page. Takes effect within a few seconds; sessions already running are not cut. Needs <strong>Approved devices only</strong> and the HTE build of the ID server.</div>
+                        <div class="form-text {{ scope.tone }}" id="hte-scope-status"><i class="ri-shield-user-line me-1"></i>Per-person reach: {{ scope.text }}</div>
+                        <div class="form-check form-switch mt-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="htePasswords" name="hte_passwords" value="1"{{ ' checked' if v.hte_passwords else '' }}>
+                            <label class="form-check-label" for="htePasswords">Each computer gets its own password, made and changed by the console</label>
+                        </div>
+                        <div class="d-flex align-items-center gap-2 mt-2">
+                            <label class="form-label mb-0" for="htePasswordDays">Change it</label>
+                            <select id="htePasswordDays" name="hte_password_days" class="form-select form-select-sm" style="max-width: 260px;">
+                                {% for d in day_choices %}<option value="{{ d.d }}"{{ ' selected' if v.hte_password_days == (d.d | string) else '' }}>{{ d.label }}{{ d.suffix }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-text">HTE Remote computers (Windows and Mac) take the new password at their next check-in and confirm it; until they do, the old one keeps working. A password is also changed at once when someone loses access to that computer. People never see it: each person's HTE Remote fills it in from their automatic "HTE Remote" address book.</div>
+                        <div class="form-text {{ pw.tone }}" id="hte-password-status"><i class="ri-key-2-line me-1"></i>{{ pw.text }}</div>
+
+                        <div class="form-text {{ link.tone }}" id="server-link-status">
+                            <i class="{{ 'ri-error-warning-line' if link.ok == false else 'ri-link' }} me-1"></i>ID server link: {{ link.note }}
+                            {% if link.ok == false %} Needs CortenDesk Server 1.1.0 or later linked to this console.{% endif %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Relay Servers</h5></div>
+                <div class="card-body">
+                    <p class="text-muted fs-13 mb-3">The relay pool (hbbr) your rendezvous server hands to clients. Relay selection is decided by hbbs at connect time — the console stores this list so it can manage the server's <code>relay-servers</code> config. Geo tags are for your own documentation. Leave empty to use the single <strong>Relay Server (hbbr)</strong> above as the fallback.</p>
+                    {% for r in relays %}
+                    <div class="row g-2 mb-2 align-items-start">
+                        <div class="col-12 col-sm">
+                            <input type="text" class="form-control{{ ' is-invalid' if r.e_address else '' }}" name="relay_address[]" value="{{ r.address }}" placeholder="relay.example.com:21117">
+                            {% if r.e_address %}<div class="invalid-feedback">{{ r.e_address }}</div>{% endif %}
+                        </div>
+                        <div class="col-8 col-sm-4">
+                            <input type="text" class="form-control{{ ' is-invalid' if r.e_geo else '' }}" name="relay_geo[]" value="{{ r.geo }}" placeholder="Geo tag">
+                            {% if r.e_geo %}<div class="invalid-feedback">{{ r.e_geo }}</div>{% endif %}
+                        </div>
+                        <div class="col-4 col-sm-auto d-grid">
+                            <button type="submit" formaction="/settings/relay" formnovalidate name="do" value="remove:{{ loop.index0 }}" class="btn btn-light text-danger" title="Remove relay"{{ '' if can_manage else ' disabled' }}><i class="ri-close-line"></i></button>
+                        </div>
+                    </div>
+                    {% else %}
+                    <p class="text-muted fs-13 fst-italic mb-2">No relay servers configured — using the single relay fallback above.</p>
+                    {% endfor %}
+                    <div class="d-flex gap-2 mt-3">
+                        <button type="submit" formaction="/settings/relay" formnovalidate name="do" value="add" class="btn btn-light"{{ '' if can_manage else ' disabled' }}><i class="ri-add-line me-1"></i>Add relay</button>
+                        <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
+                    </div>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# ========================= CLIENT SETUP ========================= #}
+    <div class="tab-pane {{ 'show active' if tab == 'client' else '' }}" data-rd-pane="client">
+        <div class="row"><div class="col-lg-6">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Client Setup</h5></div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">Point RustDesk clients at this console under <strong>Settings &rarr; Network &rarr; ID/Relay Server</strong>:</p>
+                    <label class="form-label fs-13 text-muted mb-0">ID Server</label>
+                    <div class="input-group input-group-sm mb-2"><input type="text" class="form-control rd-mono" readonly value="{{ v.id_server }}"><button class="btn btn-light" type="button" onclick="rdCopyPrevious(this)"><i class="ri-file-copy-line"></i></button></div>
+                    <label class="form-label fs-13 text-muted mb-0">Relay Server</label>
+                    <div class="input-group input-group-sm mb-2"><input type="text" class="form-control rd-mono" readonly value="{{ v.relay_server }}"><button class="btn btn-light" type="button" onclick="rdCopyPrevious(this)"><i class="ri-file-copy-line"></i></button></div>
+                    <label class="form-label fs-13 text-muted mb-0">API Server</label>
+                    <div class="input-group input-group-sm mb-2"><input type="text" class="form-control rd-mono" readonly value="{{ api_url }}"><button class="btn btn-light" type="button" onclick="rdCopyPrevious(this)"><i class="ri-file-copy-line"></i></button></div>
+                    <label class="form-label fs-13 text-muted mb-0">Key</label>
+                    <div class="input-group input-group-sm"><input type="text" class="form-control rd-mono" readonly value="{{ v.public_key }}"><button class="btn btn-light" type="button" onclick="rdCopyPrevious(this)"><i class="ri-file-copy-line"></i></button></div>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# =========================== SECURITY =========================== #}
+    <div class="tab-pane {{ 'show active' if tab == 'security' else '' }}" data-rd-pane="security">
+        <div class="row"><div class="col-lg-7">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Two-Factor Authentication</h5></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="twoFactorRequired" name="two_factor_required" value="1"{{ ' checked' if v.two_factor_required else '' }}>
+                            <label class="form-check-label" for="twoFactorRequired">Require two-factor authentication for all users</label>
+                        </div>
+                        <div class="form-text">Signed-in users without 2FA are sent to the setup screen and can't use the console until they enroll. The RustDesk client refuses their password sign-in until then.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            {% if v.two_factor_required %}
+                            <input type="hidden" name="two_factor_required_admins" value="{{ '1' if v.two_factor_required_admins else '' }}">
+                            <input class="form-check-input" type="checkbox" role="switch" id="twoFactorRequiredAdmins"{{ ' checked' if v.two_factor_required_admins else '' }} disabled>
+                            {% else %}
+                            <input class="form-check-input" type="checkbox" role="switch" id="twoFactorRequiredAdmins" name="two_factor_required_admins" value="1"{{ ' checked' if v.two_factor_required_admins else '' }}>
+                            {% endif %}
+                            <label class="form-check-label" for="twoFactorRequiredAdmins">Require two-factor authentication for administrators</label>
+                        </div>
+                        <div class="form-text">Enforce 2FA for admin accounts only. Superseded when the all-users switch above is on.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            {% if mail_enabled %}
+                            <input class="form-check-input" type="checkbox" role="switch" id="emailLoginVerification" name="email_login_verification" value="1"{{ ' checked' if v.email_login_verification else '' }}>
+                            {% else %}
+                            <input type="hidden" name="email_login_verification" value="{{ '1' if v.email_login_verification else '' }}">
+                            <input class="form-check-input" type="checkbox" role="switch" id="emailLoginVerification"{{ ' checked' if v.email_login_verification else '' }} disabled>
+                            {% endif %}
+                            <label class="form-check-label" for="emailLoginVerification">Require an emailed code on new devices</label>
+                        </div>
+                        <div class="form-text">
+                            {% if mail_enabled %}
+                                Users without an authenticator app get a 6-digit code by email the first time they sign in from a browser this console has not seen. The browser stays trusted for {{ v.email_trusted_device_days }} days. The RustDesk client asks for a code at every password sign-in, and refuses it while mail is down. Accounts with 2FA enrolled are unaffected — they answer the authenticator instead.
+                                {% if no_email > 0 %}
+                                    <span class="text-warning d-block mt-1">{{ no_email }} active account(s) have no email address and are let through with a password alone. An SMTP outage does the same, deliberately, so a broken relay cannot lock everyone out.</span>
+                                {% else %}
+                                    <span class="d-block mt-1">An account with no email address, or an SMTP outage, lets the sign-in through on the password alone — a broken relay must not lock everyone out.</span>
+                                {% endif %}
+                            {% else %}
+                                Configure and enable a mail relay on the <a href="/settings?tab=email" hx-boost="false" data-rd-tab="email">Email</a> tab first — without one there is no way to deliver the code.
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Remember a verified browser for (days)</label>
+                        <input type="number" class="form-control{{ ' is-invalid' if e.email_trusted_device_days else '' }}" name="email_trusted_device_days" value="{{ v.email_trusted_device_days }}" min="1" max="365" style="max-width: 140px;">
+                        {% if e.email_trusted_device_days %}<div class="invalid-feedback">{{ e.email_trusted_device_days }}</div>{% endif %}
+                        <div class="form-text">Trust is revoked immediately by "Force logout", disabling the account, or a password change.</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">API tokens</h5></div>
+                <div class="card-body"><p class="text-muted mb-0">API tokens are not available yet in this version of the console; they keep working and are managed in the previous console.</p></div>
+            </div>
+        </div></div>
+    </div>
+
+    {# ============================= SSO ============================= #}
+    <div class="tab-pane {{ 'show active' if tab == 'sso' else '' }}" data-rd-pane="sso">
+        <div class="row"><div class="col-lg-8">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Single Sign-On (OIDC)</h5>
+                    {% if v.oidc_enabled %}<span class="badge bg-success-subtle text-success">Enabled</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Disabled</span>{% endif %}
+                </div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">Let operators sign in with your identity provider — Keycloak, Authentik, Entra ID, Okta, Google Workspace or anything else that speaks OpenID Connect. Register this callback URL with your provider:</p>
+                    <div class="mb-3"><input type="text" class="form-control form-control-sm rd-mono" value="{{ oidc_callback }}" readonly onfocus="this.select()"></div>
+
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="oidcEnabled" name="oidc_enabled" value="1"{{ ' checked' if v.oidc_enabled else '' }}>
+                            <label class="form-check-label" for="oidcEnabled">Enable single sign-on</label>
+                        </div>
+                        <div class="form-text">Adds a sign-in button to the login page.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Provider URL</label>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.oidc_discovery_url else '' }}" name="oidc_discovery_url" value="{{ v.oidc_discovery_url }}" placeholder="https://idp.example.com/realms/main">
+                        {% if e.oidc_discovery_url %}<div class="invalid-feedback">{{ e.oidc_discovery_url }}</div>{% endif %}
+                        <div class="form-text">The issuer URL. <code>/.well-known/openid-configuration</code> is appended automatically, or paste the full discovery URL.</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Client ID</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.oidc_client_id else '' }}" name="oidc_client_id" value="{{ v.oidc_client_id }}">
+                            {% if e.oidc_client_id %}<div class="invalid-feedback">{{ e.oidc_client_id }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Client Secret</label>
+                            <input type="password" class="form-control{{ ' is-invalid' if e.oidc_client_secret else '' }}" name="oidc_client_secret" value="" autocomplete="new-password" placeholder="{{ 'Stored — leave blank to keep' if set.oidc_client_secret else 'Required' }}">
+                            {% if e.oidc_client_secret %}<div class="invalid-feedback">{{ e.oidc_client_secret }}</div>{% endif %}
+                            <div class="form-text">Encrypted at rest. Blank leaves the stored secret unchanged.</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" disabled title="Not available yet in this version of the console"><i class="ri-plug-line me-1"></i>Test Connection</button>
+                        <span class="text-muted fs-13 ms-2">Not available yet here; save the settings and try signing in.</span>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <label class="form-label">New users</label>
+                        <select class="form-select" name="oidc_new_user_policy">
+                            <option value="deny"{{ ' selected' if v.oidc_new_user_policy == 'deny' else '' }}>Deny — only existing console accounts may sign in</option>
+                            <option value="pending"{{ ' selected' if v.oidc_new_user_policy == 'pending' else '' }}>Create, pending administrator approval</option>
+                            <option value="active"{{ ' selected' if v.oidc_new_user_policy == 'active' else '' }}>Create and allow in immediately</option>
+                        </select>
+                        <div class="form-text">Applies when the provider's identity matches no existing account. An email address is only ever matched to an existing account when the provider marks it verified.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="oidcRequireVerifiedEmail" name="oidc_require_verified_email" value="1"{{ ' checked' if v.oidc_require_verified_email else '' }}>
+                            <label class="form-check-label" for="oidcRequireVerifiedEmail">Require the provider to assert email verification</label>
+                        </div>
+                        <div class="form-text">Off by default, because the claim is optional in OpenID Connect and common providers make it meaningless — Microsoft Entra ID never sends it, and Authentik sends <code>false</code> for everyone. Accounts are matched on the provider's stable user id, not the address, so this changes little in practice. Turn it on only if you federate with a provider whose users can choose their own email address.</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Default group for new users</label>
+                            <select class="form-select" name="oidc_default_group_id">
+                                <option value="0">None</option>
+                                {% for g in user_groups %}<option value="{{ g.id }}"{{ ' selected' if v.oidc_default_group_id == (g.id | string) else '' }}>{{ g.name }}</option>{% endfor %}
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Allowed email domains</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.oidc_allowed_domains else '' }}" name="oidc_allowed_domains" value="{{ v.oidc_allowed_domains }}" placeholder="example.com, example.org">
+                            {% if e.oidc_allowed_domains %}<div class="invalid-feedback">{{ e.oidc_allowed_domains }}</div>{% endif %}
+                            <div class="form-text">Blank allows any domain the provider authenticates.</div>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="oidcDefaultAdmin" name="oidc_default_admin" value="1"{{ ' checked' if v.oidc_default_admin else '' }}>
+                            <label class="form-check-label" for="oidcDefaultAdmin">Make new SSO users administrators</label>
+                        </div>
+                        <div class="form-text text-warning">Leave off unless every account your provider authenticates should administer this console.</div>
+                    </div>
+                    <hr>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="oidcLogoutEnabled" name="oidc_logout_enabled" value="1"{{ ' checked' if v.oidc_logout_enabled else '' }}>
+                            <label class="form-check-label" for="oidcLogoutEnabled">Sign out of the provider too</label>
+                        </div>
+                        <div class="form-text">Ends the provider session on logout, not just the console session.</div>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="oidcDisableLocalLogin" name="oidc_disable_local_login" value="1"{{ ' checked' if v.oidc_disable_local_login else '' }}>
+                            <label class="form-check-label" for="oidcDisableLocalLogin">Disable password sign-in</label>
+                        </div>
+                        <div class="form-text">Turns away passwords on the console and in the RustDesk client, so SSO is the only way in. It takes effect only while SSO is enabled and configured, so a provider outage restores password sign-in by itself. <code>CORTENDESK_OIDC_DISABLED=true</code> in <code>.env</code> forces it off from the shell.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Advanced</label>
+                        <input type="text" class="form-control mb-2{{ ' is-invalid' if e.oidc_scopes else '' }}" name="oidc_scopes" value="{{ v.oidc_scopes }}" placeholder="openid email profile">
+                        {% if e.oidc_scopes %}<div class="invalid-feedback">{{ e.oidc_scopes }}</div>{% endif %}
+                        <div class="form-text mb-2">Scopes requested from the provider.</div>
+                        <input type="text" class="form-control mb-2{{ ' is-invalid' if e.oidc_button_label else '' }}" name="oidc_button_label" value="{{ v.oidc_button_label }}" placeholder="Sign in with SSO">
+                        {% if e.oidc_button_label %}<div class="invalid-feedback">{{ e.oidc_button_label }}</div>{% endif %}
+                        <div class="form-text mb-2">Label for the login-page button.</div>
+                        <input type="text" class="form-control{{ ' is-invalid' if e.oidc_public_base_url else '' }}" name="oidc_public_base_url" value="{{ v.oidc_public_base_url }}" placeholder="https://idp.example.com">
+                        {% if e.oidc_public_base_url %}<div class="invalid-feedback">{{ e.oidc_public_base_url }}</div>{% endif %}
+                        <div class="form-text">Browser-facing provider URL. Only needed when the console reaches the provider on a different address than your users' browsers do (container networks, split DNS).</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# ============================ EMAIL ============================ #}
+    <div class="tab-pane {{ 'show active' if tab == 'email' else '' }}" data-rd-pane="email">
+        <div class="row"><div class="col-lg-7">
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Outbound Email (SMTP)</h5>
+                    {% if v.smtp_enabled %}<span class="badge bg-success-subtle text-success">Enabled</span>{% else %}<span class="badge bg-secondary-subtle text-secondary">Disabled</span>{% endif %}
+                </div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">Used for user invitations and emailed sign-in codes. Any SMTP relay works — your own server, a provider, or a local smarthost. Messages are sent as the console handles the request, so keep the relay close and responsive.</p>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input class="form-check-input" type="checkbox" role="switch" id="smtpEnabled" name="smtp_enabled" value="1"{{ ' checked' if v.smtp_enabled else '' }}>
+                            <label class="form-check-label" for="smtpEnabled">Enable outbound email</label>
+                        </div>
+                        <div class="form-text">Off means nothing is ever sent — invitation links must then be copied by hand.</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <label class="form-label">SMTP host</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.smtp_host else '' }}" name="smtp_host" value="{{ v.smtp_host }}" placeholder="smtp.example.com">
+                            {% if e.smtp_host %}<div class="invalid-feedback">{{ e.smtp_host }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Port</label>
+                            <input type="number" class="form-control{{ ' is-invalid' if e.smtp_port else '' }}" name="smtp_port" value="{{ v.smtp_port }}" min="1" max="65535">
+                            {% if e.smtp_port %}<div class="invalid-feedback">{{ e.smtp_port }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Encryption</label>
+                        <select class="form-select" name="smtp_encryption" style="max-width: 420px;">
+                            <option value="starttls"{{ ' selected' if v.smtp_encryption == 'starttls' else '' }}>STARTTLS (usually port 587)</option>
+                            <option value="ssl"{{ ' selected' if v.smtp_encryption == 'ssl' else '' }}>Implicit TLS / SSL (usually port 465)</option>
+                            <option value="none"{{ ' selected' if v.smtp_encryption == 'none' else '' }}>None (STARTTLS still used if the server offers it)</option>
+                        </select>
+                        <div class="form-text">The mail library upgrades a plain connection whenever the relay advertises STARTTLS, so "None" cannot force a genuinely unencrypted session.</div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Username</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.smtp_username else '' }}" name="smtp_username" value="{{ v.smtp_username }}" autocomplete="off" placeholder="Optional">
+                            {% if e.smtp_username %}<div class="invalid-feedback">{{ e.smtp_username }}</div>{% endif %}
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Password</label>
+                            <input type="password" class="form-control{{ ' is-invalid' if e.smtp_password else '' }}" name="smtp_password" value="" autocomplete="new-password" placeholder="{{ 'Stored — leave blank to keep' if set.smtp_password else 'Optional' }}">
+                            {% if e.smtp_password %}<div class="invalid-feedback">{{ e.smtp_password }}</div>{% endif %}
+                            <div class="form-text">Encrypted at rest. Blank leaves the stored password unchanged.</div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">From address</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.smtp_from_address else '' }}" name="smtp_from_address" value="{{ v.smtp_from_address }}" placeholder="console@example.com">
+                            {% if e.smtp_from_address %}<div class="invalid-feedback">{{ e.smtp_from_address }}</div>{% endif %}
+                            <div class="form-text">Must be an address your relay is allowed to send as (SPF/DMARC).</div>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">From name</label>
+                            <input type="text" class="form-control{{ ' is-invalid' if e.smtp_from_name else '' }}" name="smtp_from_name" value="{{ v.smtp_from_name }}" placeholder="{{ app_name }}">
+                            {% if e.smtp_from_name %}<div class="invalid-feedback">{{ e.smtp_from_name }}</div>{% endif %}
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save Settings</button>
+                    <hr>
+                    <label class="form-label">Send a test email</label>
+                    <div class="row g-2 align-items-start">
+                        <div class="col-sm-7"><input type="email" class="form-control" disabled placeholder="you@example.com"></div>
+                        <div class="col-sm-5 d-grid"><button type="button" class="btn btn-outline-secondary" disabled><i class="ri-send-plane-line me-1"></i>Send test email</button></div>
+                    </div>
+                    <div class="form-text">Not available yet in this version of the console. Invitations and sign-in codes use the settings above as soon as they are saved.</div>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# ======================== NOTIFICATIONS ======================== #}
+    <div class="tab-pane {{ 'show active' if tab == 'notifications' else '' }}" data-rd-pane="notifications">
+        <div class="row"><div class="col-lg-8">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Apprise notifications</h5></div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">Send fleet and security events through a self-hosted Apprise API. Destination credentials are encrypted and never shown again.</p>
+                    <div class="form-check form-switch mb-3">
+                        <input class="form-check-input" type="checkbox" id="appriseEnabled" name="apprise_enabled" value="1"{{ ' checked' if v.apprise_enabled else '' }}>
+                        <label class="form-check-label" for="appriseEnabled">Enable notifications</label>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Apprise API endpoint</label>
+                        <input type="url" class="form-control{{ ' is-invalid' if e.apprise_endpoint else '' }}" name="apprise_endpoint" value="" autocomplete="off" data-1p-ignore data-lpignore="true" placeholder="{{ 'Stored — leave blank to keep' if set.apprise_endpoint else 'https://apprise.example.com' }}">
+                        {% if e.apprise_endpoint %}<div class="invalid-feedback">{{ e.apprise_endpoint }}</div>{% endif %}
+                        <div class="form-text">Base URL only. CortenDesk appends <code>/notify</code>.</div>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Delivery mode</label>
+                        <select class="form-select" name="apprise_mode" data-rd-switch="apprise-mode">
+                            <option value="config"{{ ' selected' if v.apprise_mode == 'config' else '' }}>Saved Apprise configuration key</option>
+                            <option value="urls"{{ ' selected' if v.apprise_mode == 'urls' else '' }}>Stateless Apprise URLs</option>
+                        </select>
+                    </div>
+                    <div class="mb-3{{ '' if v.apprise_mode == 'config' else ' d-none' }}" data-rd-group="apprise-mode" data-rd-when="config">
+                        <label class="form-label">Configuration key</label>
+                        <input type="password" class="form-control{{ ' is-invalid' if e.apprise_config_key else '' }}" name="apprise_config_key" value="" autocomplete="new-password" data-1p-ignore data-lpignore="true" placeholder="{{ 'Stored — leave blank to keep' if set.apprise_config_key else 'office-alerts' }}"{{ '' if v.apprise_mode == 'config' else ' disabled' }}>
+                        {% if e.apprise_config_key %}<div class="invalid-feedback">{{ e.apprise_config_key }}</div>{% endif %}
+                    </div>
+                    <div class="mb-3{{ '' if v.apprise_mode == 'urls' else ' d-none' }}" data-rd-group="apprise-mode" data-rd-when="urls">
+                        <label class="form-label">Apprise URLs</label>
+                        <textarea class="form-control rd-mono{{ ' is-invalid' if e.apprise_urls else '' }}" rows="4" name="apprise_urls" autocomplete="off" data-1p-ignore data-lpignore="true" placeholder="{{ 'Stored — leave blank to keep' if set.apprise_urls else 'One Apprise URL per line' }}"{{ '' if v.apprise_mode == 'urls' else ' disabled' }}></textarea>
+                        {% if e.apprise_urls %}<div class="invalid-feedback">{{ e.apprise_urls }}</div>{% endif %}
+                        <div class="form-text">Write-only and encrypted at rest.</div>
+                    </div>
+                    <div class="mb-3"><label class="form-label">Cooldown (minutes)</label><input type="number" class="form-control{{ ' is-invalid' if e.apprise_cooldown_minutes else '' }}" style="max-width: 140px" min="0" max="1440" name="apprise_cooldown_minutes" value="{{ v.apprise_cooldown_minutes }}">{% if e.apprise_cooldown_minutes %}<div class="invalid-feedback">{{ e.apprise_cooldown_minutes }}</div>{% endif %}</div>
+                    <div class="mb-3"><label class="form-label">Offline alert grace (minutes)</label><input type="number" class="form-control{{ ' is-invalid' if e.apprise_offline_grace_minutes else '' }}" style="max-width: 140px" min="0" max="1440" name="apprise_offline_grace_minutes" value="{{ v.apprise_offline_grace_minutes }}"><div class="form-text">Wait this long after a device becomes offline before sending its Apprise alert.</div>{% if e.apprise_offline_grace_minutes %}<div class="invalid-feedback">{{ e.apprise_offline_grace_minutes }}</div>{% endif %}</div>
+                    <div class="row">
+                        {% for ev in events %}
+                        <div class="col-md-6 mb-3">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="event-{{ ev.dom }}" name="apprise_event_{{ ev.key }}" value="1"{{ ' checked' if ev.enabled else '' }}>
+                                <label class="form-check-label" for="event-{{ ev.dom }}">{{ ev.label }}</label>
+                            </div>
+                            {% if ev.scoped %}
+                            <select class="form-select form-select-sm mt-2" name="apprise_scope_{{ ev.key }}" data-rd-switch="scope-{{ ev.key }}">
+                                <option value="all"{{ ' selected' if ev.scope == 'all' else '' }}>All approved devices</option>
+                                <option value="selected"{{ ' selected' if ev.scope == 'selected' else '' }}>Selected groups or devices</option>
+                            </select>
+                            <div class="{{ '' if ev.scope == 'selected' else 'd-none' }}" data-rd-group="scope-{{ ev.key }}" data-rd-when="selected">
+                                <select class="form-select form-select-sm mt-2" multiple name="apprise_scope_groups_{{ ev.key }}[]" aria-label="Groups for {{ ev.label }}"{{ '' if ev.scope == 'selected' else ' disabled' }}>
+                                    {% for g in all_groups %}<option value="{{ g.id }}"{{ ' selected' if g.id in ev.groups else '' }}>Group: {{ g.name }}</option>{% endfor %}
+                                </select>
+                                <select class="form-select form-select-sm mt-2" multiple name="apprise_scope_devices_{{ ev.key }}[]" aria-label="Devices for {{ ev.label }}"{{ '' if ev.scope == 'selected' else ' disabled' }}>
+                                    {% for d in devices %}<option value="{{ d.id }}"{{ ' selected' if d.id in ev.devices else '' }}>{{ d.label }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            {% endif %}
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <button class="btn btn-primary mt-2" type="submit"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save settings</button>
+                    <button class="btn btn-outline-secondary mt-2" type="button" disabled title="Not available yet in this version of the console">Send test</button>
+                </div>
+            </div>
+
+            {% if is_admin %}
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Presence alert maintenance</h5></div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">Temporarily suppress offline and recovery notifications for one device or an entire group. Security and login alerts are not affected.</p>
+                    <div class="row g-2 align-items-end">
+                        <div class="col-md-3"><label class="form-label">Apply to</label>
+                            <select class="form-select" name="snooze_type" form="snooze-form" data-rd-switch="snooze-type"><option value="device"{{ ' selected' if snooze.type != 'group' else '' }}>Device</option><option value="group"{{ ' selected' if snooze.type == 'group' else '' }}>Device group</option></select></div>
+                        <div class="col-md-5"><label class="form-label">Target</label>
+                            <div class="{{ '' if snooze.type != 'group' else 'd-none' }}" data-rd-group="snooze-type" data-rd-when="device">
+                                <select class="form-select{{ ' is-invalid' if e.presence_snooze_target_id else '' }}" name="snooze_target" form="snooze-form"{{ '' if snooze.type != 'group' else ' disabled' }}>
+                                    <option value="0">Choose a target</option>
+                                    {% for d in devices %}<option value="{{ d.id }}"{{ ' selected' if snooze.type != 'group' and snooze.target == (d.id | string) else '' }}>{{ d.label }}</option>{% endfor %}
+                                </select>
+                            </div>
+                            <div class="{{ '' if snooze.type == 'group' else 'd-none' }}" data-rd-group="snooze-type" data-rd-when="group">
+                                <select class="form-select{{ ' is-invalid' if e.presence_snooze_target_id else '' }}" name="snooze_target" form="snooze-form"{{ '' if snooze.type == 'group' else ' disabled' }}>
+                                    <option value="0">Choose a target</option>
+                                    {% for g in all_groups %}<option value="{{ g.id }}"{{ ' selected' if snooze.type == 'group' and snooze.target == (g.id | string) else '' }}>{{ g.name }}</option>{% endfor %}
+                                </select>
+                            </div></div>
+                        <div class="col-md-2"><label class="form-label">Minutes</label><input type="number" class="form-control{{ ' is-invalid' if e.presence_snooze_minutes else '' }}" min="15" max="10080" name="snooze_minutes" form="snooze-form" value="{{ snooze.minutes }}"></div>
+                        <div class="col-md-2"><button class="btn btn-outline-warning w-100" type="submit" form="snooze-form" name="do" value="create">Snooze alerts</button></div>
+                    </div>
+                    {% if e.presence_snooze_target_id %}<div class="text-danger fs-13 mt-2">{{ e.presence_snooze_target_id }}</div>{% endif %}
+                    {% if e.presence_snooze_minutes %}<div class="text-danger fs-13 mt-2">{{ e.presence_snooze_minutes }}</div>{% endif %}
+                    <div class="mt-3">
+                        {% for sn in snoozes %}
+                        <div class="d-flex justify-content-between align-items-center border-top py-2">
+                            <div><strong>{{ sn.kind }}: {{ sn.name }}</strong><div class="text-muted fs-13">Alerts muted until {{ sn.until }} ({{ sn.human }})</div></div>
+                            <button type="submit" form="snooze-form" name="do" value="clear:{{ sn.id }}" class="btn btn-sm btn-outline-secondary">End now</button>
+                        </div>
+                        {% else %}
+                        <div class="text-muted fs-13">No active presence-alert maintenance windows.</div>
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Recent deliveries</h5></div>
+                <div class="card-body">
+                    <p class="text-muted fs-13">A send that times out, cannot connect, or gets HTTP 429, 424 (a destination such as Slack failed) or 5xx from Apprise is retried by the scheduler about 1 and 5 minutes later, 3 attempts in all. Other HTTP errors are not retried, and neither is anything older than 30 minutes. A retry is dropped when a newer event replaces it, such as an offline alert after the device came back.</p>
+                    {% for dv in deliveries %}
+                    <div class="d-flex justify-content-between gap-3 border-bottom py-2">
+                        <div><strong>{{ dv.title }}</strong>
+                            <div class="text-muted fs-13">
+                                {{ dv.event }}
+                                {% if dv.device %} · <a href="/devices/{{ dv.device.id }}">{{ dv.device.label }} ({{ dv.device.rustdesk_id }})</a>{% endif %}
+                                · <span title="{{ dv.created_title }}">{{ dv.created }}</span>
+                            </div>
+                            {% if dv.error %}<div class="text-danger fs-13 text-break">{{ dv.error }}</div>{% endif %}
+                            {% if dv.line %}<div class="text-muted fs-13">{{ dv.line }}{% if dv.retry %} <span title="{{ dv.next_title }}">{{ dv.next }}</span>{% endif %}</div>{% endif %}
+                        </div>
+                        <span class="badge bg-{{ dv.tone }}-subtle text-{{ dv.tone }} align-self-start">{{ dv.badge }}</span>
+                    </div>
+                    {% else %}
+                    <p class="text-muted mb-0">No delivery attempts yet.</p>
+                    {% endfor %}
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# ========================= MAINTENANCE ========================= #}
+    <div class="tab-pane {{ 'show active' if tab == 'maintenance' else '' }}" data-rd-pane="maintenance">
+        <div class="row"><div class="col-lg-5">
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Log Retention</h5></div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Log retention (days)</label>
+                        <input type="number" class="form-control{{ ' is-invalid' if e.log_retention_days else '' }}" name="log_retention_days" value="{{ v.log_retention_days }}" min="0" max="3650" style="max-width: 140px;">
+                        {% if e.log_retention_days %}<div class="invalid-feedback">{{ e.log_retention_days }}</div>{% endif %}
+                        <div class="form-text">Connection, file-transfer, login and alarm logs older than this are deleted nightly. <strong>0 keeps logs forever.</strong></div>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save</button>
+                        <button type="button" class="btn btn-light" disabled title="Not available yet in this version of the console"><i class="ri-delete-bin-6-line me-1"></i>Prune now</button>
+                    </div>
+                    <div class="form-text">Pruning runs nightly on its own; "Prune now" is not available yet here.</div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">About</h5></div>
+                <div class="card-body">
+                    <dl class="rd-deflist">
+                        <div class="rd-def"><dt>CortenDesk</dt><dd class="rd-mono">v{{ about.version }}</dd></div>
+                        <div class="rd-def"><dt>Console</dt><dd class="rd-mono">hte-console {{ version }}</dd></div>
+                    </dl>
+                </div>
+            </div>
+        </div></div>
+    </div>
+
+    {# =========================== BACKUPS =========================== #}
+    <div class="tab-pane {{ 'show active' if tab == 'backups' else '' }}" data-rd-pane="backups">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Backups</h5></div>
+            <div class="card-body"><p class="text-muted mb-0">Backups are not available yet in this version of the console. Nightly backups keep running on their own, and the archives are untouched.</p></div>
+        </div>
+    </div>
+
+</div>
+</form>
+<form id="snooze-form" method="post" action="/settings/snooze"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+</div>
+{% endblock %}

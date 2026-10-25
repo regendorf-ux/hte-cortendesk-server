@@ -24,6 +24,10 @@ pub enum Rule {
     Sometimes,
     Boolean,
     Email,
+    /// `url`: a web address (http, https or ftp scheme, a host, no spaces)
+    Url,
+    /// `url:http,https`
+    UrlWeb,
     /// `Rule::in([...])`: strict string comparison of `(string) $value`
     In(&'static [&'static str]),
     /// `Rule::unique(table, column)`, optionally `->ignore($id)` (an `id <> ?` condition)
@@ -300,6 +304,36 @@ pub fn str_limit(value: &str, limit: usize, end: &str) -> String {
     format!("{}{end}", cut.trim_end_matches([' ', '\n', '\r', '\t', '\u{b}', '\0']))
 }
 
+/// Laravel's `validateUrl`, narrowed to the schemes a console setting can sensibly hold: `scheme://host[:port][/...]`
+/// with a host of letters, digits, dots, hyphens and underscores (or a bracketed IPv6 address) and nothing blank.
+fn is_url(s: &[u8], schemes: &[&str]) -> bool {
+    let Ok(t) = std::str::from_utf8(s) else { return false };
+    if t.chars().any(|c| c.is_whitespace() || c.is_control()) {
+        return false;
+    }
+    let Some((scheme, rest)) = t.split_once("://") else { return false };
+    if !schemes.iter().any(|x| x.eq_ignore_ascii_case(scheme)) {
+        return false;
+    }
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    let hostport = authority.rsplit_once('@').map_or(authority, |(_, h)| h);
+    let (host, port) = if let Some(v6) = hostport.strip_prefix('[') {
+        match v6.split_once(']') {
+            Some((h, after)) => (h, after.strip_prefix(':')),
+            None => return false,
+        }
+    } else {
+        match hostport.rsplit_once(':') {
+            Some((h, p)) => (h, Some(p)),
+            None => (hostport, None),
+        }
+    };
+    if host.is_empty() || port.map_or(false, |p| p.is_empty() || !p.bytes().all(|b| b.is_ascii_digit())) {
+        return false;
+    }
+    hostport.starts_with('[') || host.chars().all(|c| c.is_alphanumeric() || matches!(c, '.' | '-' | '_'))
+}
+
 fn is_numeric_val(v: &Val) -> bool {
     v.is_numeric()
 }
@@ -347,6 +381,8 @@ fn passes(rule: Rule, v: &Val, numeric: bool, probe: Probe, fault: &std::cell::R
             Val::Str(s) => crate::email::is_valid(s),
             _ => false,
         },
+        Rule::Url => matches!(v, Val::Str(s) if is_url(s, &["http", "https", "ftp", "ftps", "sftp"])),
+        Rule::UrlWeb => matches!(v, Val::Str(s) if is_url(s, &["http", "https"])),
         // ! is_array($value) && in_array((string) $value, $parameters, true)
         Rule::In(list) => match v {
             Val::Arr(_) => false,
@@ -379,6 +415,7 @@ fn message(rule: Rule, attr: &str, numeric: bool, array: bool) -> String {
         (Rule::Nullable, _) | (Rule::Sometimes, _) => String::new(),
         (Rule::Boolean, _) => "The :attribute field must be true or false.".to_string(),
         (Rule::Email, _) => "The :attribute field must be a valid email address.".to_string(),
+        (Rule::Url, _) | (Rule::UrlWeb, _) => "The :attribute field must be a valid URL.".to_string(),
         (Rule::In(_), _) | (Rule::Exists(..), _) => "The selected :attribute is invalid.".to_string(),
         (Rule::Unique(..), _) => "The :attribute has already been taken.".to_string(),
     };

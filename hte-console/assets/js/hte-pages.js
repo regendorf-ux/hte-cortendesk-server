@@ -146,14 +146,35 @@
     if (document.body) { document.body.addEventListener('htmx:afterSwap', refreshBulk); }
 
     // A select that decides which other fields apply (the sharing rule's "Share with"): show those, disable the rest.
+    // A named switch (data-rd-switch="name") only moves the boxes of its own group (data-rd-group="name").
     document.addEventListener('change', function (event) {
         var sel = event.target;
         if (!sel.matches || !sel.matches('[data-rd-switch]') || !sel.form) { return; }
-        Array.prototype.forEach.call(sel.form.querySelectorAll('[data-rd-when]'), function (box) {
+        var group = sel.getAttribute('data-rd-switch');
+        var scope = group ? document.querySelectorAll('[data-rd-group="' + group + '"]') : sel.form.querySelectorAll('[data-rd-when]');
+        Array.prototype.forEach.call(scope, function (box) {
+            if (group && box.getAttribute('data-rd-group') !== group) { return; }
             var on = box.getAttribute('data-rd-when') === sel.value;
             box.classList.toggle('d-none', !on);
-            Array.prototype.forEach.call(box.querySelectorAll('select, input'), function (f) { f.disabled = !on; });
+            Array.prototype.forEach.call(box.querySelectorAll('select, input, textarea'), function (f) { f.disabled = !on; });
         });
+    });
+
+    // Tabs that only show a pane of the one form (Settings): the form keeps every pane, so nothing typed is lost.
+    document.addEventListener('click', function (event) {
+        var link = event.target.closest ? event.target.closest('[data-rd-tab]') : null;
+        if (!link) { return; }
+        event.preventDefault();
+        var key = link.getAttribute('data-rd-tab');
+        var root = link.closest('[data-rd-tabs]') || document;
+        Array.prototype.forEach.call(root.querySelectorAll('[data-rd-tab]'), function (a) { a.classList.toggle('active', a === link); });
+        Array.prototype.forEach.call(document.querySelectorAll('[data-rd-pane]'), function (pane) {
+            var on = pane.getAttribute('data-rd-pane') === key;
+            pane.classList.toggle('show', on);
+            pane.classList.toggle('active', on);
+        });
+        Array.prototype.forEach.call(document.querySelectorAll('input[name="tab"]'), function (i) { i.value = key; });
+        try { history.replaceState(null, '', link.getAttribute('href')); } catch (e) { /* the address bar is a nicety */ }
     });
 
     // Escape closes the open dialog (wire:keydown.escape).

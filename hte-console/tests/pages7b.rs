@@ -594,3 +594,105 @@ async fn the_strategies_page() {
     let viewer = h.login(&sid("st2"), 3, json!({}));
     assert_ne!(h.get("/strategies?create=1", &viewer).await.status, 200);
 }
+
+#[tokio::test]
+async fn the_settings_page() {
+    let h = harness().await;
+    let cookie = h.login(&sid("se1"), 1, json!({}));
+    let r = h.get("/settings", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let page = squash(&r.body);
+    assert!(page.contains("RustDesk Server") && page.contains("Per-person reach: Off"));
+    for tab in ["Client Setup", "Security", "SSO", "Email", "Notifications", "Maintenance", "Backups"] {
+        assert!(page.contains(tab), "{tab}");
+    }
+    // validation: nothing is written, the failing tab opens, no secret comes back
+    let base = |extra: &[(&'static str, &'static str)]| {
+        let mut f = vec![tok(), ("tab", "server"), ("online_window", "60"), ("log_retention_days", "365"), ("default_device_group_id", "0"), ("server_access_mode", "open"), ("oidc_new_user_policy", "deny"),
+            ("oidc_default_group_id", "0"), ("smtp_port", "587"), ("smtp_encryption", "starttls"), ("apprise_mode", "config"), ("apprise_cooldown_minutes", "15"), ("apprise_offline_grace_minutes", "0"),
+            ("email_trusted_device_days", "30"), ("hte_password_days", "30")];
+        f.extend_from_slice(extra);
+        f
+    };
+    let r = h.post_form("/settings/save", &cookie, &base(&[("online_window", "5"), ("oidc_client_secret", "topsecret-value")])).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("The online window field must be at least 20."));
+    assert!(!r.body.contains("topsecret-value"));
+    assert_eq!(h.count("settings"), 0);
+    let r = h.post_form("/settings/save", &cookie, &base(&[("smtp_from_address", "nope"), ("smtp_host", "")])).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("The smtp from address field must be a valid email address."));
+    assert!(r.body.contains(r#"data-rd-pane="email""#) && squash(&r.body).contains("nav-link active"));
+    let r = h.post_form("/settings/save", &cookie, &base(&[("rdgen_url", "not a url")])).await;
+    assert!(r.body.contains("The rdgen url field must be a valid URL."));
+    let r = h.post_form("/settings/save", &cookie, &base(&[("oidc_enabled", "1"), ("oidc_discovery_url", "https://idp.example.test"), ("oidc_client_id", "cid")])).await;
+    assert!(r.body.contains("Provider URL, client ID and client secret are all required to enable SSO."));
+    // a save, with the secrets
+    let fields = base(&[
+        ("id_server", " hbbs.example.test:21116 "), ("rdgen_url", "https://rdgen.example.test/"), ("client_url_scheme", "Level1:"), ("downloads_on_login", "1"), ("server_ip_match", "1"), ("hte_scope_enforce", "1"),
+        ("relay_address[]", "r1.example.test:21117"), ("relay_geo[]", "eu"), ("relay_address[]", ""), ("relay_geo[]", ""),
+        ("oidc_enabled", "1"), ("oidc_discovery_url", "https://idp.example.test/"), ("oidc_client_id", "cid"), ("oidc_client_secret", "topsecret-value"),
+        ("smtp_host", "smtp.example.test"), ("smtp_from_address", "c@example.test"), ("smtp_enabled", "1"), ("smtp_password", "smtp-pass-123"), ("email_login_verification", "1"),
+        ("apprise_enabled", "1"), ("apprise_endpoint", "https://apprise.example.test"), ("apprise_mode", "urls"), ("apprise_urls", "slack://a/b\r\n\r\n0\r\ndiscord://c"),
+        ("apprise_event_device_offline", "1"), ("apprise_scope_device_offline", "selected"), ("apprise_scope_groups_device_offline[]", "1"), ("apprise_scope_groups_device_offline[]", "1"), ("apprise_scope_devices_device_offline[]", "2"),
+    ]);
+    let r = h.post_form("/settings/save", &cookie, &fields).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert!(r.location().ends_with("/settings?tab=server"));
+    assert_eq!(h.text("select value from settings where key = 'id_server'"), "hbbs.example.test:21116");
+    assert_eq!(h.text("select value from settings where key = 'rdgen_url'"), "https://rdgen.example.test");
+    assert_eq!(h.text("select value from settings where key = 'client_url_scheme'"), "level1");
+    assert_eq!(h.text("select value from settings where key = 'relay_servers'"), r#"[{"address":"r1.example.test:21117","geo":"eu"}]"#);
+    assert_eq!(h.text("select value from settings where key = 'oidc_discovery_url'"), "https://idp.example.test");
+    assert_eq!(h.text("select value from settings where key = 'server_ip_match'"), "1");
+    assert_eq!(h.text("select value from settings where key = 'hte_scope_enforce'"), "1");
+    assert_eq!(h.text("select value from settings where key = 'email_login_verification'"), "1");
+    assert_eq!(h.text("select value from settings where key = 'apprise_scope_groups_device_offline'"), "[1]");
+    assert_eq!(h.text("select value from settings where key = 'apprise_scope_devices_device_offline'"), "[2]");
+    let plain = |key: &str| -> String {
+        let enc = h.text(&format!("select value from settings where key = '{key}'"));
+        assert!(!enc.contains("topsecret") && !enc.contains("smtp-pass") && !enc.contains("apprise.example"), "{key} is stored in the clear");
+        String::from_utf8(h.crypt.decrypt_string(enc.as_bytes()).unwrap()).unwrap()
+    };
+    assert_eq!(plain("oidc_client_secret"), "topsecret-value");
+    assert_eq!(plain("smtp_password"), "smtp-pass-123");
+    assert_eq!(plain("apprise_endpoint"), "https://apprise.example.test");
+    assert_eq!(plain("apprise_urls"), r#"["slack:\/\/a\/b","discord:\/\/c"]"#);
+    assert_eq!(h.count("console_audits where action = 'settings.update'"), 1);
+    assert_eq!(h.count("console_audits where action = 'settings.hte-scope'"), 1);
+    assert_eq!(h.count("console_audits where action = 'settings.server-ip-match'"), 1);
+    // the page now says a secret is stored, and never says which
+    let r = h.get("/settings?tab=sso", &cookie).await;
+    let body = &r.body;
+    assert!(body.contains("Stored — leave blank to keep") && !body.contains("topsecret") && !body.contains("smtp-pass"));
+    assert!(body.contains(r#"value="cid""#));
+    let before = h.text("select value from settings where key = 'oidc_client_secret'");
+    // a blank secret keeps the stored one
+    let r = h.post_form("/settings/save", &cookie, &[&fields[..], &[("oidc_client_secret", "")]].concat().iter().filter(|(k, v)| !(*k == "oidc_client_secret" && *v == "topsecret-value")).cloned().collect::<Vec<_>>()).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.text("select value from settings where key = 'oidc_client_secret'"), before);
+    // relay rows: add, remove
+    let r = h.post_form("/settings/relay", &cookie, &[tok(), ("do", "add"), ("relay_address[]", "x:1"), ("relay_geo[]", "g")]).await;
+    assert_eq!(r.status, 200);
+    assert_eq!(r.body.matches(r#"name="relay_address[]""#).count(), 2);
+    let r = h.post_form("/settings/relay", &cookie, &[tok(), ("do", "remove:0"), ("relay_address[]", "x:1"), ("relay_geo[]", "g")]).await;
+    assert_eq!(r.body.matches(r#"name="relay_address[]""#).count(), 0);
+    // presence snoozes
+    let r = h.post_form("/settings/snooze", &cookie, &[tok(), ("do", "create"), ("snooze_type", "group"), ("snooze_target", "1"), ("snooze_minutes", "5")]).await;
+    assert_eq!(r.status, 422);
+    assert!(r.body.contains("The presence snooze minutes field must be at least 15."));
+    let r = h.post_form("/settings/snooze", &cookie, &[tok(), ("do", "create"), ("snooze_type", "group"), ("snooze_target", "1"), ("snooze_minutes", "60")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("device_presence_snoozes where target_type = 'group' and target_id = 1"), 1);
+    assert!(squash(&h.get("/settings?tab=notifications", &cookie).await.body).contains("Group: Front desk"));
+    let sid_ = h.text("select cast(id as text) from device_presence_snoozes");
+    h.post_form("/settings/snooze", &cookie, &[tok(), ("do", &format!("clear:{sid_}"))]).await;
+    assert_eq!(h.count("device_presence_snoozes"), 0);
+    // a person without the setting permission is turned away
+    let viewer = h.login(&sid("se2"), 3, json!({}));
+    assert_ne!(h.get("/settings", &viewer).await.status, 200);
+    let before = h.count("console_audits where action = 'settings.update'");
+    let r = h.post_form("/settings/save", &viewer, &[tok()]).await;
+    assert!(!r.location().contains("/settings"), "{}", r.location());
+    assert_eq!(h.count("console_audits where action = 'settings.update'"), before);
+}

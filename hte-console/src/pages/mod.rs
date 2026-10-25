@@ -21,7 +21,14 @@ pub mod kit;
 pub mod logs;
 pub mod paginate;
 pub mod session;
+pub mod settings;
 pub mod strategies;
+pub mod unavailable;
+
+/// One write transaction (`begin immediate` .. `commit`, rolled back on an error).
+pub(crate) fn strategies_tx<T>(c: &rusqlite::Connection, f: impl FnOnce() -> Result<T, crate::php::Fault>) -> Result<T, crate::php::Fault> {
+    strategies::tx(c, f)
+}
 pub mod groups;
 pub mod time;
 pub mod users;
@@ -693,6 +700,15 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/users/act", methods: &["POST"], need: Some(("user", "r")), handler: users::act },
     Route { path: "/users/assign", methods: &["POST"], need: Some(("user", "r")), handler: users::assign },
     Route { path: "/users/:id", methods: &["GET"], need: Some(("user", "r")), handler: users::show },
+    Route { path: "/settings", methods: &["GET"], need: Some(("setting", "r")), handler: settings::index },
+    Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },
+    Route { path: "/settings/relay", methods: &["POST"], need: Some(("setting", "r")), handler: settings::relay },
+    Route { path: "/settings/snooze", methods: &["POST"], need: Some(("setting", "r")), handler: settings::snooze },
+    Route { path: "/roles", methods: &["GET"], need: None, handler: unavailable::roles },
+    Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: unavailable::invitations },
+    Route { path: "/api-tokens", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::api_tokens },
+    Route { path: "/client-downloads", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::client_downloads },
+    Route { path: "/setup", methods: &["GET"], need: Some(("setting", "r")), handler: unavailable::setup },
     Route { path: "/account", methods: &["GET"], need: None, handler: account::show },
     Route { path: "/account/profile", methods: &["POST"], need: None, handler: account::save_profile },
     Route { path: "/account/password", methods: &["POST"], need: None, handler: account::update_password },

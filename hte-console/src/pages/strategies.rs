@@ -8,7 +8,7 @@
 //! a change that no longer matches what was reviewed, exactly as `confirmSave` does.
 
 use super::kit::*;
-use super::{time, Ctx, Reply, Req};
+use super::{Ctx, Reply, Req};
 use crate::laravel::Cast;
 use crate::php::{self, Arr, Fault, Key, Val};
 use crate::sqlite::{self as db, Row, P};
@@ -454,7 +454,7 @@ fn impact_json(i: &Impact) -> Value {
 
 // -------------------------------------------------------------------------------------------- writes core ---
 
-fn tx<T>(c: &Connection, f: impl FnOnce() -> Result<T, Fault>) -> Result<T, Fault> {
+pub(crate) fn tx<T>(c: &Connection, f: impl FnOnce() -> Result<T, Fault>) -> Result<T, Fault> {
     c.execute_batch("begin immediate").map_err(|e| Fault::Other(e.to_string()))?;
     match f() {
         Ok(v) => {
@@ -941,11 +941,6 @@ fn compliance(c: &Connection, now: i64, strategy: &Row, state: &str) -> Result<S
 }
 
 // -------------------------------------------------------------------------------------------------- posts ---
-
-fn flash_back(ctx: &Ctx, status: u16, form: Form, errors: Map<String, Value>) -> Result<Reply, Fault> {
-    let _ = (ctx, status, form, errors);
-    Ok(abort(500))
-}
 
 /// `POST /strategies/preview`: the editor's Review Impact.
 pub fn preview_post(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
