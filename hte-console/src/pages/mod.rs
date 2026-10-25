@@ -19,6 +19,7 @@ pub mod device_detail;
 pub mod devices;
 pub mod kit;
 pub mod logs;
+pub mod overview;
 pub mod paginate;
 pub mod session;
 pub mod settings;
@@ -700,6 +701,10 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/users/act", methods: &["POST"], need: Some(("user", "r")), handler: users::act },
     Route { path: "/users/assign", methods: &["POST"], need: Some(("user", "r")), handler: users::assign },
     Route { path: "/users/:id", methods: &["GET"], need: Some(("user", "r")), handler: users::show },
+    Route { path: "/", methods: &["GET"], need: None, handler: overview::index },
+    Route { path: "/dashboard/stats", methods: &["GET"], need: None, handler: overview::stats_fragment },
+    Route { path: "/dashboard/sessions", methods: &["GET"], need: Some(("audit", "r")), handler: overview::sessions_fragment },
+    Route { path: "/dashboard/disconnect", methods: &["POST"], need: Some(("audit", "r")), handler: overview::disconnect },
     Route { path: "/settings", methods: &["GET"], need: Some(("setting", "r")), handler: settings::index },
     Route { path: "/settings/save", methods: &["POST"], need: Some(("setting", "r")), handler: settings::save },
     Route { path: "/settings/relay", methods: &["POST"], need: Some(("setting", "r")), handler: settings::relay },

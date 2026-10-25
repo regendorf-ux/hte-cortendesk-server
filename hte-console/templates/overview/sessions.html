@@ -1,0 +1,92 @@
+<div hx-get="/dashboard/sessions" hx-trigger="every 15s" hx-swap="outerHTML">
+    <div class="card">
+        <div class="card-header d-flex flex-wrap align-items-center gap-2">
+            <div class="min-width-0">
+                <h5 class="card-title">Active Sessions</h5>
+                <div class="rd-card-sub">Connections open right now</div>
+            </div>
+            {% if sess.active > 0 %}
+            <div class="rd-card-actions"><span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>{{ sess.active }} live</span></div>
+            {% endif %}
+        </div>
+        <div class="card-body">
+            {% if not sess.sessions %}
+                <div class="rd-empty">
+                    <div class="rd-empty-icon"><i class="ri-broadcast-line"></i></div>
+                    <p class="rd-empty-title">No active sessions</p>
+                    <p class="rd-empty-text">Sessions appear here the moment a client connects to one of your devices.</p>
+                    <a href="/logs/connections" class="btn btn-sm btn-outline-light">View the connection log</a>
+                </div>
+            {% else %}
+                <div class="table-responsive d-none d-md-block">
+                    <table class="table table-hover table-centered align-middle mb-0">
+                        <thead><tr><th>From</th><th>To</th><th>Type</th><th>Started</th>{% if sess.can_disconnect %}<th class="text-end">Action</th>{% endif %}</tr></thead>
+                        <tbody>
+                        {% for x in sess.sessions %}
+                        <tr>
+                            <td>
+                                <div class="rd-cell">
+                                    <span class="rd-avatar {{ x.tone }}">{{ x.initial }}</span>
+                                    <div class="min-width-0"><span class="rd-cell-title text-truncate">{{ x.who }}</span><span class="rd-cell-sub text-truncate">{{ x.from_peer }}</span></div>
+                                </div>
+                            </td>
+                            <td><a href="{{ x.link }}" title="Connect with RustDesk" class="fs-13" hx-boost="false">{{ x.rustdesk_id }}</a></td>
+                            <td>
+                                {% if x.type == 1 %}<span class="badge bg-primary-subtle text-primary">File</span>
+                                {% elif x.type == 2 %}<span class="badge bg-warning-subtle text-warning">Port Fwd</span>
+                                {% else %}<span class="badge bg-info-subtle text-info">{{ x.type_label }}</span>{% endif %}
+                            </td>
+                            <td><span class="rd-cell-title fw-normal"><i class="rd-dot text-success"></i><span title="{{ x.created }}">{{ x.ago }}</span></span></td>
+                            {% if sess.can_disconnect %}
+                            <td class="text-end">
+                                {% if x.disconnecting %}
+                                    <span class="badge bg-warning-subtle text-warning" title="Sent on the device's next heartbeat">Disconnecting…</span>
+                                {% else %}
+                                    <form method="post" action="/dashboard/disconnect" class="d-inline">
+                                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ x.id }}">
+                                        <button type="submit" class="btn btn-link p-0 align-baseline text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
+                                    </form>
+                                {% endif %}
+                            </td>
+                            {% endif %}
+                        </tr>
+                        {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="d-md-none rd-cardlist p-0">
+                    {% for x in sess.sessions %}
+                    <div class="rd-mini">
+                        <div class="rd-mini-head">
+                            <div class="rd-cell">
+                                <span class="rd-avatar {{ x.tone }}">{{ x.initial }}</span>
+                                <div class="min-width-0"><span class="rd-mini-title text-truncate">{{ x.who }}</span><span class="rd-mini-sub text-truncate">{{ x.from_peer }}</span></div>
+                            </div>
+                            {% if x.type == 1 %}<span class="badge bg-primary-subtle text-primary">File</span>
+                            {% elif x.type == 2 %}<span class="badge bg-warning-subtle text-warning">Port Fwd</span>
+                            {% else %}<span class="badge bg-info-subtle text-info">{{ x.type_label }}</span>{% endif %}
+                        </div>
+                        {% if sess.can_disconnect %}
+                        <div class="text-end">
+                            {% if x.disconnecting %}
+                                <span class="badge bg-warning-subtle text-warning">Disconnecting…</span>
+                            {% else %}
+                                <form method="post" action="/dashboard/disconnect" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ x.id }}">
+                                    <button type="submit" class="btn btn-link p-0 align-baseline text-danger fs-13" data-rd-confirm="End this session on {{ x.rustdesk_id }}?">Disconnect</button>
+                                </form>
+                            {% endif %}
+                        </div>
+                        {% endif %}
+                        <div class="rd-mini-foot">
+                            <a href="{{ x.link }}" title="Connect with RustDesk" class="fs-13 text-truncate" hx-boost="false">{{ x.rustdesk_id }}</a>
+                            <span class="rd-mini-sub text-nowrap"><i class="rd-dot text-success"></i><span title="{{ x.created }}">{{ x.ago }}</span></span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>

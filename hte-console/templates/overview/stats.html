@@ -1,0 +1,95 @@
+<div class="rd-stat-grid" hx-get="/dashboard/stats" hx-trigger="every 15s" hx-swap="outerHTML">
+    <a href="/devices" class="card text-reset card-hover" title="View all devices">
+        <div class="card-body">
+            <div class="rd-stat rd-tone-blue">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-computer-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Devices</div><div class="rd-stat-value">{{ stats.devices }}</div></div>
+                </div>
+                {% if stats.device_trend > 0 %}
+                    <div class="rd-stat-foot rd-trend-up"><i class="ri-arrow-up-line"></i>{{ stats.device_trend }} vs last 14 days</div>
+                {% elif stats.device_trend < 0 %}
+                    <div class="rd-stat-foot rd-trend-down"><i class="ri-arrow-down-line"></i>{{ 0 - stats.device_trend }} vs last 14 days</div>
+                {% else %}
+                    <div class="rd-stat-foot">No change vs last 14 days</div>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+
+    <a href="/devices?status=online" class="card text-reset card-hover" title="View online devices">
+        <div class="card-body">
+            <div class="rd-stat rd-tone-green">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-pulse-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Online now</div><div class="rd-stat-value">{{ stats.online }}</div></div>
+                </div>
+                <div class="rd-stat-foot">
+                    {% if stats.online_pct is none %}No devices enrolled yet{% else %}<i class="rd-dot text-success"></i>{{ stats.online_pct }}% of the fleet{% endif %}
+                </div>
+            </div>
+        </div>
+    </a>
+
+    {% if stats.admin %}
+    <a href="/users" class="card text-reset card-hover" title="Manage users">
+        <div class="card-body">
+            <div class="rd-stat rd-tone-purple">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-group-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Users</div><div class="rd-stat-value">{{ stats.users }}</div></div>
+                </div>
+                <div class="rd-stat-foot">{{ stats.users_today }} signed in today</div>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+
+    {% if stats.can_audit %}
+    <a href="/logs/connections" class="card text-reset card-hover" title="View connection log">
+        <div class="card-body">
+            <div class="rd-stat rd-tone-blue">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-broadcast-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Sessions</div><div class="rd-stat-value">{{ stats.sessions }}</div></div>
+                </div>
+                <div class="rd-stat-foot">
+                    {% if stats.sessions > 0 %}<i class="rd-dot text-success"></i>Live now{% else %}None in progress{% endif %}
+                </div>
+            </div>
+        </div>
+    </a>
+
+    <a href="/logs/connections" class="card text-reset card-hover" title="Connections started today — view connection log">
+        <div class="card-body">
+            <div class="rd-stat rd-tone-teal">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-links-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Connections</div><div class="rd-stat-value">{{ stats.connections_today }}</div></div>
+                </div>
+                {% if stats.connection_trend > 0 %}
+                    <div class="rd-stat-foot rd-trend-up"><i class="ri-arrow-up-line"></i>{{ stats.connection_trend }} vs yesterday</div>
+                {% elif stats.connection_trend < 0 %}
+                    <div class="rd-stat-foot rd-trend-down"><i class="ri-arrow-down-line"></i>{{ 0 - stats.connection_trend }} vs yesterday</div>
+                {% else %}
+                    <div class="rd-stat-foot">Same as yesterday</div>
+                {% endif %}
+            </div>
+        </div>
+    </a>
+
+    <a href="/logs/alarms" class="card text-reset card-hover" title="View alarm log">
+        <div class="card-body">
+            <div class="rd-stat {{ 'rd-tone-red' if stats.alarms > 0 else 'rd-tone-amber' }}">
+                <div class="rd-stat-head">
+                    <span class="rd-stat-icon"><i class="ri-alarm-warning-line"></i></span>
+                    <div class="min-width-0"><div class="rd-stat-label">Alarms (24h)</div><div class="rd-stat-value">{{ stats.alarms }}</div></div>
+                </div>
+                <div class="rd-stat-foot">
+                    {% if stats.alarms > 0 %}Latest {{ stats.last_alarm }}{% else %}<i class="rd-dot text-success"></i>All clear{% endif %}
+                </div>
+            </div>
+        </div>
+    </a>
+    {% endif %}
+</div>

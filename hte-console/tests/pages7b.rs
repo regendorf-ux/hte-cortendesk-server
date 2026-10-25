@@ -696,3 +696,30 @@ async fn the_settings_page() {
     assert!(!r.location().contains("/settings"), "{}", r.location());
     assert_eq!(h.count("console_audits where action = 'settings.update'"), before);
 }
+
+#[tokio::test]
+async fn the_overview_page() {
+    let h = harness().await;
+    h.sql("insert into audit_connections (rustdesk_id, from_peer, from_name, ip, conn_type, created_at) values ('1001', '555', 'Front PC', '10.1.1.1', 0, datetime('now'))");
+    let cookie = h.login(&sid("ov1"), 1, json!({}));
+    let r = h.get("/", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let page = squash(&r.body);
+    assert!(page.contains("Online now") && page.contains("Active Sessions") && page.contains("Client Versions"), "{page}");
+    assert!(page.contains(r#"id="chart-connections""#) && page.contains("chart-platforms"));
+    let r = h.get("/dashboard/stats", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("rd-stat-grid") && !r.body.contains("<html"));
+    let r = h.get("/dashboard/sessions", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(r.body.contains("Active Sessions") && !r.body.contains("<html"));
+    assert!(r.body.contains("Disconnect"));
+    let r = h.post_form("/dashboard/disconnect", &cookie, &[tok(), ("id", "1")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("audit_connections where disconnect_requested_at is not null and disconnect_requested_by = 1"), 1);
+    assert_eq!(h.count("console_audits where action = 'session.disconnect'"), 1);
+    // a view-only person (no audit area) gets the device cards but no session panel
+    let cookie = h.login(&sid("ov2"), 3, json!({}));
+    let r = h.get("/", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+}
