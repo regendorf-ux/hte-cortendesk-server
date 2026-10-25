@@ -226,6 +226,14 @@ fn load_out(dir: &std::path::Path, key: &str, label: &str) -> Result<Out, String
     Ok(Out { at: v.get("at").and_then(|x| x.as_i64()).unwrap_or(0), status: v.get("status").and_then(|x| x.as_u64()).unwrap_or(0) as u16, ctype: s("ctype"), location: s("location"), disposition: s("disposition"), body: s("body") })
 }
 
+fn one_second_apart(hunk: &str) -> bool {
+    static N: Lazy<Regex> = Lazy::new(|| Regex::new(r"PHP has «(\d+)(s?)» / hte-console has «(\d+)(s?)»$").unwrap());
+    N.captures(hunk).map_or(false, |m| {
+        let (a, b) = (m[1].parse::<i64>().unwrap_or(-9), m[3].parse::<i64>().unwrap_or(9));
+        m[2] == m[4] && (a - b).abs() <= 1
+    })
+}
+
 /// PHP's answer to a page request, live, live and saved, or read back.
 async fn php_get(side: &Side, key: &str, label: &str, c: &reqwest::Client, php: &str, cookie: &str, path: &str) -> Result<Out, String> {
     match side {
@@ -588,6 +596,11 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             };
             let ((ta, ca), (tb, cb)) = (shape(pa), shape(pb));
             for d in all_differences(&ta, &tb) {
+                // read back from a capture, a page is rendered at the second PHP was asked, and PHP may have answered a
+                // second later: "43s" against "42s" is that, not a difference
+                if offline && one_second_apart(&d) {
+                    continue;
+                }
                 diffs.push(format!("{label}: text {d}"));
             }
             for d in all_differences(&ca, &cb) {
@@ -1028,6 +1041,14 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_second_of_clock_is_not_a_difference_read_back() {
+        assert!(one_second_apart("at item 142, after «dana · v1.4.0 ·»: PHP has «43s» / hte-console has «42s»"));
+        assert!(one_second_apart("at item 127, after «x»: PHP has «43» / hte-console has «42»"));
+        assert!(!one_second_apart("at item 127, after «x»: PHP has «43» / hte-console has «41»"));
+        assert!(!one_second_apart("at item 127, after «x»: PHP has «3s» / hte-console has «3m»"));
+    }
 
     #[test]
     fn a_saved_php_answer_reads_back_only_for_the_same_request() {

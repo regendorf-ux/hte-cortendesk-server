@@ -2,6 +2,9 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## Next (not yet tagged)
+- `compare-local.sh`: a page read back from a capture may differ from PHP's by one second of clock ("43s" / "42s"); that is not reported. Only the local, read-back comparison does this.
+
 ## 0.7.18 (2026-10-25): what the 0.7.17 replay still showed; PHP's answers kept for a comparison without PHP
 - The replay keeps PHP's answer to every page and dialog of run A, with the starting database, the throwaway app key and the
   moment, in `/tmp/hte-replay-capture.tgz` on the server (`HTE_REPLAY_CAPTURE` to put it elsewhere; placeholder data only).
