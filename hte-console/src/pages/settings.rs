@@ -650,7 +650,7 @@ fn render(ctx: &Ctx, c: &Connection, p: Page) -> Result<Reply, Fault> {
         "default_groups": opt(&default_groups), "user_groups": opt(&user_groups), "all_groups": opt(&all_groups), "devices": dev_opts, "events": events,
         "mail_enabled": mail_on, "mail_broken": mail_broken.0, "mail_error": mail_broken.1, "mail_flash": ctx.flashed.get("mail_broken").and_then(|v| v.as_str()).unwrap_or(""),
         "no_email": no_email, "snoozes": snoozes, "snooze": Value::Object(p.snooze.clone()), "deliveries": delivery_items,
-        "about": {"version": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
+        "tok": super::api_tokens::card(ctx, c)?, "about": {"version": ctx.p.n.api_version}, "backups": super::backups::pane(ctx, c, &p.tab)?,
     });
     Ok(Reply::Html(p.status, ctx.render("settings/index.html", layout, page)?))
 }

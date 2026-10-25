@@ -1,5 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
+<div class="mb-3">
+    <a href="/devices" class="fs-13 text-muted"><i class="ri-arrow-left-line me-1"></i>Back to Devices</a>
+</div>
 <div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
     {# Header: who this is and how to reach it. #}
     <div class="card">

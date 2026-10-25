@@ -49,9 +49,9 @@
                     <td class="text-end rd-rowact">
                         {% if can_manage %}
                         <a href="{{ edit_prefix }}{{ g.id }}" class="rd-act me-2">Edit</a>
-                        <form method="post" action="/groups/act" class="d-inline">
+                        <form method="post" action="/groups/act">
                             <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="type" value="{{ tab }}"><input type="hidden" name="id" value="{{ g.id }}">
-                            <button type="submit" name="do" value="delete" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="{{ 'Delete this user group? Users in it will be kept but no longer belong to any group.' if tab == 'users' else 'Delete this device group? Devices in it will be kept but no longer belong to any group.' }}">Delete</button>
+                            <button type="submit" name="do" value="delete" class="text-danger" data-rd-confirm="{{ 'Delete this user group? Users in it will be kept but no longer belong to any group.' if tab == 'users' else 'Delete this device group? Devices in it will be kept but no longer belong to any group.' }}">Delete</button>
                         </form>
                         {% endif %}
                     </td>

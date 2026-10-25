@@ -663,7 +663,7 @@ pub fn show(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         "password"
     };
     let username = s(&user, "username");
-    let layout = ctx.layout(c, "users", "User", "Manage")?;
+    let layout = ctx.layout(c, "users.show", "User", "Manage")?;
     let page = json!({
         "u": {
             "id": id, "username": username, "initial": username.chars().next().map(|c| c.to_uppercase().collect::<String>()).unwrap_or_default(), "display": display_name(&user), "name": s(&user, "name"), "email": s(&user, "email"),

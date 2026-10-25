@@ -13,6 +13,7 @@
 #
 #   HTE_CONSOLE_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.0 bash replay-pages.sh
 #
+# Every section always runs (a difference in A or B does not stop the script), and the last line is always printed.
 # Exit 0 = every comparison equal and the mutation caught, 1 = a difference (printed), 2 = could not run.
 # Every docker command reads </dev/null so the script can also be piped through `ssh host 'bash -s'`.
 set -euo pipefail
@@ -95,7 +96,8 @@ if cmp -s "$WORK/before-php.txt" "$WORK/before-rust.txt"; then echo "   the two 
 start_rust
 
 echo "== A. every page and write, both sides"
-if replay; then echo "   equal: pages, redirects, text, classes, CSV"; else echo "   DIFFERENT (see the lines above)" >&2; FAIL=1; fi
+# the report lists the deliberate differences ("by design: ...", not counted) and the real ones ("DIFFERENCE: ...")
+if replay; then echo "   equal: pages, redirects, text, classes, CSV (the 'by design' lines above are the deliberate differences)"; else echo "   DIFFERENT (see the DIFFERENCE lines above)" >&2; FAIL=1; fi
 
 echo "== B. the database after the writes, both sides"
 docker stop "$TAG-rust" </dev/null >/dev/null
@@ -107,7 +109,7 @@ state "$WORK/rdata" rust > "$WORK/after-rust.txt"
 if cmp -s "$WORK/after-php.txt" "$WORK/after-rust.txt"; then
   echo "   equal: both databases after the same writes ($(wc -l < "$WORK/after-php.txt") lines)"
 else
-  echo "   DIFFERENT: the rows the two sides wrote" >&2; diff "$WORK/after-php.txt" "$WORK/after-rust.txt" | head -30 >&2; FAIL=1
+  echo "   DIFFERENT: the rows the two sides wrote" >&2; { diff "$WORK/after-php.txt" "$WORK/after-rust.txt" | head -30 >&2; } || true; FAIL=1
 fi
 cmp -s "$WORK/before-php.txt" "$WORK/after-php.txt" && { echo "   the writes changed nothing in PHP's database: cannot judge" >&2; FAIL=1; }
 

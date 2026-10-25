@@ -2,6 +2,26 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.9 (2026-10-25): the markup differences the server replay of 0.7.8 found (36), and the replay itself
+Fixes (the replay compares what a person reads and the CSS class sequence of every page with PHP's):
+- Dashboard (`/`): no extra "Dashboard" breadcrumb item (PHP shows none on this page).
+- `/dashboard/stats` and `/dashboard/sessions` stay: they are the htmx refresh URLs of the two cards (PHP polls through Livewire, which has no URL); they
+  answer under the same permission and reach rules as the page. The replay lists them as "by design".
+- Devices list: the two hidden forms use the `hidden` attribute, so no extra `d-none` elements among the status chips.
+- Device and user detail: the "Back to Devices" / "Back to Users" link before the card; the sidebar no longer marks Devices/Users on a detail page.
+- Users and Groups row actions: buttons for the POST actions carry exactly PHP's link classes (`rd-act me-2`, `text-warning me-2`, `text-danger`), the forms
+  are inline and class-free, and `hte-pages.css` draws them like the links beside them.
+- Address books: no `flex-grow-1` on the narrow-screen book select's form (the CSS keeps it wide).
+- Strategies: PHP's subtitle ("Client settings pushed to devices on their next heartbeat."), the "No default strategy" notice in a toolbar, the `d-none d-md-block`
+  table with `rd-cell-title d-inline`, `text-muted d-block`, icon counts, an Enabled switch with its hidden label, the action order and classes, the
+  empty state, and the phone card list (`d-md-none rd-cardlist`).
+- Settings -> Security: the API Tokens card is PHP's (header with `rd-card-sub` and an `rd-card-actions` New Token button, responsive table, phone card
+  list), shared with `/api-tokens` as one partial; shown only to people who may read tokens.
+Replay:
+- The PHP half of the API token step now drives the real Livewire component inside Settings (PHP has no `/api-tokens` page), so the token comparison applies.
+- The report separates "by design: ..." (the htmx fragments; the Invitations card at the end of Users, left out of both sides) from "DIFFERENCE: ...".
+- `replay-pages.sh` no longer stops when the database diff fails (a `diff | head` under `pipefail`): sections B and C and the final line always run.
+
 ## 0.7.8 (2026-10-25): phase 7b, Settings Backups, Prune now, API tokens, the replay's writes
 - Settings -> Backups (local only: list, Back up now, download, delete, restore from a stored archive, schedule and retention) and
   Maintenance -> Prune now, on the phase 6 code. API tokens is a real page (`/api-tokens`: create, shown once, revoke).

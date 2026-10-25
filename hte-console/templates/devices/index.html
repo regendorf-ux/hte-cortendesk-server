@@ -4,11 +4,11 @@
 {% set pending_tab = false %}
 {% include "devices/chips.html" %}
 
-<form id="sortform" method="post" action="/devices/sort" class="d-none">
+<form id="sortform" method="post" action="/devices/sort" hidden>
     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
     <input type="hidden" name="back" value="{{ back }}">
 </form>
-<form id="bulk" method="post" action="/devices/bulk" class="d-none">
+<form id="bulk" method="post" action="/devices/bulk" hidden>
     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
     <input type="hidden" name="back" value="{{ back }}">
 </form>

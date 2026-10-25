@@ -112,8 +112,9 @@ async fn page_replay(args: &[String]) -> i32 {
     let writes = std::env::var("HTE_PAGEREPLAY_READS_ONLY").map_or(true, |v| v.trim().is_empty() || v == "0");
     match hte_console::pagereplay::run_with(php, rust, &key, &cookie, now, writes).await {
         Ok(r) => {
-            println!("{} page requests, {} differences", r.total, r.differences.len());
-            r.differences.iter().for_each(|d| println!("{d}"));
+            println!("{} page requests, {} differences, {} by design", r.total, r.differences.len(), r.by_design.len());
+            r.by_design.iter().for_each(|d| println!("by design: {d}"));
+            r.differences.iter().for_each(|d| println!("DIFFERENCE: {d}"));
             if r.differences.is_empty() { 0 } else { 1 }
         }
         Err(e) => fail(&e),

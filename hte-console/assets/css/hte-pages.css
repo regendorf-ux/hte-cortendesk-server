@@ -20,3 +20,16 @@ html[data-bs-theme="light"] {
 .hte-mark-name { color: var(--rd-shell-ink); }
 
 .rd-sidebar-logo .rd-logo-lg .hte-mark img { width: 30px; height: 30px; }
+
+/* Row actions that must POST (CSRF) are buttons with the very classes PHP's links carry (`rd-act me-2`, `text-danger`):
+   the form is inline and the button is drawn like the link beside it. */
+.rd-rowact form { display: inline; margin: 0; }
+.rd-rowact form > button {
+    background: none; border: 0; padding: 0; margin: 0; font: inherit; font-weight: 500; line-height: inherit; vertical-align: baseline;
+    color: var(--bs-link-color); cursor: pointer; text-decoration: none;
+}
+.rd-rowact form > button.rd-act { color: var(--rd-ink-muted); }
+.rd-rowact form > button.rd-act:hover, .rd-rowact form > button.rd-act:focus-visible { color: var(--rd-ink); }
+.rd-rowact form > button:hover, .rd-rowact form > button:focus-visible { text-decoration: underline; }
+
+form[action="/address-books"] { flex: 1 1 auto; }

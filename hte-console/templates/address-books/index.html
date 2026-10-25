@@ -21,7 +21,7 @@
 
         <div class="d-lg-none mb-2">
             <div class="d-flex gap-2">
-                <form method="get" action="/address-books" class="flex-grow-1">
+                <form method="get" action="/address-books">
                     <input type="hidden" name="tab" value="{{ tab }}">
                     <select class="form-select" name="selectedBookId" aria-label="Select address book" data-rd-autosubmit-select>
                         {% for b in books %}<option value="{{ b.id }}"{{ ' selected' if b.active else '' }}>{{ b.label }}</option>{% endfor %}

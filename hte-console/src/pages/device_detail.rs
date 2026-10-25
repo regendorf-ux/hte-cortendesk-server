@@ -324,7 +324,7 @@ pub fn render(ctx: &Ctx, c: &Connection, id: i64, status: u16, modal: Modal, req
     }
 
     let url = format!("/devices/{id}");
-    let layout = ctx.layout(c, "devices", "Device", "Manage")?;
+    let layout = ctx.layout(c, "devices.show", "Device", "Manage")?;
     let note_editing = q(req, "note") == "1" && can_edit;
     let (note_errors, note_value) = (devices::flash(ctx, "note_error"), devices::flash(ctx, "note_value"));
     let title = { let a = s(&device, "alias"); if truthy(&a) { a } else { let h = s(&device, "hostname"); if truthy(&h) { h } else { rid.clone() } } };

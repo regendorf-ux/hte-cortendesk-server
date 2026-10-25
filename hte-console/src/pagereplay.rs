@@ -282,6 +282,22 @@ fn first_difference(a: &[String], b: &[String]) -> Option<String> {
 pub struct Report {
     pub total: usize,
     pub differences: Vec<String>,
+    /// Known, deliberate differences, each with its reason (never counted as a difference).
+    pub by_design: Vec<String>,
+}
+
+/// The htmx fragments the dashboard refreshes itself with: PHP does the same through Livewire polling, which has no
+/// URL of its own, so PHP answers 404 where hte-console answers 200 (the same permission and reach checks as the page).
+const FRAGMENTS: [&str; 2] = ["/dashboard/stats", "/dashboard/sessions"];
+const FRAGMENT_REASON: &str = "by design (own htmx refresh URL; PHP refreshes the same cards through Livewire polling, which has no URL; same permission checks as the page)";
+const INVITE_REASON: &str = "by design (the Invitations card at the end of Users: inviting by email is not available in this console; the rest of the page is compared)";
+
+/// The html without the Invitations card, which closes the Users page on both sides.
+fn without_invitations(html: &str) -> &str {
+    match html.find(">Invitations<").and_then(|i| html[..i].rfind("<div class=\"card\">")) {
+        Some(i) => &html[..i],
+        None => html,
+    }
 }
 
 /// A Livewire component's snapshot from a page: the first `wire:snapshot` whose memo name is `name`.
@@ -299,14 +315,17 @@ pub async fn run(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64) 
 pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool) -> Result<Report, String> {
     let mut diffs: Vec<String> = vec![];
     let mut total = 0usize;
+    let mut by_design: Vec<String> = vec![];
     // an error part way (a write PHP will not take, say) is reported with the differences found before it, not instead of them
-    if let Err(e) = run_inner(php, rust, key, cookie_name, now, writes, &mut diffs, &mut total).await {
+    if let Err(e) = run_inner(php, rust, key, cookie_name, now, writes, &mut diffs, &mut by_design, &mut total).await {
         diffs.push(format!("the replay stopped: {e}"));
     }
-    Ok(Report { total, differences: diffs })
+    by_design.sort();
+    by_design.dedup();
+    Ok(Report { total, differences: diffs, by_design })
 }
 
-async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool, diffs: &mut Vec<String>, total: &mut usize) -> Result<(), String> {
+async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) -> Result<(), String> {
     let crypt = Encrypter::from_app_key(key)?;
     // HTE_PAGEREPLAY_RUST_ONLY=1: the writes run on hte-console alone (no Livewire), so the Rust half can be checked where
     // there is no PHP; the comparison with PHP is the server run's
@@ -367,6 +386,10 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
         let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), &[]).await?;
         *total += 1;
         let label = format!("{user} GET {path}");
+        if FRAGMENTS.contains(&path.as_str()) && a.status == 404 && b.status == 200 {
+            by_design.push(format!("{path}: {FRAGMENT_REASON}"));
+            continue;
+        }
         if (a.status, &a.location) != (b.status, &b.location) {
             diffs.push(format!("{label}: PHP {} {} / hte-console {} {}", a.status, a.location, b.status, b.location));
             continue;
@@ -379,7 +402,14 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
                 diffs.push(format!("{label}: the CSV differs (PHP {} bytes, hte-console {}; content types «{}» / «{}»)", a.body.len(), b.body.len(), a.ctype, b.ctype));
             }
         } else if a.status == 200 {
-            let ((ta, ca), (tb, cb)) = (shape(&a.body), shape(&b.body));
+            let users = path.starts_with("/users");
+            let (pa, pb) = if users && (a.body.contains(">Invitations<") || b.body.contains(">Invitations<")) {
+                by_design.push(format!("/users*: {INVITE_REASON}"));
+                (without_invitations(&a.body), without_invitations(&b.body))
+            } else {
+                (a.body.as_str(), b.body.as_str())
+            };
+            let ((ta, ca), (tb, cb)) = (shape(pa), shape(pb));
             if let Some(d) = first_difference(&ta, &tb) {
                 diffs.push(format!("{label}: text {d}"));
             }
@@ -683,7 +713,7 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
             steps.push(Step { label: "settings: save the server tab", user: "hteadmin", page: "/settings", component: "settings-page", rounds: vec![(vec![("onlineWindow", int(45))], vec![("save", vec![])])], path: "/settings/save", fields: form });
 
     }
-    // an API token: the plaintext and the hash are random, so only that both sides made one, with the same name,
+    // an API token (in PHP a Livewire component inside Settings, which has no /api-tokens page): the plaintext and the hash are random, so only that both sides made one, with the same name,
     // permissions and expiry, is compared (the caller masks token_hash, token_prefix and the date it computes)
     *total += 1;
     if !rust_only {
@@ -691,7 +721,7 @@ async fn write_steps(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::
         flag_error(
             diffs,
             "api tokens: create (PHP)",
-            livewire(c, php, &cookie, "/api-tokens", "api-token-manager", vec![(vec![], vec![("create", vec![])]), (vec![("name", json!("ci")), ("expiresDays", int(30)), ("permissions.device", json!("rw")), ("permissions.audit", json!("r"))], vec![("save", vec![])])]).await,
+            livewire(c, php, &cookie, "/settings", "api-token-manager", vec![(vec![], vec![("create", vec![])]), (vec![("name", json!("ci")), ("expiresDays", int(30)), ("permissions.device", json!("rw")), ("permissions.audit", json!("r"))], vec![("save", vec![])])]).await,
         );
     }
     match rust_form("hteadmin", "/api-tokens".into(), f(&[("name", "ci"), ("expires_days", "30"), ("perm_device", "rw"), ("perm_audit", "r")])).await {

@@ -5,48 +5,106 @@
     <div class="rd-toolbar">
         <div>
             <h4 class="header-title">Strategies</h4>
-            <p class="rd-card-sub mb-0">Named sets of client options, delivered to the devices they are assigned to. A device takes the first enabled strategy from: its own assignment, its owner, its device group, then the default.</p>
+            <p class="rd-card-sub mb-0">Client settings pushed to devices on their next heartbeat.</p>
         </div>
-        {% if can_manage %}<div class="rd-toolbar-actions"><a href="/strategies?create=1" class="btn btn-primary"><i class="ri-add-line"></i>Add Strategy</a></div>{% endif %}
+        <div class="rd-toolbar-actions">
+            <a href="/strategies?create=1" class="btn btn-primary"><i class="ri-add-line"></i>Add Strategy</a>
+        </div>
     </div>
     {% if no_default %}
-    <div class="alert alert-warning mx-3"><i class="ri-error-warning-line me-1"></i>No strategy is the default, so a device with no assignment receives no managed options.</div>
+    <div class="rd-toolbar">
+        <div class="alert alert-secondary py-2 mb-0 w-100"><i class="ri-information-line me-1"></i>No default strategy. Devices with no assignment of their own keep whatever settings they already have.</div>
+    </div>
     {% endif %}
-    <div class="table-responsive">
+    <div class="table-responsive d-none d-md-block">
         <table class="table table-hover table-centered mb-0">
             <thead><tr><th>Name</th><th>Options</th><th>Assigned to</th><th>In force on</th><th>Enabled</th><th class="text-end">Action</th></tr></thead>
             <tbody>
             {% for s in strategies %}
                 <tr>
                     <td>
-                        <span class="fw-semibold">{{ s.name }}</span>
+                        <span class="rd-cell-title d-inline">{{ s.name }}</span>
                         {% if s.is_default %}<span class="badge bg-primary-subtle text-primary ms-1">Default</span>{% endif %}
-                        {% if s.enforce %}<span class="badge bg-warning-subtle text-warning ms-1">Enforced</span>{% endif %}
-                        {% if s.note %}<div class="text-muted small">{{ s.note }}</div>{% endif %}
+                        {% if s.enforce %}<span class="badge bg-warning-subtle text-warning ms-1" title="Re-pushed on every heartbeat, overwriting local changes">Enforced</span>{% endif %}
+                        {% if s.note %}<small class="text-muted d-block">{{ s.note }}</small>{% endif %}
                     </td>
                     <td><span class="badge bg-secondary-subtle text-secondary">{{ s.options }}</span></td>
-                    <td class="small">{{ s.devices }} device{{ '' if s.devices == 1 else 's' }}, {{ s.users }} user{{ '' if s.users == 1 else 's' }}, {{ s.groups }} group{{ '' if s.groups == 1 else 's' }}</td>
-                    <td><span class="badge bg-info-subtle text-info">{{ s.resolved }}</span></td>
                     <td>
-                        {% if can_manage %}
-                        <form method="post" action="/strategies/toggle" class="d-inline">
+                        <span class="text-nowrap" title="Devices"><i class="ri-computer-line me-1 text-muted"></i>{{ s.devices }}</span>
+                        <span class="text-nowrap ms-2" title="Users"><i class="ri-user-line me-1 text-muted"></i>{{ s.users }}</span>
+                        <span class="text-nowrap ms-2" title="Device groups"><i class="ri-folder-line me-1 text-muted"></i>{{ s.groups }}</span>
+                    </td>
+                    <td><span class="badge bg-info-subtle text-info">{{ s.resolved }} device(s)</span></td>
+                    <td>
+                        <form method="post" action="/strategies/toggle">
                             <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ s.id }}">
-                            <div class="form-check form-switch"><input class="form-check-input" type="checkbox" role="switch" aria-label="Enabled"{{ ' checked' if s.enabled else '' }} data-rd-autosubmit-box></div>
+                            <div class="form-check form-switch mb-0"><input class="form-check-input" type="checkbox" role="switch" id="strategy-enabled-{{ s.id }}"{{ ' checked' if s.enabled else '' }}{{ '' if can_manage else ' disabled' }} data-rd-autosubmit-box><label class="form-check-label visually-hidden" for="strategy-enabled-{{ s.id }}">Enabled</label></div>
                         </form>
-                        {% else %}{{ 'Yes' if s.enabled else 'No' }}{% endif %}
                     </td>
                     <td class="text-end rd-rowact">
-                        {% if can_manage %}<a href="/strategies?edit={{ s.id }}" class="rd-act me-2">Edit</a><a href="/strategies?assign={{ s.id }}" class="rd-act me-2">Assign</a>{% endif %}
                         <a href="/strategies?history={{ s.id }}" class="rd-act me-2">History</a>
                         {% if is_admin %}<a href="/strategies?compliance={{ s.id }}" class="rd-act me-2">Compliance</a>{% endif %}
-                        {% if can_manage %}<a href="/strategies?delete={{ s.id }}" class="rd-act text-danger">Delete</a>{% endif %}
+                        <a href="/strategies?assign={{ s.id }}" class="rd-act me-2">Assign</a>
+                        <a href="/strategies?edit={{ s.id }}" class="rd-act me-2">Edit</a>
+                        <a href="/strategies?delete={{ s.id }}" class="text-danger">Delete</a>
                     </td>
                 </tr>
             {% else %}
-                <tr><td colspan="6" class="text-center text-muted py-4">No strategies yet.</td></tr>
+                <tr>
+                    <td colspan="6" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-settings-3-line"></i></div>
+                            <p class="rd-empty-title">No strategies yet. Click "Add Strategy" to create one.</p>
+                            <p class="rd-empty-text">A strategy is a set of client options the server pushes out — permissions, defaults, whatever you want held steady across a fleet.</p>
+                            <a href="/strategies?create=1" class="btn btn-sm btn-outline-light">Add Strategy</a>
+                        </div>
+                    </td>
+                </tr>
             {% endfor %}
             </tbody>
         </table>
+    </div>
+
+    <div class="d-md-none rd-cardlist">
+        {% for s in strategies %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="min-width-0">
+                        <span class="rd-mini-title text-truncate">{{ s.name }}</span>
+                        <span class="rd-mini-sub text-truncate">{{ s.note if s.note else (s.options ~ ' option(s)') }}</span>
+                    </div>
+                    <form method="post" action="/strategies/toggle">
+                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ s.id }}">
+                        <div class="form-check form-switch mb-0 flex-shrink-0"><input class="form-check-input" type="checkbox" role="switch" id="m-strategy-enabled-{{ s.id }}"{{ ' checked' if s.enabled else '' }}{{ '' if can_manage else ' disabled' }} data-rd-autosubmit-box><label class="form-check-label visually-hidden" for="m-strategy-enabled-{{ s.id }}">Enabled</label></div>
+                    </form>
+                </div>
+                <div class="mt-2">
+                    {% if s.is_default %}<span class="badge bg-primary-subtle text-primary">Default</span>{% endif %}
+                    {% if s.enforce %}<span class="badge bg-warning-subtle text-warning">Enforced</span>{% endif %}
+                    <span class="badge bg-info-subtle text-info">{{ s.resolved }} in force</span>
+                </div>
+                <div class="rd-mini-foot">
+                    <span class="rd-mini-sub text-nowrap">
+                        <i class="ri-computer-line me-1"></i>{{ s.devices }}
+                        <i class="ri-user-line ms-2 me-1"></i>{{ s.users }}
+                        <i class="ri-folder-line ms-2 me-1"></i>{{ s.groups }}
+                    </span>
+                    <div class="rd-mini-acts">
+                        <a href="/strategies?history={{ s.id }}" class="rd-iconbtn" title="History"><i class="ri-history-line"></i></a>
+                        {% if is_admin %}<a href="/strategies?compliance={{ s.id }}" class="rd-iconbtn" title="Compliance"><i class="ri-pulse-line"></i></a>{% endif %}
+                        <a href="/strategies?assign={{ s.id }}" class="rd-iconbtn" title="Assign"><i class="ri-links-line"></i></a>
+                        <a href="/strategies?edit={{ s.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                        <a href="/strategies?delete={{ s.id }}" class="rd-iconbtn text-danger" title="Delete"><i class="ri-delete-bin-line"></i></a>
+                    </div>
+                </div>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="ri-settings-3-line"></i></div>
+                <p class="rd-empty-title">No strategies yet. Tap "Add Strategy" to create one.</p>
+                <a href="/strategies?create=1" class="btn btn-sm btn-outline-light">Add Strategy</a>
+            </div>
+        {% endfor %}
     </div>
 </div>
 

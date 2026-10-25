@@ -9,31 +9,9 @@
 </div>
 {% endif %}
 {% if error %}<div class="alert alert-danger py-2"><i class="ri-error-warning-line me-1"></i>{{ error }}</div>{% endif %}
-<div class="card">
-    <div class="card-header"><h4 class="header-title">API Tokens</h4>
-        <p class="rd-card-sub mb-0">Scoped Bearer tokens for the automation REST API (<code>/api/v1/…</code>). Grant each token only the resources your scripts need.</p></div>
-    <div class="table-responsive">
-        <table class="table table-hover table-centered mb-0">
-            <thead><tr><th>Name</th><th>Permissions</th><th>Created by</th><th>Last used</th><th>Expires</th><th class="text-end">Action</th></tr></thead>
-            <tbody>
-            {% for t in tokens %}
-            <tr>
-                <td><span class="rd-cell-title">{{ t.name }}</span><span class="d-block rd-mono fs-13 text-muted">{{ t.prefix }}…</span></td>
-                <td>{% for p in t.perms %}<span class="badge {{ 'bg-primary-subtle text-primary' if p.rw else 'bg-secondary-subtle text-secondary' }}">{{ p.label }}: {{ p.level }}</span> {% endfor %}</td>
-                <td>{{ t.creator }}</td>
-                <td>{% if t.last_used %}<span title="{{ t.last_used_title }}">{{ t.last_used }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
-                <td>{% if t.expires %}<span class="{{ 'text-danger' if t.expired else '' }}">{{ t.expires }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
-                <td class="text-end">{% if can_write %}<form method="post" action="/api-tokens/revoke" class="d-inline"><input type="hidden" name="_token" value="{{ csrf }}"><input type="hidden" name="id" value="{{ t.id }}"><button class="btn btn-link p-0 text-danger" type="submit" data-rd-confirm="Revoke token “{{ t.name }}”? Any script using it stops working immediately.">Revoke</button></form>{% endif %}</td>
-            </tr>
-            {% else %}
-            <tr><td colspan="6" class="text-center text-muted py-4">No API tokens yet. A token lets a script talk to the console API without a password.</td></tr>
-            {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
+{% include "api-tokens/_card.html" %}
 {% if can_write %}
-<div class="card">
+<div class="card" id="new-token">
     <div class="card-header"><h5 class="card-title mb-0">New token</h5></div>
     <div class="card-body">
         <form method="post" action="/api-tokens" autocomplete="off">

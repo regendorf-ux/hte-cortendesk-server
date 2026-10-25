@@ -26,7 +26,8 @@ fn blank() -> Form {
     Form { name: String::new(), days: String::new(), perms: RESOURCES.iter().map(|(k, _)| (k.to_string(), "none".to_string())).collect(), error: String::new(), plaintext: String::new(), status: 200 }
 }
 
-fn render(ctx: &Ctx, c: &Connection, f: Form) -> Result<Reply, Fault> {
+/// The token list as the card draws it (the page and Settings -> Security share it).
+pub fn card(ctx: &Ctx, c: &Connection) -> Result<Value, Fault> {
     let tokens = db::rows(c, r#"select "api_tokens".*, "users"."username" as "creator" from "api_tokens" left join "users" on "users"."id" = "api_tokens"."user_id" order by "api_tokens"."created_at" desc"#, &[])?;
     let items: Vec<Value> = tokens
         .iter()
@@ -45,14 +46,19 @@ fn render(ctx: &Ctx, c: &Connection, f: Form) -> Result<Reply, Fault> {
             json!({
                 "id": t.id(), "name": s(t, "name"), "prefix": s(t, "token_prefix"), "perms": perms, "creator": opt(t, "creator").unwrap_or_else(|| "—".into()),
                 "last_used": human(t, "last_used_at", ctx.now, false), "last_used_title": ts_of(t, "last_used_at").map(crate::laravel::ts).unwrap_or_default(),
-                "expires": ymd(t, "expires_at"), "expired": expires.map_or(false, |e| e <= ctx.now),
+                "expires": ymd(t, "expires_at"), "expires_title": ts_of(t, "expires_at").map(crate::laravel::ts).unwrap_or_default(), "expired": expires.map_or(false, |e| e <= ctx.now),
             })
         })
         .collect();
+    Ok(json!({"show": ctx.allows("token", "r"), "items": items, "can_write": ctx.allows("token", "rw")}))
+}
+
+fn render(ctx: &Ctx, c: &Connection, f: Form) -> Result<Reply, Fault> {
+    let tokens_card = card(ctx, c)?;
     let can_write = ctx.allows("token", "rw");
     let resources: Vec<Value> = RESOURCES.iter().map(|(k, l)| json!({"key": k, "label": l, "level": f.perms.iter().find(|(n, _)| n == k).map(|(_, v)| v.as_str()).unwrap_or("none")})).collect();
     let layout = ctx.layout(c, "api-tokens", "API tokens", "System")?;
-    let page = json!({"tokens": items, "can_write": can_write, "resources": resources, "name": f.name, "days": f.days, "error": f.error, "plaintext": f.plaintext});
+    let page = json!({"tok": tokens_card, "can_write": can_write, "resources": resources, "name": f.name, "days": f.days, "error": f.error, "plaintext": f.plaintext});
     Ok(Reply::Html(f.status, ctx.render("api-tokens/index.html", layout, page)?))
 }
 

@@ -74,12 +74,12 @@
                                 <span class="text-muted" title="You cannot delete your own account" style="cursor:not-allowed;">Delete</span>
                             {% else %}
                                 {% set uid = u.id %}{% set uname = u.username %}
-                                <form method="post" action="/users/act" class="d-inline">
+                                <form method="post" action="/users/act">
                                     <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ u.id }}">
-                                    <button type="submit" name="do" value="toggle" class="btn btn-link p-0 align-baseline rd-act me-2">{{ 'Disable' if u.active else 'Enable' }}</button>
-                                    <button type="submit" name="do" value="logout" class="btn btn-link p-0 align-baseline rd-act me-2" data-rd-confirm="Force {{ u.username }} to log out everywhere? This signs out their RustDesk clients and console sessions.">Log out</button>
-                                    {% if u.totp %}<button type="submit" name="do" value="reset2fa" class="btn btn-link p-0 align-baseline text-warning me-2" data-rd-confirm="Reset 2FA for {{ u.username }}? Their authenticator and recovery codes are removed and they must re-enroll.">Reset 2FA</button>{% endif %}
-                                    <button type="submit" name="do" value="delete" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="Delete user {{ u.username }}? Their devices will be kept but no longer assigned to any user.">Delete</button>
+                                    <button type="submit" name="do" value="toggle" class="rd-act me-2">{{ 'Disable' if u.active else 'Enable' }}</button>
+                                    <button type="submit" name="do" value="logout" class="rd-act me-2" data-rd-confirm="Force {{ u.username }} to log out everywhere? This signs out their RustDesk clients and console sessions.">Log out</button>
+                                    {% if u.totp %}<button type="submit" name="do" value="reset2fa" class="text-warning me-2" data-rd-confirm="Reset 2FA for {{ u.username }}? Their authenticator and recovery codes are removed and they must re-enroll.">Reset 2FA</button>{% endif %}
+                                    <button type="submit" name="do" value="delete" class="text-danger" data-rd-confirm="Delete user {{ u.username }}? Their devices will be kept but no longer assigned to any user.">Delete</button>
                                 </form>
                             {% endif %}
                         {% endif %}

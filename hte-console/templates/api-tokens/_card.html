@@ -1,0 +1,99 @@
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
+        <div>
+            <h4 class="header-title">API Tokens</h4>
+            <p class="rd-card-sub mb-0">Scoped Bearer tokens for the automation REST API (<code>/api/v1/…</code>).
+                Grant each token only the resources your scripts need. See <code>docs/admin-api.md</code>.</p>
+        </div>
+        {% if tok.can_write %}
+            <div class="rd-card-actions">
+                <a href="/api-tokens#new-token" class="btn btn-primary" hx-boost="false"><i class="ri-add-line"></i>New Token</a>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-centered mb-0">
+            <thead>
+            <tr>
+                <th>Name</th>
+                <th>Permissions</th>
+                <th>Created by</th>
+                <th>Last used</th>
+                <th>Expires</th>
+                <th class="text-end">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for t in tok.items %}
+                <tr>
+                    <td>
+                        <div class="rd-cell rd-tone-amber">
+                            <span class="rd-avatar"><i class="ri-key-2-line"></i></span>
+                            <div class="min-width-0">
+                                <span class="rd-cell-title">{{ t.name }}</span>
+                                <span class="rd-cell-sub rd-mono">{{ t.prefix }}…</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        {% for p in t.perms %}
+                            <span class="badge {{ 'bg-primary-subtle text-primary' if p.rw else 'bg-secondary-subtle text-secondary' }}">{{ p.label }}: {{ p.level }}</span>
+                        {% endfor %}
+                    </td>
+                    <td>{{ t.creator }}</td>
+                    <td>{% if t.last_used %}<span title="{{ t.last_used_title }}">{{ t.last_used }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
+                    <td>{% if t.expires %}<span class="{{ 'text-danger' if t.expired else '' }}" title="{{ t.expires_title }}">{{ t.expires }}</span>{% else %}<span class="text-muted">Never</span>{% endif %}</td>
+                    <td class="text-end rd-rowact">
+                        {% if tok.can_write %}
+                            <form method="post" action="/api-tokens/revoke"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ t.id }}"><button type="submit" class="text-danger" data-rd-confirm="Revoke token “{{ t.name }}”? Any script using it stops working immediately.">Revoke</button></form>
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="6" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-key-2-line"></i></div>
+                            <p class="rd-empty-title">No API tokens yet.</p>
+                            <p class="rd-empty-text">A token lets a script talk to the console API without a password.</p>
+                            {% if tok.can_write %}<a href="/api-tokens#new-token" class="btn btn-sm btn-outline-light" hx-boost="false">New Token</a>{% endif %}
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-md-none rd-cardlist">
+        {% for t in tok.items %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="min-width-0">
+                        <span class="rd-mini-title text-truncate">{{ t.name }}</span>
+                        <span class="rd-mini-sub rd-mono">{{ t.prefix }}…</span>
+                    </div>
+                    {% if tok.can_write %}
+                        <form method="post" action="/api-tokens/revoke"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="id" value="{{ t.id }}"><button type="submit" class="rd-iconbtn text-danger flex-shrink-0" title="Revoke" data-rd-confirm="Revoke token “{{ t.name }}”? Any script using it stops working immediately."><i class="ri-delete-bin-line"></i></button></form>
+                    {% endif %}
+                </div>
+                <div class="mt-2">
+                    {% for p in t.perms %}
+                        <span class="badge {{ 'bg-primary-subtle text-primary' if p.rw else 'bg-secondary-subtle text-secondary' }}">{{ p.label }}: {{ p.level }}</span>
+                    {% endfor %}
+                </div>
+                <span class="rd-mini-sub mt-2">
+                    Last used: {{ t.last_used if t.last_used else 'never' }} ·
+                    Expires: {{ t.expires if t.expires else 'never' }}
+                </span>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="ri-key-2-line"></i></div>
+                <p class="rd-empty-title">No API tokens yet.</p>
+                {% if tok.can_write %}<a href="/api-tokens#new-token" class="btn btn-sm btn-outline-light" hx-boost="false">New Token</a>{% endif %}
+            </div>
+        {% endfor %}
+    </div>
+</div>

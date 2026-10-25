@@ -281,7 +281,7 @@ pub fn index(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         "versions": versions, "version_total": vtotal, "alarms": alarms.unwrap_or_default(), "has_alerts": has_alerts,
         "prompt_setup": prompt_setup, "mail_warning": rw_setting && !mail_on,
     });
-    let layout = ctx.layout(c, "overview", "Overview", "Dashboard")?;
+    let layout = ctx.layout(c, "overview", "Overview", "")?;
     Ok(Reply::Html(200, ctx.render("overview/index.html", layout, page)?))
 }
 
