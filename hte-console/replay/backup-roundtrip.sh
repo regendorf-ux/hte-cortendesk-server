@@ -125,6 +125,7 @@ echo "== D. prune: the same rows go on copies of one database"
 pdo "VACUUM INTO '/data/copy-for-rust.sqlite'"
 mkdir -p "$WORK/rdata"; chmod 777 "$WORK/rdata"
 docker cp "$TAG-php:/data/copy-for-rust.sqlite" "$WORK/rdata/cortendesk.sqlite" </dev/null
+chmod 666 "$WORK/rdata/cortendesk.sqlite"   # docker cp makes it the caller's: the console below runs as 82:82
 docker cp "$TAG-php:/data/.app_key" "$WORK/rdata/.app_key" </dev/null; chmod 644 "$WORK/rdata/.app_key"
 php_exec php artisan cortendesk:prune-logs --days=30 | tee "$WORK/p1.out"
 php_exec php artisan cortendesk:prune-invitations | tee "$WORK/p2.out"
