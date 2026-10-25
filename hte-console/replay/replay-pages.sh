@@ -11,7 +11,7 @@
 #      that cannot fail proves nothing.
 # Touches nothing that runs: its own network, its own containers, a temp directory. Runs on the server (docker only).
 #
-#   HTE_CONSOLE_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.0 bash replay-pages.sh
+#   HTE_CONSOLE_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.0 [HTE_REPLAY_IMAGE=ghcr.io/regendorf-ux/hte-console:0.7.1] bash replay-pages.sh
 #
 # Every section always runs (a difference in A or B does not stop the script), and the last line is always printed.
 # Exit 0 = every comparison equal and the mutation caught, 1 = a difference (printed), 2 = could not run.
@@ -19,6 +19,9 @@
 set -euo pipefail
 
 CONSOLE_IMAGE="${HTE_CONSOLE_IMAGE:?set HTE_CONSOLE_IMAGE}"
+# The comparison tool (`page-replay`) can come from a newer image than the console under test: with HTE_REPLAY_IMAGE a better
+# replay can be run against an image already built (the console it asks is still HTE_CONSOLE_IMAGE).
+REPLAY_IMAGE="${HTE_REPLAY_IMAGE:-$CONSOLE_IMAGE}"
 PHP_IMAGE="${HTE_PHP_IMAGE:-ghcr.io/regendorf-ux/hte-cortendesk:1.15.0-hte.1}"
 TAG="hte-pg-$$"
 WORK="$(mktemp -d)"
@@ -50,7 +53,7 @@ start_rust() {
 }
 replay() { # replay [extra docker env...]: prints page-replay's report, returns its exit code
   docker run --rm --network "$TAG" -v "$WORK/rdata:/data:ro" -e HTE_CONSOLE_APP_KEY_FILE=/data/.app_key -e HTE_CONSOLE_SESSION_COOKIE="$COOKIE" "$@" \
-    "$CONSOLE_IMAGE" page-replay "http://$TAG-php:8080" "http://$TAG-rust:8080" "$NOW" </dev/null
+    "$REPLAY_IMAGE" page-replay "http://$TAG-php:8080" "http://$TAG-rust:8080" "$NOW" </dev/null
 }
 state() { # state <sqlite-dir> [uid]: the data as comparable text (sessions are left out: PHP and hte-console mint different ids, and after a password change hte-console deletes the old row where PHP leaves it, deliberately; a bcrypt hash is salted, so only its shape is compared)
   # the directory hte-console served is in WAL mode: it is opened writable, as the uid that owns it, never read-only
