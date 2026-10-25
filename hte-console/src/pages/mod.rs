@@ -492,7 +492,7 @@ fn enforced_elsewhere(c: &Connection, user: &Row, role: Option<&Row>, sess: &ses
 
 /// RequireEmailAddress applies to every page but `account`, `account.two-factor` and `logout`.
 fn email_gate(c: &Connection, user: &Row, sess: &session::Session, route_path: &str) -> Result<bool, Fault> {
-    if sess.via_oidc() || route_path == "/account" {
+    if sess.via_oidc() || route_path.starts_with("/account") {
         return Ok(false);
     }
     let email = String::from_utf8_lossy(&user.val("email").to_php_string().unwrap_or_default()).into_owned();
@@ -525,6 +525,9 @@ fn finish(ctx: &Ctx, c: &Connection, mut resp: Response<Body>, _head: bool) -> R
     if let Some(new) = ctx.new_session_id.borrow().clone() {
         // the regenerated session row carries the (unchanged) data as it was when it was copied; bring it up to date
         if let Ok(Some(s)) = session::load_id(c, &ctx.p.session, ctx.now, &new) {
+            if let Some(t) = s.data.get("_token") {
+                data.insert("_token".into(), t.clone());
+            }
             let _ = session::save(c, &s, &data, ctx.now);
         }
         id = new;
@@ -583,11 +586,9 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
         Err(_) => return error_response(413, "Content Too Large", head),
     };
     if !route.methods.contains(&parts.method.as_str()) && !(head && route.methods.contains(&"GET")) {
-        // Laravel answers 405 only after routing; with no session PHP's own answer is what the person would get
-        if parts.headers.get(header::COOKIE).is_none() {
-            return forward(&p, Request::from_parts(parts, Body::from(bytes))).await;
-        }
-        return error_response(405, "Method Not Allowed", head);
+        // Laravel answers 405 only after routing and the session; PHP's own answer is what the person gets, so nothing is
+        // served (not even a 405) before the session has been checked
+        return forward(&p, Request::from_parts(parts, Body::from(bytes))).await;
     }
     let p2 = p.clone();
     let bytes_c = bytes.clone();

@@ -63,7 +63,7 @@ fn page(ctx: &Ctx, c: &Connection, status: u16, form: Form) -> Result<Reply, Fau
         let flag = |k: &str| -> Result<bool, Fault> { Ok(db::setting(c, k, "0")? == b"1") };
         flag("two_factor_required")? || (ctx.is_admin() && flag("two_factor_required_admins")?) || ctx.role.as_ref().map_or(false, |r| r.val("require_two_factor").to_bool())
     };
-    let confirmed_at = crate::laravel::parse_ts(&user.val("totp_confirmed_at")).map(|t| crate::laravel::ts(t)[..10].to_string()).unwrap_or_default();
+    let confirmed_at = crate::laravel::parse_ts(&user.val("totp_confirmed_at")).map(|t| crate::laravel::ts(t).get(..10).unwrap_or("").to_string()).unwrap_or_default();
     let flash = |k: &str| ctx.flashed.get(k).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let layout = ctx.layout(c, "account", "My Account", "Account")?;
     let errors: Map<String, Value> = ["name", "email", "currentPassword", "password", "passwordConfirmation"].iter().map(|k| (k.to_string(), form.errors.get(*k).cloned().unwrap_or_else(|| json!("")))).collect();

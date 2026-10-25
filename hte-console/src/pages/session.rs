@@ -236,8 +236,8 @@ pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
     Ok(())
 }
 
-/// `session()->regenerate()` (keeps the data, new id; the old row stays until it expires, as Laravel leaves it with
-/// `regenerate(false)`): the new id.
+/// `session()->regenerate()` with a fresh `_token` (`regenerateToken()`), and the old row deleted: the person gets the
+/// new cookie in this same response, and a copy of the old cookie must stop working: the new id.
 pub fn regenerate(c: &Connection, s: &Session, now: i64) -> Result<String, Fault> {
     let id = crate::laravel::str_random(40);
     let old = db::first(c, r#"select * from "sessions" where "id" = ? limit 1"#, &[P(Val::str(&s.id))])?;
@@ -245,11 +245,14 @@ pub fn regenerate(c: &Connection, s: &Session, now: i64) -> Result<String, Fault
         Some(r) => (r.val("ip_address"), r.val("user_agent"), r.val("user_id")),
         None => (Val::Null, Val::Null, Val::Null),
     };
+    let mut data = s.data.clone();
+    data.insert("_token".into(), Value::String(crate::laravel::str_random(40)));
     db::exec(
         c,
         r#"insert into "sessions" ("id", "user_id", "ip_address", "user_agent", "payload", "last_activity") values (?, ?, ?, ?, ?, ?)"#,
-        &[P(Val::str(&id)), P(uid), P(ip), P(ua), P(Val::str(&encode(&s.data))), P(Val::Int(now))],
+        &[P(Val::str(&id)), P(uid), P(ip), P(ua), P(Val::str(&encode(&data))), P(Val::Int(now))],
     )?;
+    db::exec(c, r#"delete from "sessions" where "id" = ?"#, &[P(Val::str(&s.id))])?;
     Ok(id)
 }
 

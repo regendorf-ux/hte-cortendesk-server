@@ -246,6 +246,15 @@ async fn an_expired_session_a_disabled_person_and_the_middlewares_that_redirect_
     h.sql("delete from settings");
     let cookie = h.login(&sid("mailrepair"), 2, json!({"mail_repair": true}));
     assert_eq!(h.get("/logs/alarms", &cookie).await.status, 302);
+    // RequireEmailAddress: a person with no email is sent to /account, whose forms must still work
+    h.sql("delete from settings; insert into settings (key, value) values ('email_login_verification', '1'), ('smtp_enabled', '1'), ('smtp_host', 'smtp.example.test'), ('smtp_from_address', 'a@example.test')");
+    h.sql("update users set email = null where id = 2");
+    let cookie = h.login(&sid("noemail"), 2, json!({}));
+    assert_eq!(h.get("/logs/alarms", &cookie).await.status, 302);
+    assert_eq!(h.get("/account", &cookie).await.status, 200);
+    let r = h.go("POST", "/account/profile", Some(&cookie), Some("application/x-www-form-urlencoded"), "name=Dana&email=dana%40example.test", &[("x-csrf-token", TOKEN)]).await;
+    assert_eq!(r.status, 302);
+    assert_eq!(h.text("select email from users where id = 2"), "dana@example.test");
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -492,7 +501,10 @@ async fn changing_the_password() {
     assert!(set.starts_with("hte-remote-session="));
     let new_cookie = set.split(';').next().unwrap().to_string();
     assert_ne!(new_cookie, cookie);
-    assert_eq!(h.count("sessions where user_id = 2"), 2);
+    // the old row is gone: a copy of the old cookie is nobody's session any more
+    assert_eq!(h.count("sessions where user_id = 2"), 1);
+    let r = h.get("/account", &cookie).await;
+    assert_eq!(r.status, 302, "the old cookie no longer opens the page");
     // the new session carries the flash for the page the redirect lands on, and works on its own
     let r = h.get("/account", &new_cookie).await;
     assert_eq!(r.status, 200);
@@ -542,10 +554,11 @@ async fn assets_are_served_and_the_server_refuses_anything_else() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn a_wrong_method_is_a_405_for_a_signed_in_person_and_php_s_business_for_anyone_else() {
+async fn a_wrong_method_is_php_s_business_for_everyone() {
     let h = harness().await;
     let cookie = h.login(&sid("method"), 1, json!({}));
-    assert_eq!(h.go("DELETE", "/logs/alarms", Some(&cookie), None, "", &[]).await.status, 405);
+    // nothing is answered before the session is checked: even a wrong method goes to PHP (here: the sign-in redirect)
+    assert_eq!(h.go("DELETE", "/logs/alarms", Some(&cookie), None, "", &[]).await.status, 302);
     assert_eq!(h.go("POST", "/logs/alarms", None, None, "", &[]).await.status, 302);
     let big = "x".repeat(70 * 1024);
     assert_eq!(h.go("POST", "/account/profile", Some(&cookie), Some("application/x-www-form-urlencoded"), &big, &[]).await.status, 413);
