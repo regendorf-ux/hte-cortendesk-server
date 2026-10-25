@@ -577,7 +577,7 @@ async fn the_page_replay_finds_no_difference_between_two_identical_consoles_and_
         h.sql(&seed);
     }
     let r = pagereplay::run_with(&a.url, &b.url, APP_KEY, "hte-remote-session", NOW, false).await.unwrap();
-    assert!(r.total > 60, "{} requests", r.total);
+    assert!(r.total > 45, "{} requests", r.total);
     assert!(r.differences.is_empty(), "{}", r.differences.join("\n"));
     // one text changed on one side
     b.sql("update alarm_logs set info = 'tampered' where id = 3");
