@@ -450,7 +450,9 @@ fn validate_inner(data: &Arr, rules: &[(&str, &[Rule])], probe: Probe, fault: &s
                 _ => present_any || rule.implicit(),
             };
             let not_null = rule.implicit() || !nullable || !is_null;
-            if present && not_null && !sometimes && !passes(rule, value, numeric, probe, fault) {
+            // hasNotFailedPreviousRuleIfPresenceRule: unique and exists are not run for an attribute that already failed a rule
+            let skipped = matches!(rule, Rule::Unique(..) | Rule::Exists(..)) && errors.iter().any(|(k, _)| k == attr);
+            if present && not_null && !sometimes && !skipped && !passes(rule, value, numeric, probe, fault) {
                 let shown = if ex.implicit.iter().any(|(k, _)| k == attr) { attr.clone() } else { displayable(attr) };
                 let msg = message(rule, &shown, numeric, array);
                 match errors.iter_mut().find(|(k, _)| k == attr) {

@@ -425,10 +425,10 @@ add("book-store-invalid", "validate(): a missing name, an owner that is no user,
     {"owner_user_id": 999999, "is_personal": "maybe"}, status=422,
     resp=invalid("The name field is required.", {"name": ["The name field is required."], "owner_user_id": ["The selected owner user id is invalid."],
                                                  "is_personal": ["The is personal field must be true or false."]}))
-add("book-store-owner-text", "an owner that is no integer fails both the integer and the exists rule", "POST", "/api/v1/address-books", "full",
+add("book-store-owner-text", "an owner that is no integer fails the integer rule only: Laravel does not run exists on an attribute that already failed (replay against PHP)", "POST", "/api/v1/address-books", "full",
     {"name": "text-5eed0c06", "owner_user_id": "abc"}, status=422,
     resp=invalid("The owner user id field must be an integer.",
-                 {"owner_user_id": ["The owner user id field must be an integer.", "The selected owner user id is invalid."]}))
+                 {"owner_user_id": ["The owner user id field must be an integer."]}))
 add("book-update", "update(): the audit names the book's guid", "PUT", "/api/v1/address-books/950203", "full", {"name": "text-5eed0c07", "note": "text-5eed0d07"},
     resp=env(book(3, GUID_A3, "text-5eed0c07", False, 6, "text-5eed0d07", 1, 0, 0), "Address book updated."),
     audit=("address-book.update", "address_book", GUID_A3, "Updated address book text-5eed0c07 (API)"))

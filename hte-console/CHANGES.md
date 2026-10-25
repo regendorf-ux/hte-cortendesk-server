@@ -2,6 +2,12 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.5.2 (2026-10-25): phase 5, the replay against PHP found one difference
+
+- `unique` and `exists` are not run for an attribute that already failed a rule (Laravel's
+  `hasNotFailedPreviousRuleIfPresenceRule`): `owner_user_id: "abc"` gets the integer message only. The first replay against PHP 1.15.0-hte.1
+  matched 185 of 186 fixtures, with hte-console 186 of 186 and identical databases; this was the one difference.
+
 ## 0.5.1 (2026-10-25): phase 5, replay fixes
 
 - First replay against PHP: the throwaway PHP's own first-start administrator made the user lists one longer, so the

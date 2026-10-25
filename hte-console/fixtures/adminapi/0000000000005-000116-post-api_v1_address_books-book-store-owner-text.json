@@ -6,7 +6,7 @@
   "scan_ignore": [
     "/response/errors"
   ],
-  "source": "an owner that is no integer fails both the integer and the exists rule",
+  "source": "an owner that is no integer fails the integer rule only: Laravel does not run exists on an attribute that already failed (replay against PHP)",
   "method": "POST",
   "path": "/api/v1/address-books",
   "query": {},
@@ -34,11 +34,10 @@
     "body": {
       "kind": "json",
       "value": {
-        "message": "The owner user id field must be an integer. (and 1 more error)",
+        "message": "The owner user id field must be an integer.",
         "errors": {
           "owner_user_id": [
-            "The owner user id field must be an integer.",
-            "The selected owner user id is invalid."
+            "The owner user id field must be an integer."
           ]
         }
       }
