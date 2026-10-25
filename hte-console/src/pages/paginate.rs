@@ -19,9 +19,9 @@ pub struct Page {
     pub has_pages: bool,
     pub on_first: bool,
     pub has_more: bool,
-    /// `firstItem()` / `lastItem()`: None (printed as 0 by the view) for an empty page.
-    pub first_item: i64,
-    pub last_item: i64,
+    /// `firstItem()` / `lastItem()`: null for an empty page, which the view prints as nothing.
+    pub first_item: Option<i64>,
+    pub last_item: Option<i64>,
     pub elements: Vec<Element>,
 }
 
@@ -54,8 +54,10 @@ fn window(current: i64, last: i64) -> Vec<Element> {
 /// simply empty, as in Laravel).
 pub fn page(current: i64, per_page: i64, total: i64, shown: i64) -> Page {
     let last = std::cmp::max((total + per_page - 1) / per_page, 1);
-    let has_pages = last > 1;
-    let (first_item, last_item) = if shown > 0 { ((current - 1) * per_page + 1, (current - 1) * per_page + shown) } else { (0, 0) };
+    let has_more = current < last;
+    // `hasPages()`: not on the first page, or more to come (so a page past the end still shows its way back)
+    let has_pages = current != 1 || has_more;
+    let (first_item, last_item) = if shown > 0 { (Some((current - 1) * per_page + 1), Some((current - 1) * per_page + shown)) } else { (None, None) };
     Page {
         current,
         per_page,
@@ -63,7 +65,7 @@ pub fn page(current: i64, per_page: i64, total: i64, shown: i64) -> Page {
         last,
         has_pages,
         on_first: current <= 1,
-        has_more: current < last,
+        has_more,
         first_item,
         last_item,
         elements: if has_pages { window(current, last) } else { vec![] },
@@ -77,13 +79,13 @@ mod tests {
     #[test]
     fn small_lists_show_every_page() {
         let p = page(1, 20, 45, 20);
-        assert_eq!((p.last, p.has_pages, p.first_item, p.last_item, p.has_more), (3, true, 1, 20, true));
+        assert_eq!((p.last, p.has_pages, p.first_item, p.last_item, p.has_more), (3, true, Some(1), Some(20), true));
         assert_eq!(p.elements, vec![Element::Pages(vec![1, 2, 3])]);
         let p = page(3, 20, 45, 5);
-        assert_eq!((p.first_item, p.last_item, p.has_more), (41, 45, false));
+        assert_eq!((p.first_item, p.last_item, p.has_more), (Some(41), Some(45), false));
         assert!(!page(1, 20, 20, 20).has_pages);
         let e = page(1, 20, 0, 0);
-        assert_eq!((e.first_item, e.last_item, e.last), (0, 0, 1));
+        assert_eq!((e.first_item, e.last_item, e.last), (None, None, 1));
     }
 
     #[test]
@@ -103,6 +105,11 @@ mod tests {
     #[test]
     fn a_page_past_the_end_is_empty_not_clamped() {
         let p = page(9, 20, 45, 0);
-        assert_eq!((p.current, p.first_item, p.last_item, p.has_more), (9, 0, 0, false));
+        assert_eq!((p.current, p.first_item, p.last_item, p.has_more), (9, None, None, false));
+        // and it still has pages (the way back), as Laravel's hasPages() says
+        assert!(p.has_pages);
+        let e = page(2, 20, 0, 0);
+        assert!(e.has_pages);
+        assert_eq!(e.elements, vec![Element::Pages(vec![1])]);
     }
 }

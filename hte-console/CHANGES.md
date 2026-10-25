@@ -2,6 +2,8 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.3 (2026-10-25): first real-PHP replay findings: Laravel's hasPages() (a page past the end keeps its pager) and empty first/last item in the pager; the replay fetches PHP's CSVs through Livewire's export call, asks for JSON on the theme calls, and turns the release check off on both sides
+
 ## 0.7.2 (2026-10-25): page-replay uses only the path of Livewire's announced update address, and reports an error part way together with the differences found before it
 
 ## 0.7.1 (2026-10-25): page-replay finds Livewire 4's hashed update address (`data-update-uri`); replay-pages.sh hands the copy to uid 82 and reads WAL databases writable

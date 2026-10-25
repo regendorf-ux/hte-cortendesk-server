@@ -39,7 +39,7 @@ start_rust() {
   docker rm -f "$TAG-rust" </dev/null >/dev/null 2>&1 || true
   docker run -d --name "$TAG-rust" --network "$TAG" -u 82:82 -v "$WORK/rdata:/data" \
     -e HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite -e HTE_CONSOLE_APP_KEY_FILE=/data/.app_key -e HTE_CONSOLE_SESSION_COOKIE="$COOKIE" \
-    -e HTE_CONSOLE_API_VERSION=1.15.0-hte.1 -e HTE_CONSOLE_UPSTREAM="http://$TAG-php:8080" -e HTE_CONSOLE_SWEEPS="" \
+    -e HTE_CONSOLE_API_VERSION=1.15.0-hte.1 -e CORTENDESK_UPDATE_CHECK=false -e HTE_CONSOLE_UPSTREAM="http://$TAG-php:8080" -e HTE_CONSOLE_SWEEPS="" \
     "$CONSOLE_IMAGE" </dev/null >/dev/null
   for _ in $(seq 1 30); do
     docker run --rm --network "$TAG" --entrypoint wget "$PHP_IMAGE" -q -O /dev/null "http://$TAG-rust:8080/health/live" </dev/null 2>/dev/null && return 0
@@ -51,13 +51,13 @@ replay() { # replay [extra docker env...]: prints page-replay's report, returns 
   docker run --rm --network "$TAG" -v "$WORK/rdata:/data:ro" -e HTE_CONSOLE_APP_KEY_FILE=/data/.app_key -e HTE_CONSOLE_SESSION_COOKIE="$COOKIE" "$@" \
     "$CONSOLE_IMAGE" page-replay "http://$TAG-php:8080" "http://$TAG-rust:8080" "$NOW" </dev/null
 }
-state() { # state <sqlite-dir> [uid]: the data as comparable text (sessions keep their count, not their rows: PHP and hte-console mint different ids; a bcrypt hash is salted, so only its shape is compared)
+state() { # state <sqlite-dir> [uid]: the data as comparable text (sessions are left out: PHP and hte-console mint different ids, and after a password change hte-console deletes the old row where PHP leaves it, deliberately; a bcrypt hash is salted, so only its shape is compared)
   # the directory hte-console served is in WAL mode: it is opened writable, as the uid that owns it, never read-only
   local mode=ro user=0
   [ "${2:-}" = rust ] && { mode=rw; user=82:82; }
   docker run --rm -u "$user" --network none -v "$1:/data:$mode" "$CONSOLE_IMAGE" snapshot /data/cortendesk.sqlite </dev/null \
     | grep -vE '^(cache|cache_locks|sqlite_sequence|jobs|job_batches|failed_jobs|oidc_auth_requests|password_reset_tokens|password_resets|migrations)[ :]' \
-    | grep -vE '^sessions \{' | sed -E 's/text:\$2y\$[^"]*/text:<bcrypt>/' || true
+    | grep -vE '^sessions[ :]' | sed -E 's/text:\$2y\$[^"]*/text:<bcrypt>/' || true
 }
 
 docker network create "$TAG" </dev/null >/dev/null

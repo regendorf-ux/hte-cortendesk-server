@@ -92,7 +92,7 @@
         </div>
 
         <div class="rd-tablefoot" id="log-foot">
-            <span>Showing {{ pager.first_item }}–{{ pager.last_item }} of {{ pager.total }}</span>
+            <span>Showing {{ pager.first_item or 0 }}–{{ pager.last_item or 0 }} of {{ pager.total }}</span>
             {% include "partials/pager.html" %}
         </div>
     </div>

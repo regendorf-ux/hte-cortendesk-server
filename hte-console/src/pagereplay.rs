@@ -166,11 +166,22 @@ struct Out {
     status: u16,
     ctype: String,
     location: String,
+    disposition: String,
     body: String,
 }
 
 fn cookie_for(cfg: &session::SessionConfig, crypt: &Encrypter, user: &str, now: i64) -> String {
     session::set_cookie(cfg, crypt, &sid(user), false, now).split(';').next().unwrap_or("").to_string()
+}
+
+/// Livewire 4 posts to a hashed address the page announces (`data-update-uri`), in full: only its path is ours to use.
+fn update_uri(page: &str) -> String {
+    static URI: Lazy<Regex> = Lazy::new(|| Regex::new(r#"data-update-uri="([^"]+)""#).unwrap());
+    let uri = URI.captures(page).map(|m| m[1].to_string()).unwrap_or_else(|| "/livewire/update".into());
+    match uri.find("://") {
+        Some(i) => uri[i + 3..].find('/').map(|j| uri[i + 3 + j..].to_string()).unwrap_or(uri),
+        None => uri,
+    }
 }
 
 async fn fetch(c: &reqwest::Client, base: &str, cookie: &str, method: &str, path: &str, ct: Option<&str>, body: String, extra: &[(&str, &str)]) -> Result<Out, String> {
@@ -184,11 +195,11 @@ async fn fetch(c: &reqwest::Client, base: &str, cookie: &str, method: &str, path
     let r = rq.body(body).send().await.map_err(|e| format!("{method} {base}{path}: {e}"))?;
     let status = r.status().as_u16();
     let h = |n: &str| r.headers().get(n).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
-    let (ctype, mut location) = (h("content-type"), h("location"));
+    let (ctype, mut location, disposition) = (h("content-type"), h("location"), h("content-disposition"));
     if let Some(i) = location.find("://") {
         location = location[i + 3..].find('/').map(|j| location[i + 3 + j..].to_string()).unwrap_or_default();
     }
-    Ok(Out { status, ctype, location, body: r.text().await.map_err(|e| e.to_string())? })
+    Ok(Out { status, ctype, location, disposition, body: r.text().await.map_err(|e| e.to_string())? })
 }
 
 static TAG: Lazy<Regex> = Lazy::new(|| Regex::new(r#"(?s)<!--.*?-->|<(/?)([A-Za-z][A-Za-z0-9]*)((?:[^>"']|"[^"]*"|'[^']*')*)>"#).unwrap());
@@ -300,12 +311,6 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     for path in [
         format!("/logs/alarms?dateFrom={day}&dateTo={day}"),
         format!("/logs/connections?dateFrom={week}"),
-        "/logs/alarms/export".to_string(),
-        "/logs/connections/export".to_string(),
-        "/logs/file-transfers/export".to_string(),
-        "/logs/logins/export".to_string(),
-        "/logs/console/export".to_string(),
-        "/logs/alarms/export?type=2&search=10.0.0".to_string(),
     ] {
         for user in ["hteadmin", "dana"] {
             cases.push((user, path.clone()));
@@ -338,6 +343,50 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             }
         }
     }
+    // the CSV exports: PHP's are a Livewire call (`export`) answered with a download effect, hte-console's a GET of its own;
+    // the same filters on both, the exact bytes and the file name compared
+    // (this needs PHP's Livewire: a run of hte-console against itself has none, and skips it)
+    for (user, page, component, filters, query) in if writes { vec![
+        ("hteadmin", "/logs/alarms", "alarm-log-list", vec![], ""),
+        ("dana", "/logs/alarms", "alarm-log-list", vec![], ""),
+        ("hteadmin", "/logs/alarms", "alarm-log-list", vec![("type", "2"), ("search", "10.0.0")], "?type=2&search=10.0.0"),
+        ("hteadmin", "/logs/connections", "connection-log", vec![], ""),
+        ("dana", "/logs/connections", "connection-log", vec![], ""),
+        ("hteadmin", "/logs/file-transfers", "file-transfer-log", vec![], ""),
+        ("dana", "/logs/file-transfers", "file-transfer-log", vec![], ""),
+        ("hteadmin", "/logs/logins", "login-log-list", vec![], ""),
+        ("hteadmin", "/logs/console", "console-audit-list", vec![], ""),
+    ] } else { vec![] } {
+        let cookie = cookie_for(&cfg, &crypt, user, now);
+        let label = format!("{user} export {page}{query}");
+        *total += 1;
+        let page_php = fetch(&c, php, &cookie, "GET", page, None, String::new(), &[]).await?;
+        let Some(snap) = snapshot(&page_php.body, component) else {
+            diffs.push(format!("{label}: PHP's page has no {component} snapshot (status {})", page_php.status));
+            continue;
+        };
+        let uri = update_uri(&page_php.body);
+        let upd: serde_json::Map<String, serde_json::Value> = filters.iter().map(|(k, v)| (k.to_string(), serde_json::json!(v))).collect();
+        let body = serde_json::json!({"_token": TOKEN, "components": [{"snapshot": snap, "updates": upd, "calls": [{"path": "", "method": "export", "params": []}]}]});
+        let a = fetch(&c, php, &cookie, "POST", &uri, Some("application/json"), body.to_string(), &[("x-livewire", "true"), ("x-csrf-token", TOKEN)]).await?;
+        let b = fetch(&c, rust, &cookie, "GET", &format!("{page}/export{query}"), None, String::new(), &[]).await?;
+        let download = serde_json::from_str::<serde_json::Value>(&a.body).ok().and_then(|v| v["components"][0]["effects"]["download"].as_object().cloned());
+        match (a.status, download, b.status) {
+            (200, Some(d), 200) => {
+                use base64::Engine;
+                let content = d.get("content").and_then(|v| v.as_str()).and_then(|v| base64::engine::general_purpose::STANDARD.decode(v).ok()).unwrap_or_default();
+                let name = d.get("name").and_then(|v| v.as_str()).unwrap_or("");
+                if content != b.body.as_bytes() {
+                    diffs.push(format!("{label}: the CSV differs (PHP {} bytes, hte-console {})", content.len(), b.body.len()));
+                }
+                if !b.disposition.contains(&format!("filename={name}")) && !b.disposition.contains(&format!("filename=\"{name}\"")) {
+                    diffs.push(format!("{label}: file name PHP «{name}», hte-console «{}»", b.disposition));
+                }
+            }
+            (_, None, 302) => {} // a section the person may not use: PHP's component refuses, hte-console redirects
+            (sa, d, sb) => diffs.push(format!("{label}: PHP answered {sa} (download {}), hte-console {sb}: {}", d.is_some(), &a.body[..a.body.len().min(200)])),
+        }
+    }
     if !writes {
         return Ok(());
     }
@@ -353,11 +402,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             let snap = snapshot(&page.body, component).ok_or_else(|| format!("PHP's /account has no {component} snapshot"))?;
             let upd: serde_json::Map<String, serde_json::Value> = updates.into_iter().map(|(k, v)| (k.to_string(), serde_json::json!(v))).collect();
             let body = serde_json::json!({"_token": TOKEN, "components": [{"snapshot": snap, "updates": upd, "calls": [{"path": "", "method": method, "params": []}]}]});
-            // Livewire 4 posts to a hashed address the page announces (`data-update-uri`), not to /livewire/update
-            static URI: Lazy<Regex> = Lazy::new(|| Regex::new(r#"data-update-uri="([^"]+)""#).unwrap());
-            let uri = URI.captures(&page.body).map(|m| m[1].to_string()).unwrap_or_else(|| "/livewire/update".into());
-            // the page announces it in full (scheme and host as PHP saw them): only the path is ours to use
-            let uri = match uri.find("://") { Some(i) => uri[i + 3..].find('/').map(|j| uri[i + 3 + j..].to_string()).unwrap_or(uri), None => uri };
+            let uri = update_uri(&page.body);
             let r = fetch(&c, &php, &cookie, "POST", &uri, Some("application/json"), body.to_string(), &[("x-livewire", "true"), ("x-csrf-token", TOKEN)]).await?;
             if r.status != 200 {
                 return Err(format!("PHP's Livewire ({uri}) answered {} to {component}.{method}: {}", r.status, &r.body[..r.body.len().min(300)]));
@@ -406,12 +451,12 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
     let both = ["php", "rust"];
     for (side, base) in both.iter().zip([php, rust]) {
         let cookie = cookie_for(&cfg, &crypt, "hteadmin", now);
-        let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"light"}"#.into(), &[("x-csrf-token", TOKEN)]).await?;
+        let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"light"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
         *total += 1;
         if r.status != 204 {
             diffs.push(format!("hteadmin POST /account/theme on {side}: {}", r.status));
         }
-        let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"purple"}"#.into(), &[("x-csrf-token", TOKEN)]).await?;
+        let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"purple"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
         if r.status != 422 {
             diffs.push(format!("hteadmin POST /account/theme (purple) on {side}: {}", r.status));
         }
