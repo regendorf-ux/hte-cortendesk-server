@@ -41,6 +41,21 @@ Touches upstream files in one place: `Cargo.toml` lists `hte-console` as a works
 depend on it and build as before; `Cargo.lock` gains the new crate's dependencies). `hte-image.yml` is unchanged
 and its `cargo test --workspace` now also runs this crate's tests.
 
+## 1.1.1-hte.3 (2026-10-25) on upstream 1.1.1
+
+**The in-browser client's sessions pass the relay gate again.** The browser sends only a
+`PunchHoleRequest`; the target picks the relay uuid and answers hbbs with a `RelayResponse` that
+names itself (`id`), so that `RelayResponse` is the only place hbbs can admit the session. In
+`src/rendezvous_server.rs` the `RelayResponse` arm replaces that `id` with the server-signed `pk`
+(they are one protobuf oneof) before the gate asked who answered, so `target_answers` always saw an
+empty id and never admitted the uuid; hbbr then refused the browser ("Relay gate: refused ...
+not admitted by hbbs") and the client said "relay connection lost". The arm now keeps the id before
+`set_pk` and asks about that. Desktop sessions were unaffected (they admit at `RequestRelay`). Test:
+`tests/hte_webclient_relay.rs` (browser over WebSocket with a person's ticket, a fake target, real
+hbbs and hbbr): an in-reach session pairs; out of reach, signed out, a made-up uuid, a refused uuid
+and a forged `RelayResponse` do not. One line changed in `src/rendezvous_server.rs`, `Cargo.toml`
+version.
+
 ## 1.1.1-hte.2 (2026-10-16) on upstream 1.1.1
 
 **The relay pairs only sessions the ID server let through** (`src/hte_relay_gate.rs`, new). Upstream
