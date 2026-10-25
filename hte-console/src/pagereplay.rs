@@ -458,9 +458,11 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("hteadmin POST /account/theme on {side}: {}", r.status));
         }
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"purple"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
-        // a refusal on a web route is Laravel's redirect back (JSON errors are for /api/* only)
-        if r.status != 302 {
-            diffs.push(format!("hteadmin POST /account/theme (purple) on {side}: {}, not 302", r.status));
+        // deliberate difference (phase7/NOTES.md): a refusal is PHP's redirect back (JSON errors are for /api/* only) and
+        // hte-console's 422 with the messages
+        let want = if *side == "php" { 302 } else { 422 };
+        if r.status != want {
+            diffs.push(format!("hteadmin POST /account/theme (purple) on {side}: {}, not {want}", r.status));
         }
     }
     // a write with no token is refused by both

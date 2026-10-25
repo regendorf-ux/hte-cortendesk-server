@@ -230,12 +230,9 @@ pub fn update_password(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fa
 pub fn theme(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let rules: [(&str, &[Rule]); 1] = [("theme", &[Rule::Required, Rule::String, Rule::In(&["dark", "light", "system"])])];
     match validate::validate_db(req.input.all(), &rules, &|_, _| Ok(true))? {
-        // the controller's `$request->validate()` on a web route: `shouldRenderJsonWhen` limits JSON errors to /api/*, so a
-        // refusal is Laravel's redirect back (the Referer, as `url()->previous()`; here only one of our own pages, else "/")
-        Err(_) => {
-            let back = req.headers.get("referer").and_then(|v| v.to_str().ok()).filter(|r| r.starts_with(&ctx.root)).unwrap_or("/");
-            Ok(Reply::Redirect(back.to_string()))
-        }
+        // deliberate difference from PHP (phase7/NOTES.md): PHP redirects back here (its JSON errors are for /api/* only);
+        // the theme switch is a fetch() call, so the 422 and its messages are the useful answer
+        Err(body) => Ok(Reply::Json(422, body)),
         Ok(valid) => {
             let mut row = ctx.user.clone();
             db::update_dirty(c, "users", &mut row, vec![("theme", Val::str(&text(valid.get_str("theme"))), Cast::Plain)], &crate::laravel::ts(ctx.now))?;
