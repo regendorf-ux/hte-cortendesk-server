@@ -1,0 +1,83 @@
+{
+  "format": 1,
+  "seq": 65,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "peers(): by RustDesk id; relay is a boolean, the port a string, no tags is []",
+  "method": "GET",
+  "path": "/api/v1/address-books/{{i950201}}/peers",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": [
+          {
+            "id": 950211,
+            "rustdesk_id": "990000511",
+            "alias": "text-5eed0e11",
+            "hostname": "host-5eed0511",
+            "platform": "linux",
+            "username": "user-5eed0e11",
+            "login_name": null,
+            "force_always_relay": true,
+            "rdp_port": "3389",
+            "rdp_username": "user-5eed0f11",
+            "tags": [
+              950231,
+              950232
+            ]
+          },
+          {
+            "id": 950212,
+            "rustdesk_id": "990000512",
+            "alias": null,
+            "hostname": null,
+            "platform": null,
+            "username": null,
+            "login_name": null,
+            "force_always_relay": false,
+            "rdp_port": null,
+            "rdp_username": null,
+            "tags": []
+          },
+          {
+            "id": 950215,
+            "rustdesk_id": "990000518",
+            "alias": null,
+            "hostname": null,
+            "platform": null,
+            "username": null,
+            "login_name": null,
+            "force_always_relay": false,
+            "rdp_port": null,
+            "rdp_username": null,
+            "tags": []
+          }
+        ],
+        "message": ""
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201"
+  }
+}

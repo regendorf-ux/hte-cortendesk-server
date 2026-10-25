@@ -1,0 +1,37 @@
+{
+  "format": 1,
+  "seq": 159,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "a device that exists: only what is sent changes (uuid refreshed, folder moved, policy re-resolved); the entry is updated, the tag reused",
+  "method": "POST",
+  "path": "/api/devices/cli",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000511",
+        "uuid": "00000000-0000-4000-8000-000000000511",
+        "device_group_name": "text-5eed0a02",
+        "address_book_name": "text-5eed0c01",
+        "address_book_tag": "text-5eed1801"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

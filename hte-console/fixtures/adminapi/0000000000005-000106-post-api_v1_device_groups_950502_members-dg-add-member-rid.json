@@ -1,0 +1,62 @@
+{
+  "format": 1,
+  "seq": 106,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "addMember(): by rustdesk_id; the device's folder is set and its policy re-resolved",
+  "method": "POST",
+  "path": "/api/v1/device-groups/{{i950502}}/members",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "rustdesk_id": "990000516"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950502,
+          "name": "text-5eed0a02",
+          "note": null,
+          "devices_count": 2,
+          "devices": [
+            {
+              "id": 950716,
+              "rustdesk_id": "990000516",
+              "alias": null,
+              "hostname": "host-5eed0516"
+            },
+            {
+              "id": 950717,
+              "rustdesk_id": "990000517",
+              "alias": null,
+              "hostname": null
+            }
+          ]
+        },
+        "message": "Device added."
+      }
+    }
+  },
+  "vars": {
+    "i950502": "950502"
+  }
+}

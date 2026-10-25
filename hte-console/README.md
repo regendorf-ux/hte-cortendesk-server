@@ -24,6 +24,11 @@ HTE Remote's console, step by step in Rust (plan: `PHPLESS-PLAN.md` in HTE's pri
   `App\Hte\{Reach,ReachSweep,RefusalsController,Passwords}` and `AuditConnection::closeStaleSessions`. Section
   "Phase 3" below.
 
+- **Phase 5, the admin automation API answered here** (0.5.0). All 48 routes of `/api/v1/*` (users, devices, user and
+  device groups, address books with peers, tags and rules, the four audit logs) and `POST /api/devices/cli`
+  (`--assign`), ported from `routes/api.php`, `routes/client-cli.php`, `AdminApi\*`, `Api\DeviceCliController` and
+  `ApiTokenCan`, behind PHP's own bearer check. Section "Phase 5" below.
+
 ```
 hte-console serve                       # serve; with HTE_CONSOLE_DATABASE the device endpoints are native
 hte-console scan <dir>                  # fail if a fixture holds anything real
@@ -287,3 +292,46 @@ window, a form-encoded PUT, the non-transactional push, the note length, the log
 - A legacy push whose `tag_colors` decodes to a non-empty JSON string, with a tag named by digits: PHP's
   `$tagColors[$name] ?? 0` reads the character at that offset of the string as the colour; here it is 0. The client
   never sends it (`tag_colors` is an object).
+
+## Phase 5: the admin automation API (`/api/v1/*`) and `--assign`
+
+`src/admin.rs` (route table, guard, throttle, bindings, ability check, envelope), `src/admin_ctl.rs` (the controllers),
+`src/device_cli.rs` (`POST /api/devices/cli`), `src/duplicates.rs` (`DuplicateDevices`) and `src/email.rs`. Every route,
+verb, status code, validation message, envelope (`{code,data,message}`, paginated `{code,data,total,current,total_pages,message}`),
+audit line (`console_audits`, "... (API)") and database write is ported statement by statement from the PHP console
+1.15.0-hte.1; the model events that matter (`Device` created/updated re-resolve the policy, `User`/`DeviceGroup` deleted
+re-resolve every device, soft deletes, the `hashed` and `array` casts, dirty-only updates) are reproduced.
+
+**Authentication is PHP's and nothing is reachable without it.** The chain on a v1 route is `auth:api-token`, then
+`throttle:120,1,admin-api` (the client route: `client-cli`; key = sha1 of the owner), then the model bindings (404
+`No query results for model [App\Models\X] <id>`), then `api-token-can:<resource>,<r|rw>`, then `last_used_at`.
+The guard reads only `Authorization: Bearer <token>` (`''` and `'0'` are no token), finds the `api_tokens` row by the
+sha256 of the token (an indexed equality on the hash; the plaintext is never stored or logged), requires `is_active`, an
+`expires_at` that is null or in the future, an owner that exists, is active and still holds `consoleAllows('token','rw')`,
+and refuses with 401 `{"message":"Unauthenticated."}`. `api-token-can` re-checks the token (401 envelope
+`{code:401,...}`) and the matrix (403 envelope `Token lacks 'rw' permission on 'user'.`); matrix levels are ranked
+rw > r > everything else, and an array level is a TypeError, a 500, as in PHP. Unknown routes are the Laravel 404 JSON
+and wrong verbs the 405 with an `Allow` header, both before authentication, as Laravel's router does. HEAD is served as GET.
+
+Proven by `tests/admin_api.rs` (8 tests: the 186 synthetic fixtures with database-state checks, every route refusing an
+unknown bearer, the token-by-hash rules, the owner losing the right at once, the 120/min throttle, 413, malformed and
+form bodies, preflight, no secret in the log) and `fixtures/adminapi/` (written by `replay/make-adminapi-fixtures.py`
+from the PHP source, with their seed: people, API tokens by sha256, groups, computers, books, logs).
+`replay.sh fixtures/adminapi` replays them against PHP and hte-console and compares answers and database; run it on its
+own (its lists assume only its own people and computers).
+
+### Phase 5: deliberate differences
+
+| | PHP 1.15.0-hte.1 | hte-console |
+|---|---|---|
+| failed token guesses | only the `throttle` after a valid token | additionally a per-address limit of 300 failed authentications a minute (429), so a guessing run is slowed before it reaches the 120/min owner limit that needs a valid token |
+| request bodies | PHP's limit | 1 MiB (`HTE_CONSOLE_ADMIN_MAX_BODY_BYTES`), 413 over it |
+| `email` validation | egulias/email-validator (RFC) | a narrower check (local part and dotted domain; no quoted strings, comments or IP literals) |
+| `multipart/form-data` bodies | parsed | not parsed (the automation sends JSON); JSON and `application/x-www-form-urlencoded` are read as Laravel reads them |
+
+### Phase 5: known differences, not visible to the automation at HTE
+
+- Produced by PHP's exceptions, not by input: a 500 renders as `{"message":"Server Error"}` (Laravel without debug); a
+  database constraint failure (a duplicate peer or tag, a null `owner_user_id`, a re-used `rustdesk_id` of a disabled
+  device through `--assign`) is that 500 here too, and nothing is written.
+- `last_used_at` is stamped with whole seconds, as the models cast it.

@@ -33,7 +33,7 @@ fn masked(col: &str) -> Option<&'static str> {
         Some("<enc>")
     } else if col == "strategy_version" {
         Some("<time>")
-    } else if matches!(col, "token" | "access_token" | "code" | "state" | "nonce" | "verifier") {
+    } else if matches!(col, "token" | "access_token" | "code" | "state" | "nonce" | "verifier" | "remember_token") {
         Some("<random>")
     } else if col == "totp_last_timestep" {
         Some("<step>")

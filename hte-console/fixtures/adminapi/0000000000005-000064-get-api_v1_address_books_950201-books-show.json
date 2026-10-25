@@ -1,0 +1,50 @@
+{
+  "format": 1,
+  "seq": 64,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "show()",
+  "method": "GET",
+  "path": "/api/v1/address-books/950201",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950201,
+          "guid": "00000000-0000-4000-8000-000000000501",
+          "name": "text-5eed0c01",
+          "is_personal": false,
+          "owner": {
+            "id": 950001,
+            "username": "user-5eed0501"
+          },
+          "note": "text-5eed0d01",
+          "peers_count": 3,
+          "tags_count": 2,
+          "rules_count": 2
+        },
+        "message": ""
+      }
+    }
+  }
+}

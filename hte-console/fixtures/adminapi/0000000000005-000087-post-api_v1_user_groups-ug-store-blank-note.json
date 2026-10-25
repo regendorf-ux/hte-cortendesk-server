@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "seq": 87,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "an empty string is null (ConvertEmptyStringsToNull), the note stays null",
+  "method": "POST",
+  "path": "/api/v1/user-groups",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed0805",
+        "note": ""
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950405,
+          "name": "text-5eed0805",
+          "note": null,
+          "users_count": 0
+        },
+        "message": "User group created."
+      }
+    }
+  }
+}

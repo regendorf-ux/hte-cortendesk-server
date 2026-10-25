@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 108,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "Device->find leaves out disabled devices",
+  "method": "POST",
+  "path": "/api/v1/device-groups/{{i950504}}/members",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "device_id": 950715
+      }
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 1,
+        "data": null,
+        "message": "Device not found."
+      }
+    }
+  },
+  "vars": {
+    "i950504": "950504"
+  }
+}

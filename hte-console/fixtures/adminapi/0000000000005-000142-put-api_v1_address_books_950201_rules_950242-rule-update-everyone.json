@@ -1,0 +1,49 @@
+{
+  "format": 1,
+  "seq": 142,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...changing the type to everyone does not clear subject_id on update",
+  "method": "PUT",
+  "path": "/api/v1/address-books/{{i950201}}/rules/{{i950242}}",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "subject_type": "everyone"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950242,
+          "subject_type": "everyone",
+          "subject_id": 950006,
+          "permission": 1
+        },
+        "message": "Rule updated."
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201",
+    "i950242": "950242"
+  }
+}

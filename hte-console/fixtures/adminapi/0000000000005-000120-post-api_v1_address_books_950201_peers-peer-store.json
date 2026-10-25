@@ -1,0 +1,63 @@
+{
+  "format": 1,
+  "seq": 120,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "storePeer(): the answer is the model as built (relay true, port an int), the row is read back as a string later",
+  "method": "POST",
+  "path": "/api/v1/address-books/{{i950201}}/peers",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "rustdesk_id": "990000530",
+        "alias": "text-5eed1501",
+        "force_always_relay": true,
+        "rdp_port": 3389,
+        "tag_ids": [
+          950231
+        ]
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 0,
+          "rustdesk_id": "990000530",
+          "alias": "text-5eed1501",
+          "hostname": null,
+          "platform": null,
+          "username": null,
+          "login_name": null,
+          "force_always_relay": true,
+          "rdp_port": 3389,
+          "rdp_username": null,
+          "tags": [
+            950231
+          ]
+        },
+        "message": "Peer added."
+      }
+    }
+  },
+  "vars": {
+    "i950201": "950201"
+  }
+}

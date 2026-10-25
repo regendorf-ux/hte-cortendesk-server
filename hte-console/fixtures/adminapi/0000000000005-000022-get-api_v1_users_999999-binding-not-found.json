@@ -1,0 +1,35 @@
+{
+  "format": 1,
+  "seq": 22,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "SubstituteBindings: ModelNotFoundException names the model and the value",
+  "method": "GET",
+  "path": "/api/v1/users/999999",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 404,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "No query results for model [App\\Models\\User] 999999"
+      }
+    }
+  }
+}

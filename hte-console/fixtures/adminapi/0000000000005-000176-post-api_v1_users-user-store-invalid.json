@@ -1,0 +1,56 @@
+{
+  "format": 1,
+  "seq": 176,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/request/email",
+    "/request/password",
+    "/response/errors"
+  ],
+  "source": "validate(): email, min:8, boolean (errors in the rules' order)",
+  "method": "POST",
+  "path": "/api/v1/users",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "username": "user-5eed0512",
+        "email": "not-an-email",
+        "password": "short",
+        "is_active": "maybe"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The email field must be a valid email address. (and 2 more errors)",
+        "errors": {
+          "email": [
+            "The email field must be a valid email address."
+          ],
+          "password": [
+            "The password field must be at least 8 characters."
+          ],
+          "is_active": [
+            "The is active field must be true or false."
+          ]
+        }
+      }
+    }
+  }
+}

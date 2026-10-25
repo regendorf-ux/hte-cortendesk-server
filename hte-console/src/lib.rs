@@ -3,11 +3,17 @@
 //! Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC) answered natively.
 //! Phase 3: the server link (policy with HTE's scope, local addresses, refusals) and the scheduled sweeps.
 //! Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config) answered natively.
+//! Phase 5: the admin automation API (`/api/v1/*`, token-guarded) and the client's `--assign` answered natively.
+pub mod admin;
+pub mod admin_ctl;
 pub mod api;
 pub mod audit;
 pub mod cache;
 pub mod client;
 pub mod config;
+pub mod device_cli;
+pub mod duplicates;
+pub mod email;
 pub mod fake_idp;
 pub mod sqlite;
 pub mod fixture;

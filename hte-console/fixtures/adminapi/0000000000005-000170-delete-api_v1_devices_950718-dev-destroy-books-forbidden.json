@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 170,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "destroy(remove_from_address_books) needs address_book rw on the token",
+  "method": "DELETE",
+  "path": "/api/v1/devices/950718",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a0d"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "remove_from_address_books": true
+      }
+    }
+  },
+  "response": {
+    "status": 403,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 403,
+        "data": null,
+        "message": "Token lacks 'rw' permission on 'address_book'."
+      }
+    }
+  }
+}

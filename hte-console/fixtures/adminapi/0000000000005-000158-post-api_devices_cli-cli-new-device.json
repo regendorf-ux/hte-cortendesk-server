@@ -1,0 +1,44 @@
+{
+  "format": 1,
+  "seq": 158,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "a device the table has not seen: registered ACTIVE with the named owner, the default folder, its strategy assigned, the book entry upserted with a tag and an encrypted password (an empty 200 is 'Done!')",
+  "method": "POST",
+  "path": "/api/devices/cli",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "id": "990000540",
+        "uuid": "00000000-0000-4000-8000-000000000540",
+        "user_name": "user-5eed0507",
+        "device_name": "host-5eed0540",
+        "device_username": "user-5eed0e40",
+        "note": "text-5eed1601",
+        "strategy_name": "text-5eed1101",
+        "address_book_name": "text-5eed0c01",
+        "address_book_alias": "text-5eed1701",
+        "address_book_tag": "text-5eed1801",
+        "address_book_password": "tok-5eed00000000c0ff",
+        "address_book_note": "ignored"
+      }
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {},
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  }
+}

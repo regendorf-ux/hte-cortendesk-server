@@ -1,0 +1,46 @@
+{
+  "format": 1,
+  "seq": 86,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [
+    "/request/name",
+    "/response/errors"
+  ],
+  "source": "max:255",
+  "method": "POST",
+  "path": "/api/v1/user-groups",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text text"
+      }
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "message": "The name field must not be greater than 255 characters.",
+        "errors": {
+          "name": [
+            "The name field must not be greater than 255 characters."
+          ]
+        }
+      }
+    }
+  }
+}

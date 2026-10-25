@@ -1,0 +1,38 @@
+{
+  "format": 1,
+  "seq": 166,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "nothing to assign",
+  "method": "POST",
+  "path": "/api/v1/devices/950711/assign",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {}
+    }
+  },
+  "response": {
+    "status": 422,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 1,
+        "data": null,
+        "message": "Nothing to assign; provide user_(id|name) or device_group_(id|name)."
+      }
+    }
+  }
+}

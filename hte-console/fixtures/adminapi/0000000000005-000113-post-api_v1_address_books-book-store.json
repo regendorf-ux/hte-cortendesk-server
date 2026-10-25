@@ -1,0 +1,53 @@
+{
+  "format": 1,
+  "seq": 113,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "AddressBooksController->store: the owner defaults to the token's owner, the guid is made",
+  "method": "POST",
+  "path": "/api/v1/address-books",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "name": "text-5eed0c04"
+      }
+    }
+  },
+  "response": {
+    "status": 201,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950204,
+          "guid": "{{random}}",
+          "name": "text-5eed0c04",
+          "is_personal": false,
+          "owner": {
+            "id": 950001,
+            "username": "user-5eed0501"
+          },
+          "note": null,
+          "peers_count": 0,
+          "tags_count": 0,
+          "rules_count": 0
+        },
+        "message": "Address book created."
+      }
+    }
+  }
+}

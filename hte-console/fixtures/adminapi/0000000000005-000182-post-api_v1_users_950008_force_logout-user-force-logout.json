@@ -1,0 +1,40 @@
+{
+  "format": 1,
+  "seq": 182,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "forceLogout(): the same revocation, the account stays active",
+  "method": "POST",
+  "path": "/api/v1/users/{{i950008}}/force-logout",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": null,
+        "message": "User logged out everywhere."
+      }
+    }
+  },
+  "vars": {
+    "i950008": "950008"
+  }
+}

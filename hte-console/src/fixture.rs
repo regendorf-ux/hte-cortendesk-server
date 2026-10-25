@@ -227,7 +227,19 @@ pub fn scan(s: &Sanitiser, dir: &Path) -> std::io::Result<Vec<(String, String)>>
         let text = std::fs::read_to_string(&p)?;
         match serde_json::from_str::<Value>(&text) {
             Ok(v) => {
+                // phase 5: a SYNTHETIC fixture may list JSON pointers (`"scan_ignore": ["/response/errors"]`, array
+                // indices and `/body/value` left out) whose values are Laravel's own vocabulary (validation messages, action names), not
+                // captured text; a captured fixture has no such key, and a configured literal is never excused
+                let ignore: Vec<String> = match v["synthetic"].as_bool() {
+                    Some(true) => v["scan_ignore"].as_array().into_iter().flatten().filter_map(|x| x.as_str().map(String::from)).collect(),
+                    _ => vec![],
+                };
                 for d in s.leftovers(&v) {
+                    let at = d.split(": not a placeholder").next().unwrap_or("");
+                    let plain = at.split('[').map(|p| p.split_once(']').map_or(p, |x| x.1)).collect::<String>().replace("/body/value", "");
+                    if d.contains(": not a placeholder") && ignore.iter().any(|i| plain == *i || plain.starts_with(&format!("{i}/"))) {
+                        continue;
+                    }
                     out.push((name.clone(), d));
                 }
                 for lit in s.literals() {

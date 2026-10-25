@@ -377,6 +377,7 @@ pub fn router(native: Arc<Native>, fallback: Option<Router>) -> Router {
         r = r.route(path, any(move |s, c, req| handle(s, c, req, ep)));
     }
     let r = crate::client::mount(r); // phase 4: the bearer-token client endpoints
+    let r = crate::admin::mount(r); // phase 5: the admin automation API and --assign
     let r = r.route("/__hte-console/health", any(|| async { "ok" })).with_state(native);
     match fallback {
         Some(f) => r.fallback_service(f),

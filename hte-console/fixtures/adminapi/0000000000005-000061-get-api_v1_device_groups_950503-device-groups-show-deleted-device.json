@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 61,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "...a disabled device is not listed or counted",
+  "method": "GET",
+  "path": "/api/v1/device-groups/950503",
+  "query": {},
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": {
+          "id": 950503,
+          "name": "text-5eed0a03",
+          "note": null,
+          "devices_count": 0,
+          "devices": []
+        },
+        "message": ""
+      }
+    }
+  }
+}

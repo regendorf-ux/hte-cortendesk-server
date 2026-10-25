@@ -1,0 +1,43 @@
+{
+  "format": 1,
+  "seq": 32,
+  "synthetic": true,
+  "sanitise_expected": true,
+  "scan_ignore": [],
+  "source": "a page past the end: no items, the page asked for",
+  "method": "GET",
+  "path": "/api/v1/users",
+  "query": {
+    "page_size": "5",
+    "page": "9"
+  },
+  "request": {
+    "headers": {
+      "accept": "application/json",
+      "x-forwarded-for": "198.18.5.1",
+      "authorization": "Bearer tok-5eed000000005a01"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "empty"
+    }
+  },
+  "response": {
+    "status": 200,
+    "headers": {
+      "content-type": "application/json"
+    },
+    "cookies": {},
+    "body": {
+      "kind": "json",
+      "value": {
+        "code": 0,
+        "data": [],
+        "total": 10,
+        "current": 9,
+        "total_pages": 2,
+        "message": ""
+      }
+    }
+  }
+}
