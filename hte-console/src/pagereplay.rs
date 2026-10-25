@@ -545,16 +545,9 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             "/address-books",
             "/strategies",
             "/settings",
-            "/diagnostics",
-            "/diagnostics/export",
-            "/roles",
         ] {
             cases.push((user, path.to_string()));
         }
-    }
-    // the health routes answer without a session
-    for path in ["/health/live", "/health/ready"] {
-        cases.push(("hteadmin", path.to_string()));
     }
     for path in [
         format!("/logs/alarms?dateFrom={day}&dateTo={day}"),
@@ -564,9 +557,26 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             cases.push((user, path.clone()));
         }
     }
+    // 7c, after everything 7b asked, so a 7b capture still lines up up to here
+    for user in ["hteadmin", "dana", "erin"] {
+        for path in ["/diagnostics", "/diagnostics/export", "/roles"] {
+            cases.push((user, path.to_string()));
+        }
+    }
+    // the health routes answer without a session
+    for path in ["/health/live", "/health/ready"] {
+        cases.push(("hteadmin", path.to_string()));
+    }
     for (i, (user, path)) in cases.iter().enumerate() {
         let cookie = cookie_for(&cfg, &crypt, user, now);
-        let a = php_get(&side, &format!("p{i:03}"), &format!("{user} GET {path}"), &c, php, &cookie, path).await?;
+        let a = match php_get(&side, &format!("p{i:03}"), &format!("{user} GET {path}"), &c, php, &cookie, path).await {
+            // a capture taken by an older replay ends before the pages added since: those are not compared (said, not counted)
+            Err(e) if offline && e.contains("capture from an older replay") => {
+                eprintln!("not in this capture (added after it was taken), not compared: {user} GET {path}");
+                continue;
+            }
+            r => r?,
+        };
         let clock = a.at.to_string();
         let at: &[(&str, &str)] = if offline { &[("x-hte-replay-clock", clock.as_str())] } else { &[] };
         let b = fetch(&c, rust, &cookie, "GET", path, None, String::new(), at).await?;
@@ -879,6 +889,11 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, side: &Side, cfg: &
         };
         let php_html = match got {
             Ok(h) => h,
+            Err(e) if matches!(side, Side::From(_)) && e.contains("capture from an older replay") => {
+                *total -= 1;
+                eprintln!("not in this capture (added after it was taken), not compared: {label}");
+                continue;
+            }
             Err(e) => {
                 diffs.push(format!("{label} (PHP): {e}"));
                 continue;
