@@ -70,9 +70,12 @@ impl Input {
             let mut bag = php::parse_str(body);
             clean(&mut bag, b"");
             bag
+        } else if matches!(method, "POST" | "PUT" | "PATCH" | "DELETE") && crate::multipart::boundary(ct).is_some() {
+            // the text fields of a multipart body (the console's upload form); the files stay in `raw`
+            let mut bag = php::parse_str(&crate::multipart::as_urlencoded(ct, body));
+            clean(&mut bag, b"");
+            bag
         } else {
-            // PHP fills $_POST only for urlencoded and multipart bodies. Multipart is not parsed here (no RustDesk
-            // client sends it to these endpoints): its fields are absent, a documented divergence.
             Arr::new()
         };
         Input { bag: source.union(&query_bag), query: query_bag, is_json, raw: body.to_vec() }

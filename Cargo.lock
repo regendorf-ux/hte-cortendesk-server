@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "hte-console"
-version = "0.7.16"
+version = "0.7.17"
 dependencies = [
  "aes",
  "axum 0.7.9",
@@ -1923,10 +1923,12 @@ dependencies = [
  "minijinja",
  "once_cell",
  "rand 0.8.8",
+ "rcgen",
  "regex",
  "reqwest 0.12.28",
  "ring 0.17.14",
  "rusqlite",
+ "rustls 0.23.45",
  "serde",
  "serde_json",
  "sha1",
@@ -3735,6 +3737,7 @@ checksum = "eddd3ca559203180a307f12d114c268abf583f59b03cb906fd0b3ff8646c1147"
 dependencies = [
  "base64 0.22.1",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "http 1.5.0",

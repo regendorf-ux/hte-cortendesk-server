@@ -731,6 +731,7 @@ fn dialog_of(html: &str) -> Option<&str> {
 /// on the same page; what each shows (text and classes) is compared like a page.
 async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::SessionConfig, crypt: &Encrypter, now: i64, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) {
     let mut layout = 0usize;
+    let mut helper = 0usize;
     use serde_json::json;
     // (what, page, component, method, params, hte-console's query)
     let cases: Vec<(&str, &str, &str, &str, Vec<serde_json::Value>, &str)> = vec![
@@ -780,11 +781,19 @@ async fn dialogs(c: &reqwest::Client, php: &str, rust: &str, cfg: &session::Sess
         let ((ta, ca), (tb, cb)) = (shape(a), shape(b));
         // text only: a dialog is hte-console's own layout (tabs or pills, widths, helper lines); what it says and offers is what is compared
         for d in all_differences(&ta, &tb) {
+            // helper lines hte-console adds where PHP says nothing: an improvement, listed once as by design
+            if d.contains("PHP has «» /") && (d.contains("«Ignored for an administrator.»") || d.contains("«Not used for an administrator.»")) {
+                helper += 1;
+                continue;
+            }
             diffs.push(format!("{label}: text {d}"));
         }
         if ca != cb {
             layout += 1;
         }
+    }
+    if helper > 0 {
+        by_design.push(format!("dialogs: by design (Users add/edit: hte-console says in a helper line that a role or the device groups do not apply to an administrator; PHP shows the field without saying so) ({helper} lines)"));
     }
     if layout > 0 {
         by_design.push(format!("dialogs: {DIALOG_LAYOUT_REASON} ({layout} of {} differ)", 16));

@@ -748,11 +748,11 @@ fn retention_runs_after_each_backup_and_a_failure_is_recorded() {
     assert_eq!(names, ["cortendesk-backup-20261029-041030.tar", "cortendesk-backup-20261028-041030.tar", "cortendesk-backup-20261027-041030.tar"]);
     assert!(!w.env.backups_dir.join("cortendesk-backup-20261024-041030.tar.json").exists(), "the sidecar goes with the archive");
 
-    // an off-site target is not supported: said where Settings shows it, exit not ok
-    c.execute("insert into settings (key, value) values ('backup_target', 's3')", []).unwrap();
+    // an off-site target that cannot be reached: the archive is kept, the failure is said where Settings shows it, exit not ok
+    c.execute("insert into settings (key, value) values ('backup_target', 's3'), ('backup_s3_bucket', 'bk'), ('backup_s3_endpoint', 'http://127.0.0.1:1')", []).unwrap();
     let o = housekeeping::backup_command(&w.env, false, NOW + 7 * 86_400).unwrap();
     assert!(!o.ok);
-    assert!(result(&c)["message"].as_str().unwrap().contains("Off-site copy failed: hte-console makes no s3 copies"));
+    assert!(result(&c)["message"].as_str().unwrap().contains("Off-site copy failed: "));
     assert_eq!(result(&c)["ok"], false);
 
     // a failure (the backup directory cannot be written): recorded without a name, nothing half-written

@@ -614,13 +614,13 @@
         <div class="row">
             <div class="col-lg-7">
                 <div class="card">
-                    <div class="card-header d-flex justify-content-between align-items-center gap-2 flex-wrap">
-                        <div><h5 class="card-title mb-1">Backups</h5>
-                            <p class="text-muted fs-13 mb-0">Each archive holds the whole database, every setting, the app key{% if backups.server_files %} and the ID server's key pair and peer database{% endif %} &mdash; everything needed to rebuild this install. Treat it like a password.</p></div>
-                        <button type="submit" form="backup-run-form" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-archive-line me-1"></i>Back up now</button>
+                    <div class="rd-toolbar">
+                        <div><h4 class="header-title">Backups</h4>
+                            <p class="rd-card-sub mb-0">Each archive holds the whole database, every setting, the app key{% if backups.server_files %} and the ID server's key pair and peer database{% endif %} &mdash; everything needed to rebuild this install. Treat it like a password.</p></div>
+                        <div class="rd-toolbar-actions"><button type="submit" form="backup-run-form" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-archive-line me-1"></i>Back up now</button></div>
                     </div>
                     {% if backups.error %}<div class="alert alert-danger py-2 mx-3 mt-3">{{ backups.error }}</div>{% endif %}
-                    <div class="table-responsive">
+                    <div class="table-responsive d-none d-md-block">
                         <table class="table table-hover table-centered mb-0">
                             <thead><tr><th>Taken</th><th>Size</th><th>Version</th><th>Trigger</th><th class="text-end">Action</th></tr></thead>
                             <tbody>
@@ -644,21 +644,96 @@
                             </tbody>
                         </table>
                     </div>
-                    {% if backups.last %}<div class="card-body border-top fs-13 text-muted">Last run: {{ backups.last.message or backups.last.status or '' }}{% if backups.last.at %} <span class="rd-mono">{{ backups.last.at }}</span>{% endif %}</div>{% endif %}
+                    <div class="d-md-none rd-cardlist">
+                        {% for b in backups.items %}
+                        <div class="rd-mini"><div class="rd-mini-head"><div class="min-width-0"><span class="rd-mini-title">{{ b.taken }}</span><span class="rd-mini-sub">{{ b.size }} · v{{ b.version }} · {{ b.trigger }}</span></div></div>
+                            {% if can_manage %}<div class="d-flex gap-2 mt-2">
+                                <a class="btn btn-sm btn-light" href="/settings/backups/download?name={{ b.name }}" hx-boost="false"><i class="ri-download-2-line me-1"></i>Download</a>
+                                <button type="submit" form="backup-restore-form" name="name" value="{{ b.name }}" class="btn btn-sm btn-light text-warning" data-rd-confirm="Restore {{ b.name }}? This OVERWRITES every setting, user, device, address book and log in this install with what the backup holds. Anything changed since it was taken is lost. There is no undo."><i class="ri-history-line me-1"></i>Restore</button>
+                                <button type="submit" form="backup-delete-form" name="name" value="{{ b.name }}" class="btn btn-sm btn-light text-danger" data-rd-confirm="Delete {{ b.name }}?"><i class="ri-delete-bin-6-line"></i></button>
+                            </div>{% endif %}
+                        </div>
+                        {% else %}<p class="text-muted text-center py-4 mb-0">No backups yet.</p>{% endfor %}
+                    </div>
+                    <div class="card-body border-top">
+                        {% if backups.last %}<p class="fs-13 text-muted mb-2">Last run: {{ backups.last.message or backups.last.status or '' }}{% if backups.last.at %} <span class="rd-mono">{{ backups.last.at }}</span>{% endif %}</p>{% endif %}
+                        <p class="fs-13 text-muted mb-0">Stored in <span class="rd-mono">{{ backups.dir }}</span>.</p>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Restore from a file</h5></div>
+                    <div class="card-body">
+                        <p class="text-muted fs-13">Upload an archive from another install or an off-site copy. Encrypted values are re-keyed to this install, so a backup from a different app key restores cleanly.</p>
+                        <div class="alert alert-warning py-2 fs-13"><i class="ri-alert-line me-1"></i><strong>Restoring overwrites all your settings</strong>, users, devices, address books and logs with the backup's contents. Anything changed since the backup was taken is lost. Make a backup first if you may want to come back.</div>
+                        <div class="mb-3">
+                            <input type="file" class="form-control{{ ' is-invalid' if backups.errors.upload else '' }}" name="upload" form="backup-upload-form" accept=".tar"{{ '' if can_manage else ' disabled' }}>
+                            {% if backups.errors.upload %}<div class="invalid-feedback">{{ backups.errors.upload }}</div>{% endif %}
+                        </div>
+                        <button type="submit" form="backup-upload-form" class="btn btn-warning" data-rd-confirm="Restore from the uploaded file? This OVERWRITES every setting, user, device, address book and log in this install. There is no undo."{{ '' if can_manage else ' disabled' }}><i class="ri-history-line me-1"></i>Restore from file</button>
+                    </div>
                 </div>
             </div>
             <div class="col-lg-5">
                 <div class="card">
-                    <div class="card-header"><h5 class="card-title mb-0">Schedule and retention</h5></div>
+                    <div class="card-header"><h5 class="card-title mb-0">Schedule</h5></div>
                     <div class="card-body">
-                        <div class="form-check form-switch mb-3"><input class="form-check-input" type="checkbox" id="bk-enabled" name="enabled" value="1" form="backup-save-form"{{ ' checked' if backups.enabled else '' }}{{ '' if can_manage else ' disabled' }}><label class="form-check-label" for="bk-enabled">Back up daily</label></div>
-                        <div class="row g-2">
+                        <div class="mb-3"><div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="bk-enabled" name="enabled" value="1" form="backup-save-form"{{ ' checked' if backups.enabled else '' }}{{ '' if can_manage else ' disabled' }}><label class="form-check-label" for="bk-enabled">Automatic backups</label></div>
+                        <div class="form-text">Runs every day at 03:30 server time. On by default.</div></div>
+                        <div class="row g-3">
                             <div class="col-4"><label class="form-label">Keep daily</label><input type="number" class="form-control" name="keep_daily" min="0" max="365" form="backup-save-form" value="{{ backups.keep_daily }}"{{ '' if can_manage else ' disabled' }}></div>
                             <div class="col-4"><label class="form-label">Keep weekly</label><input type="number" class="form-control" name="keep_weekly" min="0" max="365" form="backup-save-form" value="{{ backups.keep_weekly }}"{{ '' if can_manage else ' disabled' }}></div>
                             <div class="col-4"><label class="form-label">Keep monthly</label><input type="number" class="form-control" name="keep_monthly" min="0" max="365" form="backup-save-form" value="{{ backups.keep_monthly }}"{{ '' if can_manage else ' disabled' }}></div>
                         </div>
-                        <button type="submit" form="backup-save-form" class="btn btn-primary mt-3"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save backup settings</button>
-                        <div class="form-text mt-2">Archives are kept in {{ backups.dir }}. The off-site FTP and S3 copy ({{ 'off' if backups.target == 'none' else backups.target }}), its test button and restoring from an uploaded file are not available yet in this version of the console.</div>
+                        <div class="form-text mt-2">All three apply at once: the newest {{ backups.keep_daily }} backups, the first backup of each of the last {{ backups.keep_weekly }} weeks, and the first of each of the last {{ backups.keep_monthly }} months. Everything else is deleted after each run. 0 turns a tier off.</div>
+                    </div>
+                </div>
+            </div>
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Off-site copy</h5></div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label class="form-label" for="backupTarget">Copy each backup to</label>
+                            <select id="backupTarget" class="form-select{{ ' is-invalid' if backups.errors.target else '' }}" name="target" form="backup-save-form" data-rd-switch="backup-target"{{ '' if can_manage else ' disabled' }}>
+                                <option value="none"{{ ' selected' if backups.target == 'none' else '' }}>None</option>
+                                <option value="ftp"{{ ' selected' if backups.target == 'ftp' else '' }}>FTP / FTPS</option>
+                                <option value="s3"{{ ' selected' if backups.target == 's3' else '' }}>S3-compatible storage</option>
+                            </select>
+                            {% if backups.errors.target %}<div class="invalid-feedback">{{ backups.errors.target }}</div>{% endif %}
+                            <div class="form-text">Mirrors the list on this server: after each run the new backup goes up and anything pruned or deleted here is removed there. The local copy stays either way.</div>
+                        </div>
+                        <div{% if backups.target == 'ftp' %}{% else %} class="d-none"{% endif %} data-rd-group="backup-target" data-rd-when="ftp" data-rd-keep>
+                            <div class="row g-3">
+                                <div class="col-8"><label class="form-label">Host</label><input type="text" class="form-control {{ ' is-invalid' if backups.errors.ftp_host else '' }}" name="ftp_host" form="backup-save-form" value="{{ backups.f.ftp_host }}" placeholder="ftp.example.com"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.ftp_host %}<div class="invalid-feedback">{{ backups.errors.ftp_host }}</div>{% endif %}</div>
+                                <div class="col-4"><label class="form-label">Port</label><input type="number" class="form-control{{ ' is-invalid' if backups.errors.ftp_port else '' }}" name="ftp_port" form="backup-save-form" value="{{ backups.f.ftp_port }}" min="1" max="65535"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.ftp_port %}<div class="invalid-feedback">{{ backups.errors.ftp_port }}</div>{% endif %}</div>
+                                <div class="col-sm-6"><label class="form-label">Username</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.ftp_username else '' }}" name="ftp_username" form="backup-save-form" value="{{ backups.f.ftp_username }}" autocomplete="off"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.ftp_username %}<div class="invalid-feedback">{{ backups.errors.ftp_username }}</div>{% endif %}</div>
+                                <div class="col-sm-6"><label class="form-label">Password</label><input type="password" class="form-control{{ ' is-invalid' if backups.errors.ftp_password else '' }}" name="ftp_password" form="backup-save-form" autocomplete="new-password" placeholder="{{ '•••••••• (stored, blank keeps it)' if backups.ftp_password_set else '' }}"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.ftp_password %}<div class="invalid-feedback">{{ backups.errors.ftp_password }}</div>{% endif %}</div>
+                                <div class="col-12"><label class="form-label">Directory</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.ftp_path else '' }}" name="ftp_path" form="backup-save-form" value="{{ backups.f.ftp_path }}" placeholder="backups/cortendesk"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.ftp_path %}<div class="invalid-feedback">{{ backups.errors.ftp_path }}</div>{% endif %}<div class="form-text">Created if missing. Relative to the sign-in directory.</div></div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="ftpTls" name="ftp_tls" value="1" form="backup-save-form"{{ ' checked' if backups.f.ftp_tls else '' }}{{ '' if can_manage else ' disabled' }}><label class="form-check-label" for="ftpTls">Use TLS (explicit FTPS)</label></div>
+                                    <div class="form-text">Plain FTP sends the password in clear. TLS means explicit FTPS (AUTH TLS, usually port 21); the server's certificate is not verified. Implicit FTPS (port 990) and SFTP are not supported.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div{% if backups.target == 's3' %}{% else %} class="d-none"{% endif %} data-rd-group="backup-target" data-rd-when="s3" data-rd-keep>
+                            <div class="row g-3">
+                                <div class="col-sm-7"><label class="form-label">Bucket</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.s3_bucket else '' }}" name="s3_bucket" form="backup-save-form" value="{{ backups.f.s3_bucket }}"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_bucket %}<div class="invalid-feedback">{{ backups.errors.s3_bucket }}</div>{% endif %}</div>
+                                <div class="col-sm-5"><label class="form-label">Region</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.s3_region else '' }}" name="s3_region" form="backup-save-form" value="{{ backups.f.s3_region }}" placeholder="us-east-1"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_region %}<div class="invalid-feedback">{{ backups.errors.s3_region }}</div>{% endif %}</div>
+                                <div class="col-12"><label class="form-label">Endpoint</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.s3_endpoint else '' }}" name="s3_endpoint" form="backup-save-form" value="{{ backups.f.s3_endpoint }}" placeholder="https://s3.us-east-1.amazonaws.com"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_endpoint %}<div class="invalid-feedback">{{ backups.errors.s3_endpoint }}</div>{% endif %}<div class="form-text">Leave empty for AWS. MinIO, Backblaze B2, Wasabi, R2 and the like need their own.</div></div>
+                                <div class="col-12"><label class="form-label">Folder (prefix)</label><input type="text" class="form-control{{ ' is-invalid' if backups.errors.s3_prefix else '' }}" name="s3_prefix" form="backup-save-form" value="{{ backups.f.s3_prefix }}" placeholder="cortendesk"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_prefix %}<div class="invalid-feedback">{{ backups.errors.s3_prefix }}</div>{% endif %}</div>
+                                <div class="col-sm-6"><label class="form-label">Access key ID</label><input type="text" class="form-control rd-mono{{ ' is-invalid' if backups.errors.s3_access_key else '' }}" name="s3_access_key" form="backup-save-form" value="{{ backups.f.s3_access_key }}" autocomplete="off"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_access_key %}<div class="invalid-feedback">{{ backups.errors.s3_access_key }}</div>{% endif %}</div>
+                                <div class="col-sm-6"><label class="form-label">Secret access key</label><input type="password" class="form-control{{ ' is-invalid' if backups.errors.s3_secret_key else '' }}" name="s3_secret_key" form="backup-save-form" autocomplete="new-password" placeholder="{{ '•••••••• (stored, blank keeps it)' if backups.s3_secret_set else '' }}"{{ '' if can_manage else ' disabled' }}>{% if backups.errors.s3_secret_key %}<div class="invalid-feedback">{{ backups.errors.s3_secret_key }}</div>{% endif %}</div>
+                                <div class="col-12">
+                                    <div class="form-check form-switch"><input class="form-check-input" type="checkbox" id="s3PathStyle" name="s3_path_style" value="1" form="backup-save-form"{{ ' checked' if backups.f.s3_path_style else '' }}{{ '' if can_manage else ' disabled' }}><label class="form-check-label" for="s3PathStyle">Path-style addressing</label></div>
+                                    <div class="form-text">Bucket in the path instead of the host name. Needed by MinIO and most self-hosted servers.</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="d-flex gap-2 mt-3">
+                            <button type="submit" form="backup-save-form" class="btn btn-primary"{{ '' if can_manage else ' disabled' }}><i class="ri-save-line me-1"></i>Save</button>
+                            {% if backups.target != 'none' %}<button type="submit" form="backup-save-form" formaction="/settings/backups/test" class="btn btn-light"{{ '' if can_manage else ' disabled' }}><i class="ri-plug-line me-1"></i>Test connection</button>{% endif %}
+                        </div>
+                        {% if backups.test and backups.target != 'none' %}<div class="alert alert-{{ backups.test.tone }} py-2 mt-3 mb-0" role="status" style="white-space: pre-line;">{{ backups.test.text }}</div>{% endif %}
                     </div>
                 </div>
             </div>
@@ -670,6 +745,7 @@
 <form id="snooze-form" method="post" action="/settings/snooze"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="prune-form" method="post" action="/settings/prune"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="log_retention_days" id="prune-days" value=""></form>
 <form id="backup-run-form" method="post" action="/settings/backups/run"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
+<form id="backup-upload-form" method="post" action="/settings/backups/upload" enctype="multipart/form-data"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="backup-save-form" method="post" action="/settings/backups/save"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="backup-delete-form" method="post" action="/settings/backups/delete"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>
 <form id="backup-restore-form" method="post" action="/settings/backups/restore"><input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"></form>

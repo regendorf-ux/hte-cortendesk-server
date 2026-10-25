@@ -598,11 +598,16 @@ fn max_body() -> usize {
     std::env::var("HTE_CONSOLE_PAGE_MAX_BODY_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(64 * 1024)
 }
 
+fn upload_max() -> usize {
+    std::env::var("HTE_CONSOLE_UPLOAD_MAX_BYTES").ok().and_then(|v| v.trim().parse().ok()).unwrap_or(256 << 20)
+}
+
 async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<SocketAddr>, req: Request<Body>, idx: usize) -> Response<Body> {
     let route = &ROUTES[idx];
     let (parts, body) = req.into_parts();
     let head = parts.method == Method::HEAD;
-    let max = max_body();
+    // the backup upload is the one form that carries a file
+    let max = if parts.uri.path() == "/settings/backups/upload" { upload_max() } else { max_body() };
     // read the body first: a forwarded request needs it again, a served one parses it
     let declared = hstr(&parts.headers, "content-length").and_then(|v| v.trim().parse::<usize>().ok());
     if declared.map_or(false, |n| n > max) {
@@ -736,6 +741,8 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/settings/backups/save", methods: &["POST"], need: Some(("setting", "r")), handler: backups::save },
     Route { path: "/settings/backups/delete", methods: &["POST"], need: Some(("setting", "r")), handler: backups::delete },
     Route { path: "/settings/backups/restore", methods: &["POST"], need: Some(("setting", "r")), handler: backups::restore },
+    Route { path: "/settings/backups/test", methods: &["POST"], need: Some(("setting", "r")), handler: backups::test },
+    Route { path: "/settings/backups/upload", methods: &["POST"], need: Some(("setting", "r")), handler: backups::upload },
     Route { path: "/settings/backups/download", methods: &["GET"], need: Some(("setting", "rw")), handler: backups::download },
     Route { path: "/roles", methods: &["GET"], need: None, handler: unavailable::roles },
     Route { path: "/invitations", methods: &["GET"], need: Some(("user", "rw")), handler: unavailable::invitations },

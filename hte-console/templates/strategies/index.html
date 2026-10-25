@@ -250,12 +250,13 @@
                     <div class="mb-2"><input type="search" class="form-control" name="search" form="st-assign-search" value="{{ d.search }}" placeholder="Search ID, alias or hostname"></div>
                     {% if d.capped %}<div class="small text-muted mb-2">Showing the first 200 matches; refine the search to see others.</div>{% endif %}
                     {% for x in d.devices %}
-                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-d-{{ x.id }}" name="device_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-d-{{ x.id }}">{{ x.rustdesk_id }}{% if x.label %} — {{ x.label }}{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
-                    {% else %}<div class="text-muted">No devices.</div>{% endfor %}
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-d-{{ x.id }}" name="device_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-d-{{ x.id }}"><span class="fw-semibold">{{ x.rustdesk_id }}</span>{% if x.label %}<small class="text-muted d-block">{{ x.label }}</small>{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
+                    {% else %}<div class="text-muted text-center py-3">No devices match.</div>{% endfor %}
+                    <small class="text-muted">{{ d.counts.devices }} selected</small>
                     {% else %}{% for x in d.devices %}{% if x.checked %}<input type="hidden" name="device_ids[]" value="{{ x.id }}">{% endif %}{% endfor %}{% endif %}
                     {% if d.tab == "users" %}
                     {% for x in d.users %}
-                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-u-{{ x.id }}" name="user_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-u-{{ x.id }}">{{ x.username }}{% if x.name %} — {{ x.name }}{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
+                    <div class="form-check"><input class="form-check-input" type="checkbox" id="st-u-{{ x.id }}" name="user_ids[]" value="{{ x.id }}"{{ ' checked' if x.checked else '' }}><label class="form-check-label" for="st-u-{{ x.id }}"><span class="fw-semibold">{{ x.username }}</span>{% if x.name %}<small class="text-muted d-block">{{ x.name }}</small>{% endif %}{% if x.taken %} <span class="badge bg-warning-subtle text-warning">currently {{ x.taken }}</span>{% endif %}</label></div>
                     {% endfor %}
                     {% else %}{% for x in d.users %}{% if x.checked %}<input type="hidden" name="user_ids[]" value="{{ x.id }}">{% endif %}{% endfor %}{% endif %}
                     {% if d.tab == "groups" %}
@@ -326,7 +327,7 @@
                 <div class="table-responsive">
                 <table class="table table-sm">
                     <thead><tr><th>Device</th><th>State</th><th>Last online</th><th>Sent</th><th>Confirmed</th></tr></thead>
-                    <tbody>{% for x in d.devices %}<tr><td>{{ x.rustdesk_id }} — {{ x.label }}</td><td>{{ x.state }}</td><td>{{ x.last_online }}</td><td>{{ x.sent }}</td><td>{{ x.confirmed }}</td></tr>{% else %}<tr><td colspan="5" class="text-muted">No devices.</td></tr>{% endfor %}</tbody>
+                    <tbody>{% for x in d.devices %}<tr><td>{{ x.rustdesk_id }} — {{ x.label }}</td><td>{{ x.state }}</td><td>{{ x.last_online }}</td><td>{{ x.sent }}</td><td>{{ x.confirmed }}</td></tr>{% else %}<tr><td colspan="5" class="text-center text-muted py-4">No devices in this state.</td></tr>{% endfor %}</tbody>
                 </table>
                 </div>
             </div>

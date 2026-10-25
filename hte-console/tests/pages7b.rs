@@ -189,6 +189,25 @@ impl H {
         self.go("POST", path, Some(cookie), Some("application/x-www-form-urlencoded"), &body, &[]).await
     }
 
+    /// A multipart form with one file (the backup upload).
+    async fn post_file(&self, path: &str, cookie: &str, field: &str, filename: &str, data: &[u8]) -> Resp {
+        let mut body = format!("--XyZ\r\nContent-Disposition: form-data; name=\"_token\"\r\n\r\n{TOKEN}\r\n--XyZ\r\nContent-Disposition: form-data; name=\"{field}\"; filename=\"{filename}\"\r\nContent-Type: application/x-tar\r\n\r\n").into_bytes();
+        body.extend_from_slice(data);
+        body.extend_from_slice(b"\r\n--XyZ--\r\n");
+        let r = self
+            .client
+            .post(format!("{}{}", self.url, path))
+            .header("x-forwarded-for", "198.18.9.1")
+            .header("cookie", cookie)
+            .header("content-type", "multipart/form-data; boundary=XyZ")
+            .body(body)
+            .send()
+            .await
+            .unwrap();
+        let (status, headers) = (r.status().as_u16(), r.headers().clone());
+        Resp { status, headers, body: r.text().await.unwrap() }
+    }
+
     fn alarms(&self, n: usize) {
         let c = self.db();
         for i in 0..n {
@@ -973,4 +992,109 @@ async fn the_dialogs_the_replay_opens() {
         assert_eq!(r.status, 200, "{q}: {}", &r.body[..r.body.len().min(400)]);
         assert!(r.body.contains("modal fade show"), "{q} shows no dialog");
     }
+}
+
+/// An S3 that answers every request: an empty list, 200 for the rest; records what it was asked.
+fn fake_s3() -> (String, Arc<Mutex<Vec<String>>>) {
+    use std::io::{Read, Write};
+    let l = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let url = format!("http://{}", l.local_addr().unwrap());
+    let seen = Arc::new(Mutex::new(vec![]));
+    let log = seen.clone();
+    std::thread::spawn(move || {
+        for conn in l.incoming().flatten() {
+            let mut c = conn;
+            let mut buf = vec![0u8; 65536];
+            let mut head = String::new();
+            let mut got = 0;
+            // read the head, then drain the declared body
+            loop {
+                let n = c.read(&mut buf[got..]).unwrap_or(0);
+                if n == 0 {
+                    break;
+                }
+                got += n;
+                head = String::from_utf8_lossy(&buf[..got]).into_owned();
+                if let Some(end) = head.find("\r\n\r\n") {
+                    let len = head.lines().find_map(|l| l.to_ascii_lowercase().strip_prefix("content-length:").map(|v| v.trim().parse::<usize>().unwrap_or(0))).unwrap_or(0);
+                    if got >= end + 4 + len {
+                        break;
+                    }
+                    if got == buf.len() {
+                        got = end + 4;
+                    }
+                }
+            }
+            log.lock().unwrap().push(head.lines().next().unwrap_or("").to_string());
+            let body = "<?xml version=\"1.0\"?><ListBucketResult><IsTruncated>false</IsTruncated></ListBucketResult>";
+            let _ = write!(c, "HTTP/1.1 200 OK\r\nContent-Type: application/xml\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len());
+        }
+    });
+    (url, seen)
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn backups_off_site_copy_and_upload() {
+    let _env = ENV.lock().await;
+    let h = harness().await;
+    let keep = tempfile::tempdir().unwrap();
+    let backups = keep.path().join("backups");
+    std::env::set_var("HTE_CONSOLE_DATABASE", &h.db_path);
+    std::env::set_var("APP_KEY", APP_KEY);
+    std::env::set_var("HTE_CONSOLE_BACKUPS_DIR", &backups);
+    std::env::set_var("HTE_CONSOLE_RUSTDESK_DIR", keep.path().join("rustdesk"));
+    std::env::set_var("HTE_CONSOLE_SERVER_SECRET_FILE", keep.path().join("none"));
+    let admin = h.login(&sid("os1"), 1, json!({}));
+
+    // the page offers both
+    let r = h.get("/settings?tab=backups", &admin).await;
+    assert!(r.body.contains("Off-site copy") && r.body.contains("Restore from a file") && !r.body.contains("Test connection"));
+
+    // a target without what it needs is refused, nothing written
+    let r = h.post_form("/settings/backups/save", &admin, &[tok(), ("keep_daily", "7"), ("keep_weekly", "8"), ("keep_monthly", "6"), ("target", "s3"), ("s3_bucket", "")]).await;
+    assert_eq!(r.status, 302);
+    let r = h.get("/settings?tab=backups", &admin).await;
+    assert!(r.body.contains("A bucket name is needed to copy backups there."), "{}", r.body);
+    assert_eq!(h.count("settings where key = 'backup_target'"), 0);
+    let r = h.post_form("/settings/backups/save", &admin, &[tok(), ("keep_daily", "7"), ("keep_weekly", "8"), ("keep_monthly", "6"), ("target", "s3"), ("s3_bucket", "bk"), ("s3_endpoint", "ftp://nope")]).await;
+    assert_eq!(r.status, 302);
+    assert!(h.get("/settings?tab=backups", &admin).await.body.contains("The s3 endpoint field must be a valid URL."));
+
+    // saved: the secret is stored encrypted and not shown again; Test connection saves, then asks the (fake) S3
+    let (url, seen) = fake_s3();
+    let form = [tok(), ("enabled", "1"), ("keep_daily", "7"), ("keep_weekly", "8"), ("keep_monthly", "6"), ("target", "s3"), ("s3_bucket", "bk"), ("s3_endpoint", url.as_str()), ("s3_path_style", "1"), ("s3_access_key", "AKIA"), ("s3_secret_key", "hunter2-secret")];
+    let r = h.post_form("/settings/backups/test", &admin, &form).await;
+    assert_eq!(r.status, 302);
+    let stored = h.text("select value from settings where key = 'backup_s3_secret_key'");
+    assert!(!stored.is_empty() && !stored.contains("hunter2"));
+    let page = h.get("/settings?tab=backups", &admin).await.body;
+    assert!(page.contains("Connected to S3 bucket bk"), "{page}");
+    assert!(page.contains("stored, blank keeps it") && !page.contains("hunter2"));
+    assert!(seen.lock().unwrap().iter().any(|l| l.starts_with("PUT ") || l.starts_with("GET ")), "{:?}", seen.lock().unwrap());
+
+    // Back up now copies the new archive to the target
+    let r = h.post_form("/settings/backups/run", &admin, &[tok()]).await;
+    assert_eq!(r.status, 302);
+    let page = h.get("/settings?tab=backups", &admin).await.body;
+    assert!(page.contains("copied to S3 bucket bk"), "{page}");
+    assert!(seen.lock().unwrap().iter().any(|l| l.starts_with("PUT /bk/cortendesk-backup-")), "{:?}", seen.lock().unwrap());
+
+    // restore from a file: the archive of another moment, checked, stored under its name, restored
+    let name = std::fs::read_dir(&backups).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).find(|n| n.ends_with(".tar")).unwrap();
+    let bytes = std::fs::read(backups.join(&name)).unwrap();
+    h.sql("insert into settings (key, value) values ('marker', 'after the backup')");
+    let r = h.post_file("/settings/backups/upload", &admin, "upload", "mine.tar", &bytes).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("settings where key = 'marker'"), 0);
+    assert_eq!(h.count("console_audits where action = 'backup.restore'"), 1);
+    let uploaded: Vec<String> = std::fs::read_dir(&backups).unwrap().flatten().map(|e| e.file_name().to_string_lossy().into_owned()).filter(|n| n.ends_with("-upload.tar")).collect();
+    assert_eq!(uploaded.len(), 1, "{uploaded:?}");
+    assert!(backups.join(format!("{}.json", uploaded[0])).is_file());
+    // nothing picked, and a file that is not ours
+    let r = h.post_file("/settings/backups/upload", &admin, "upload", "", b"").await;
+    assert_eq!(r.status, 302);
+    assert!(h.get("/settings?tab=backups", &admin).await.body.contains("Pick a backup archive first."));
+    let r = h.post_file("/settings/backups/upload", &admin, "upload", "x.tar", b"not a tar").await;
+    assert_eq!(r.status, 302);
+    assert!(h.get("/settings?tab=backups", &admin).await.body.contains("That file is not a CortenDesk backup."));
 }

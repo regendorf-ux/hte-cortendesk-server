@@ -1,6 +1,6 @@
 [package]
 name = "hte-console"
-version = "0.7.16"
+version = "0.7.17"
 edition = "2021"
 license = "AGPL-3.0-only"
 description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database. Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC). Phase 3: the server link (the policy hbbs enforces, with HTE's per-person scope; local addresses; refusals) and the scheduled sweeps (reach, computer passwords, stale sessions, diagnostics heartbeat). Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config). Phase 6: local backups in the PHP archive format, restore, log pruning and the daily scheduler entries. Phase 7: the console pages, one group at a time, behind the Laravel session (minijinja templates, htmx)."
@@ -9,7 +9,7 @@ publish = false
 [dependencies]
 axum = "0.7"
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "net", "signal", "time", "fs"] }
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "stream", "blocking"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["preserve_order"] }
 regex = "1"
@@ -41,6 +41,8 @@ sha1 = "0.10"
 url = "2"
 # Phase 6 (backups): the .ndjson.gz members of the archive; flate2 and its pure-Rust miniz_oxide are already in the lockfile.
 flate2 = "1"
+# Phase 7b: the off-site copy. FTPS (explicit TLS, certificate not verified, as PHP) uses rustls 0.23 directly, the version reqwest already holds.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 
 # Phase 7 (console pages): runtime templates (minijinja; the Blade markup converts nearly one to one and a template edit
 # needs no compile), the templates and assets embedded in the binary (include_dir), and tower's oneshot to hand a request
@@ -51,3 +53,4 @@ tower = { version = "0.5", default-features = false, features = ["util"] }
 
 [dev-dependencies]
 tempfile = "3"
+rcgen = "0.13"

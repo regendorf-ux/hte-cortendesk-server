@@ -179,6 +179,11 @@ pub struct Outcome {
 
 /// `cortendesk:backup [--scheduled] [--no-copy]`
 pub fn backup_command(env: &Env, scheduled: bool, now: i64) -> Result<Outcome, String> {
+    backup_command_with(env, scheduled, false, now)
+}
+
+/// `--no-copy` skips the off-site copy.
+pub fn backup_command_with(env: &Env, scheduled: bool, no_copy: bool, now: i64) -> Result<Outcome, String> {
     let c = env.open()?;
     let s = backup::settings(&c)?;
     let mut lines = vec![];
@@ -212,13 +217,34 @@ pub fn backup_command(env: &Env, scheduled: bool, now: i64) -> Result<Outcome, S
     for name in backup::apply_retention(env, s.keep)? {
         lines.push(format!("Removed {name} (retention)"));
     }
-    if s.target != "none" {
-        // FTP and S3 copies are not ported (HTE has them off); say so where Settings -> Backups shows it
-        let why = format!("Off-site copy failed: hte-console makes no {} copies (the target in Settings is not used)", s.target);
-        tracing::warn!("{why}");
-        lines.push(why.clone());
-        message.push_str(&format!(". {why}"));
-        ok = false;
+    // The off-site copy mirrors the local list, so it is brought in line after retention: the new archive goes up,
+    // anything pruned or deleted here comes down.
+    if !no_copy {
+        match crate::backup_remote::target(env, &c) {
+            Ok(None) => {}
+            Ok(Some(target)) => match crate::backup_remote::sync(env, target.as_ref()) {
+                Ok(sync) => {
+                    for name in &sync.uploaded {
+                        lines.push(format!("Copied {name} to {}", target.label()));
+                    }
+                    for name in &sync.deleted {
+                        lines.push(format!("Removed {name} from {}", target.label()));
+                    }
+                    message.push_str(&format!(", copied to {}", target.label()));
+                }
+                Err(e) => {
+                    tracing::warn!("Backup off-site copy failed ({}): {e}", target.label());
+                    lines.push(format!("Off-site copy failed: {e}"));
+                    message.push_str(&format!(". Off-site copy failed: {e}"));
+                    ok = false;
+                }
+            },
+            Err(e) => {
+                lines.push(format!("Off-site copy failed: {e}"));
+                message.push_str(&format!(". Off-site copy failed: {e}"));
+                ok = false;
+            }
+        }
     }
     record(
         &c,
@@ -394,7 +420,7 @@ pub fn cli(args: &[String]) -> i32 {
     let env = &setup.env;
     let now = chrono::Utc::now().timestamp();
     match cmd {
-        "backup" => match backup_command(env, flag(args, "--scheduled"), now) {
+        "backup" => match backup_command_with(env, flag(args, "--scheduled"), flag(args, "--no-copy"), now) {
             Ok(o) => {
                 o.lines.iter().for_each(|l| println!("{l}"));
                 if o.ok { 0 } else { 1 }

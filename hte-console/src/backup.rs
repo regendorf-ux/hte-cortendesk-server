@@ -108,6 +108,10 @@ pub struct Settings {
     pub target: String,
 }
 
+pub fn setting_value(c: &Connection, key: &str, default: &str) -> Result<String, String> {
+    setting(c, key, default)
+}
+
 fn setting(c: &Connection, key: &str, default: &str) -> Result<String, String> {
     db::setting(c, key, default).map(|v| String::from_utf8_lossy(&v).into_owned()).map_err(|f| format!("{f:?}"))
 }
@@ -580,6 +584,32 @@ pub fn read_manifest(path: &Path) -> Result<serde_json::Value, String> {
         return Err("That backup was written in a format this version cannot read. Upgrade CortenDesk first.".into());
     }
     Ok(m)
+}
+
+/// `import()`: bring an uploaded file into the backup directory under a name the rest of this module accepts, after
+/// checking it is one of ours. Returns the stored name.
+pub fn import(env: &Env, source: &Path, original_name: &str, now: i64) -> Result<String, String> {
+    let manifest = read_manifest(source)?;
+    let dir = directory(env)?;
+    let mut name = original_name.to_string();
+    if !is_backup_name(&name) || dir.join(&name).is_file() {
+        name = format!("{PREFIX}{}-upload.tar", Utc.timestamp_opt(now, 0).single().unwrap_or_default().format("%Y%m%d-%H%M%S"));
+    }
+    let dest = dir.join(&name);
+    fs::copy(source, &dest).map_err(|_| "Could not store the uploaded backup.".to_string())?;
+    let side = format!("{}.json", dest.display());
+    let mut json = String::new();
+    {
+        use serde::Serialize;
+        let mut buf = vec![];
+        let mut ser = serde_json::Serializer::with_formatter(&mut buf, serde_json::ser::PrettyFormatter::with_indent(b"    "));
+        manifest.serialize(&mut ser).map_err(|e| e.to_string())?;
+        json.push_str(&String::from_utf8_lossy(&buf));
+    }
+    fs::write(&side, json).map_err(|_| "Could not store the uploaded backup.".to_string())?;
+    chmod(&dest, 0o600);
+    chmod(Path::new(&side), 0o600);
+    Ok(name)
 }
 
 #[derive(Clone, Debug, Default)]

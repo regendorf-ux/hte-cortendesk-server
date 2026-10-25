@@ -166,7 +166,9 @@
             if (group && box.getAttribute('data-rd-group') !== group) { return; }
             var on = box.getAttribute('data-rd-when') === sel.value;
             box.classList.toggle('d-none', !on);
-            Array.prototype.forEach.call(box.querySelectorAll('select, input, textarea'), function (f) { f.disabled = !on; });
+            if (!box.hasAttribute('data-rd-keep')) {
+                Array.prototype.forEach.call(box.querySelectorAll('select, input, textarea'), function (f) { f.disabled = !on; });
+            }
         });
     });
 

@@ -2,6 +2,13 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.7.17 (2026-10-25): the rest of the 0.7.15 dialog list, and the Backups tab
+The 0.7.16 replay showed no new differences; it showed what 0.7.16 had not yet done from the 0.7.15 list.
+- Strategy assign: a device is its id with the alias or hostname under it (no dash), "N selected" under the list, "No devices match."; Compliance: "No devices in this state.".
+- Settings > Backups: PHP's markup (toolbar, desktop table and mobile cards), "Stored in <dir>.", the Schedule card ("Automatic backups", "Runs every day at 03:30 server time. On by default.", and the keep-tier explanation with the current numbers).
+- Replay: the Users add/edit helper lines ("Ignored for an administrator." / "Not used for an administrator.", ours only, an improvement) are counted once under "by design".
+- Ported, so that nothing is left out of Settings > Backups: **Restore from a file** (upload an archive: checked, stored like any backup, restored; the form carries multipart, so request bodies of `multipart/form-data` now fill the input like urlencoded ones; the upload limit is 256 MiB, `HTE_CONSOLE_UPLOAD_MAX_BYTES`) and the **Off-site copy** (None / FTP-FTPS / S3-compatible, with its validation messages, write-only passwords stored encrypted, Test connection, and the mirror after each run: new archive up, pruned or deleted archives down, one copy at a time by a lock file). Deleting an archive in Settings also removes its off-site copy. New modules `backup_remote` (the interface, the mirror), `backup_s3` (SigV4) and `backup_ftp` (passive and active mode, explicit FTPS, certificate not verified as PHP); `cortendesk:backup --no-copy` is honoured.
+
 ## 0.7.16 (2026-10-25): the strategies dialogs say what PHP's say
 From the 0.7.15 dialog comparison. Our own extra helper lines stay (improvements); what PHP says and we did not is now there.
 - Strategy editor: required star on Name, "Change note (kept in the revision history)" after Note (placeholder "What changed and why"), the help line under Enabled / Default / Enforce and the timeout, the "Not managed" alert, and `key — help` under every option.
