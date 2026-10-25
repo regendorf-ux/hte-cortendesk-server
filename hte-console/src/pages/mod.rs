@@ -21,6 +21,7 @@ pub mod logs;
 pub mod paginate;
 pub mod session;
 pub mod time;
+pub mod users;
 pub mod view;
 
 use crate::api::Native;
@@ -666,6 +667,11 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/devices/act", methods: &["POST"], need: Some(("device", "r")), handler: devices::act },
     Route { path: "/devices/:id", methods: &["GET"], need: Some(("device", "r")), handler: device_detail::show },
     Route { path: "/devices/:id/do", methods: &["POST"], need: Some(("device", "r")), handler: device_detail::act },
+    Route { path: "/users", methods: &["GET"], need: Some(("user", "r")), handler: users::index },
+    Route { path: "/users/save", methods: &["POST"], need: Some(("user", "r")), handler: users::save },
+    Route { path: "/users/act", methods: &["POST"], need: Some(("user", "r")), handler: users::act },
+    Route { path: "/users/assign", methods: &["POST"], need: Some(("user", "r")), handler: users::assign },
+    Route { path: "/users/:id", methods: &["GET"], need: Some(("user", "r")), handler: users::show },
     Route { path: "/account", methods: &["GET"], need: None, handler: account::show },
     Route { path: "/account/profile", methods: &["POST"], need: None, handler: account::save_profile },
     Route { path: "/account/password", methods: &["POST"], need: None, handler: account::update_password },

@@ -1,0 +1,178 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="card">
+    <div class="card-body d-flex flex-wrap align-items-center gap-3">
+        <div class="rd-cell {{ 'rd-tone-accent' if u.admin else 'rd-tone-purple' }} min-width-0 me-auto">
+            <span class="rd-avatar">{{ u.initial }}</span>
+            <div class="min-width-0">
+                <h4 class="mb-0 text-truncate">{{ u.display }}</h4>
+                <span class="text-muted">{{ u.username }}{% if u.email %} · {{ u.email }}{% endif %}</span>
+            </div>
+        </div>
+        <div class="d-flex flex-wrap gap-1">
+            {% if u.admin %}<span class="badge bg-danger-subtle text-danger">Administrator</span>
+            {% elif u.role %}<span class="badge bg-info-subtle text-info">{{ u.role }}</span>
+            {% else %}<span class="badge bg-secondary-subtle text-secondary">User</span>{% endif %}
+            {% if u.active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-warning-subtle text-warning">Disabled</span>{% endif %}
+        </div>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-lg-5">
+        <div class="card">
+            <div class="card-header"><h5 class="card-title mb-0">Profile</h5></div>
+            <div class="card-body pt-0">
+                <dl class="rd-deflist">
+                    <div class="rd-def"><dt>Username</dt><dd>{{ u.username }}</dd></div>
+                    <div class="rd-def"><dt>Name</dt><dd>{{ u.name or '—' }}</dd></div>
+                    <div class="rd-def"><dt>Email</dt><dd>{{ u.email or '—' }}</dd></div>
+                    <div class="rd-def"><dt>Role</dt><dd>{{ 'Administrator' if u.admin else (u.role or 'User') }}</dd></div>
+                    <div class="rd-def"><dt>Groups</dt><dd>{% for g in u.groups %}<span class="badge bg-secondary-subtle text-secondary">{{ g }}</span>{% else %}—{% endfor %}</dd></div>
+                    <div class="rd-def"><dt>Two-factor</dt><dd>{% if u.totp %}<span class="badge bg-info-subtle text-info"><i class="ri-shield-keyhole-line me-1"></i>Enabled</span>{% else %}Off{% endif %}</dd></div>
+                    <div class="rd-def"><dt>Sign-in method</dt>
+                        <dd>
+                            {% if u.sso == 'pending' %}<span class="badge bg-warning-subtle text-warning">SSO, awaiting approval</span>
+                            {% elif u.sso == 'provisioned' %}SSO only
+                            {% elif u.sso == 'linked' %}Password and SSO
+                            {% else %}Password{% endif %}
+                        </dd>
+                    </div>
+                    <div class="rd-def"><dt>Created</dt><dd><span title="{{ u.created_at }}">{{ u.created }}</span></dd></div>
+                    {% if can_sign %}
+                        <div class="rd-def"><dt>Last sign-in</dt>
+                            <dd>{% if last_sign_in %}<span title="{{ last_sign_in.when }}">{{ last_sign_in.ago }}</span>{% else %}never{% endif %}</dd>
+                        </div>
+                    {% endif %}
+                </dl>
+            </div>
+        </div>
+
+        {% if can_devices %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Devices <span class="text-muted fw-normal fs-13">({{ device_count }})</span></h5>
+                    {% if more_devices and is_admin %}<a href="/devices?owner={{ u.id }}" class="fs-13 text-muted">All</a>{% endif %}
+                </div>
+                <div class="card-body pt-0">
+                    {% for d in devices %}
+                        <div class="rd-def">
+                            <dt class="fw-normal min-width-0">
+                                <i class="{{ d.platform.icon }} {{ d.platform.color }} me-1" title="{{ d.platform.label }}"></i>
+                                <a href="/devices/{{ d.id }}" class="rd-cell-link">{{ d.name }}</a>
+                                <span class="text-muted">· {{ d.rustdesk_id }}</span>
+                            </dt>
+                            <dd class="text-end mb-0">
+                                {% if d.online %}<span class="badge bg-success-subtle text-success"><i class="rd-dot"></i>Online</span>{% else %}<span class="text-muted">{{ d.last_seen }}</span>{% endif %}
+                            </dd>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">Owns no device you can see.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if can_books %}
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Address books</h5></div>
+                <div class="card-body pt-0">
+                    {% for b in books %}
+                        <div class="rd-def">
+                            <dt class="fw-normal">
+                                <i class="ri-contacts-book-2-line me-1"></i>
+                                {% if b.open %}<a href="/address-books?selectedBookId={{ b.id }}" class="rd-cell-link">{{ b.name }}</a>{% else %}{{ b.name }}{% endif %}
+                                <span class="text-muted">· {{ 'personal' if b.personal else 'shared' }}</span>
+                            </dt>
+                            <dd class="text-end text-muted mb-0">{{ b.entries }} {{ b.word }}</dd>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">Owns no address book.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+
+    <div class="col-lg-7">
+        {% if can_sign %}
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Recent sign-ins</h5>
+                    <a href="/logs/logins?search={{ urlencoded_username }}" class="fs-13 text-muted">All</a>
+                </div>
+                <div class="card-body pt-0">
+                    {% for l in sign_ins %}
+                        <div class="rd-def">
+                            <dt class="fw-normal">{{ l.label }} <span class="text-muted">· {{ l.ip }}</span></dt>
+                            <dd class="text-end text-muted mb-0 text-nowrap">
+                                <span title="{{ l.when }}">{{ l.ago }}</span>
+                                {% if l.ok %}<span class="badge bg-success-subtle text-success ms-1">Success</span>{% else %}<span class="badge bg-danger-subtle text-danger ms-1">Failed</span>{% endif %}
+                            </dd>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">No sign-ins recorded.</span>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <h5 class="card-title mb-0">Recent console actions</h5>
+                    <a href="/logs/console?search={{ urlencoded_username }}" class="fs-13 text-muted">All</a>
+                </div>
+                <div class="card-body pt-0">
+                    {% for a in actions %}
+                        <div class="rd-def">
+                            <dt class="fw-normal min-width-0"><span class="badge bg-secondary-subtle text-secondary me-1">{{ a.action }}</span> {{ a.summary }}</dt>
+                            <dd class="text-end text-muted mb-0 text-nowrap"><span title="{{ a.when }}">{{ a.ago }}</span></dd>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">No console actions recorded.</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if can_conn %}
+            {% if can_devices %}
+                <div class="card">
+                    <div class="card-header"><h5 class="card-title mb-0">Connections to their devices</h5></div>
+                    <div class="card-body pt-0">
+                        {% for c in incoming %}
+                            <div class="rd-def">
+                                <dt class="fw-normal"><i class="{{ c.icon }} me-1" title="{{ c.label }}"></i> {{ c.from }} <span class="text-muted">→ {{ c.to }}</span></dt>
+                                <dd class="text-end text-muted mb-0">{{ c.ago }}{% if c.duration %} · {{ c.duration }}{% endif %}</dd>
+                            </div>
+                        {% else %}
+                            <span class="text-muted">No connections recorded.</span>
+                        {% endfor %}
+                    </div>
+                </div>
+            {% endif %}
+
+            <div class="card">
+                <div class="card-header"><h5 class="card-title mb-0">Connections from devices they signed in on</h5></div>
+                <div class="card-body pt-0">
+                    <p class="fs-13 text-muted">
+                        Matched by the controlling device's RustDesk ID, from this user's RustDesk client sign-ins.
+                        The log records the device, not the person, so anyone else using the same device shows here too.
+                    </p>
+                    {% for c in outgoing %}
+                        <div class="rd-def">
+                            <dt class="fw-normal"><i class="{{ c.icon }} me-1" title="{{ c.label }}"></i> {{ c.from }} <span class="text-muted">→ {{ c.to }}</span></dt>
+                            <dd class="text-end text-muted mb-0">{{ c.ago }}{% if c.duration %} · {{ c.duration }}{% endif %}</dd>
+                        </div>
+                    {% else %}
+                        <span class="text-muted">{{ 'This user has not signed in on a RustDesk client.' if no_client else 'No connections recorded.' }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+
+        {% if not (can_sign or can_conn) %}
+            <div class="card"><div class="card-body text-muted">Activity history needs the audit permission.</div></div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

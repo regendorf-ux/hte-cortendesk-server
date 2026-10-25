@@ -359,3 +359,61 @@ async fn the_device_page() {
     let erin = h.login(&sid("deverin"), 3, json!({}));
     assert_eq!(h.get("/devices", &erin).await.status, 302);
 }
+
+#[tokio::test]
+async fn the_users_pages() {
+    let h = harness().await;
+    let cookie = h.login(&sid("users1"), 1, json!({}));
+    let r = h.get("/users", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    let body = squash(&r.body);
+    assert!(body.contains("dana") && body.contains("Showing 1–4 of 4"), "{body}");
+    let r = h.get("/users?search=gone&status=disabled", &cookie).await;
+    assert!(squash(&r.body).contains("Showing 1–1 of 1"));
+    // the editor opens, validates (422), then saves
+    let r = h.get("/users?create=1", &cookie).await;
+    assert!(squash(&r.body).contains("Add User"));
+    let r = h.post_form("/users/save", &cookie, &[tok(), ("id", "0"), ("return", "/users"), ("username", "dana"), ("password", "short")]).await;
+    assert_eq!(r.status, 422, "{}", r.body);
+    assert!(r.body.contains("The username has already been taken.") && r.body.contains("The password field must be at least 8 characters."), "{}", r.body);
+    let r = h.post_form("/users/save", &cookie, &[tok(), ("id", "0"), ("return", "/users"), ("username", "newbie"), ("name", "New B"), ("email", "n@example.test"), ("password", "longenough1"), ("is_active", "1"), ("user_group_ids[]", "1"), ("device_group_ids[]", "2")]).await;
+    assert_eq!(r.status, 302, "{}", r.body);
+    assert_eq!(h.count("users where username = 'newbie' and is_active = 1 and is_admin = 0"), 1);
+    assert_eq!(h.count("user_group_user where user_id = 5"), 1);
+    assert_eq!(h.count("device_group_user where user_id = 5 and device_group_id = 2"), 1);
+    assert_eq!(h.count("console_audits where action = 'user.create'"), 1);
+    // edit: role, blank password keeps the hash
+    let before = h.text("select password from users where id = 5");
+    h.post_form("/users/save", &cookie, &[tok(), ("id", "5"), ("return", "/users"), ("username", "newbie"), ("name", "New C"), ("password", ""), ("role_id", "1"), ("is_active", "1")]).await;
+    assert_eq!(h.text("select password from users where id = 5"), before);
+    assert_eq!(h.text("select cast(role_id as text) from users where id = 5"), "1");
+    assert_eq!(h.count("device_group_user where user_id = 5"), 0);
+    // actions
+    h.post_form("/users/act", &cookie, &[tok(), ("id", "2"), ("do", "toggle"), ("back", "")]).await;
+    assert_eq!(h.text("select cast(is_active as text) from users where id = 2"), "0");
+    h.post_form("/users/act", &cookie, &[tok(), ("id", "1"), ("do", "toggle"), ("back", "")]).await;
+    assert_eq!(h.text("select cast(is_active as text) from users where id = 1"), "1");
+    h.sql("update users set totp_enabled = 1, totp_secret = 'x' where id = 4; insert into two_factor_recovery_codes (user_id, code_hash, created_at) values (4, 'c', '2025-01-01 00:00:00')");
+    h.post_form("/users/act", &cookie, &[tok(), ("id", "4"), ("do", "reset2fa"), ("back", "")]).await;
+    assert_eq!(h.count("users where id = 4 and totp_enabled = 0 and totp_secret is null"), 1);
+    assert_eq!(h.count("two_factor_recovery_codes"), 0);
+    // assign devices
+    let r = h.get("/users?assign=2", &cookie).await;
+    assert!(squash(&r.body).contains("Assign Devices"));
+    h.post_form("/users/assign", &cookie, &[tok(), ("id", "2"), ("ids[]", "2"), ("back", "")]).await;
+    assert_eq!(h.text("select cast(user_id as text) from devices where id = 2"), "2");
+    assert_eq!(h.count("devices where id = 1 and user_id is null"), 1);
+    // the person page
+    let r = h.get("/users/2", &cookie).await;
+    assert_eq!(r.status, 200, "{}", r.body);
+    assert!(squash(&r.body).contains("Recent sign-ins") && squash(&r.body).contains("BACK-PC"));
+    assert_eq!(h.get("/users/99", &cookie).await.status, 404);
+    // delete
+    h.post_form("/users/act", &cookie, &[tok(), ("id", "5"), ("do", "delete"), ("back", "")]).await;
+    assert_eq!(h.count("users where id = 5"), 0);
+    // the self guard and a person without the role
+    h.post_form("/users/act", &cookie, &[tok(), ("id", "1"), ("do", "delete"), ("back", "")]).await;
+    assert_eq!(h.count("users where id = 1"), 1);
+    let erin = h.login(&sid("users-erin"), 3, json!({}));
+    assert_eq!(h.get("/users", &erin).await.status, 302);
+}

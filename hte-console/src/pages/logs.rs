@@ -335,11 +335,11 @@ const CONN_TYPES: &[(i64, &str, &str)] = &[
     (4, "Terminal", "ri-terminal-box-line"),
 ];
 
-fn conn_label(t: i64) -> String {
+pub(crate) fn conn_label(t: i64) -> String {
     CONN_TYPES.iter().find(|x| x.0 == t).map(|x| x.1.to_string()).unwrap_or_else(|| format!("Type {t}"))
 }
 
-fn conn_icon(t: i64) -> &'static str {
+pub(crate) fn conn_icon(t: i64) -> &'static str {
     CONN_TYPES.iter().find(|x| x.0 == t).map(|x| x.2).unwrap_or("ri-question-line")
 }
 

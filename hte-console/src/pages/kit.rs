@@ -597,6 +597,133 @@ pub fn removal_summary(removed: i64, kept: i64) -> String {
     text
 }
 
+/// `BelongsToMany::sync($ids)`: detach what is no longer wanted, then attach the missing ones in order.
+pub fn sync_pivot(c: &Connection, table: &str, key: &str, key_id: i64, other: &str, ids: &[i64]) -> Result<(), Fault> {
+    let current = pivot_ids(c, table, key, other, key_id)?;
+    let gone: Vec<i64> = current.iter().copied().filter(|i| !ids.contains(i)).collect();
+    if !gone.is_empty() {
+        let mut params = vec![P(Val::Int(key_id))];
+        params.extend(ints_val(&gone));
+        db::exec(c, &format!(r#"delete from "{table}" where "{key}" = ? and "{other}" in ({})"#, marks(gone.len())), &params)?;
+    }
+    let mut added: Vec<i64> = vec![];
+    for i in ids {
+        if !current.contains(i) && !added.contains(i) {
+            added.push(*i);
+        }
+    }
+    for i in added {
+        db::exec(c, &format!(r#"insert into "{table}" ("{key}", "{other}") values (?, ?)"#), &[P(Val::Int(key_id)), P(Val::Int(i))])?;
+    }
+    Ok(())
+}
+
+/// `User::revokeAllAccess()`: client tokens, console sessions and trusted browsers go, the remember token rotates.
+pub fn revoke_all_access(c: &Connection, user: &mut Row, now: i64) -> Result<(), Fault> {
+    let id = user.val("id");
+    db::exec(c, r#"delete from "client_tokens" where "client_tokens"."user_id" = ? and "client_tokens"."user_id" is not null"#, &[P(id.clone())])?;
+    db::exec(c, r#"delete from "sessions" where "user_id" = ?"#, &[P(id.clone())])?;
+    db::exec(c, r#"delete from "trusted_devices" where "user_id" = ?"#, &[P(id)])?;
+    update(c, "users", user, vec![("remember_token", Val::str(&crate::laravel::str_random(60)), Cast::Plain)], now)?;
+    Ok(())
+}
+
+/// A personal address book's contents and the book itself (`User::deleting`, `AddressBook` delete).
+pub fn delete_book_rows(c: &Connection, id: i64) -> Result<(), Fault> {
+    let b = [P(Val::Int(id))];
+    db::exec(c, r#"delete from "address_book_entries" where "address_book_entries"."address_book_id" = ? and "address_book_entries"."address_book_id" is not null"#, &b)?;
+    db::exec(c, r#"delete from "tags" where "tags"."address_book_id" = ? and "tags"."address_book_id" is not null"#, &b)?;
+    db::exec(c, r#"delete from "address_book_rules" where "address_book_rules"."address_book_id" = ? and "address_book_rules"."address_book_id" is not null"#, &b)?;
+    db::exec(c, r#"delete from "address_books" where "id" = ?"#, &b)?;
+    Ok(())
+}
+
+/// `grantableDeviceGroupIds($ids)`: what the actor can see themselves (an administrator is unclamped).
+pub fn grantable_device_group_ids(ctx: &Ctx, c: &Connection, ids: &[i64]) -> Result<Vec<i64>, Fault> {
+    let mut out: Vec<i64> = vec![];
+    for i in ids {
+        if !out.contains(i) {
+            out.push(*i);
+        }
+    }
+    if ctx.is_admin() {
+        return Ok(out);
+    }
+    let own = crate::reach::accessible_device_group_ids(c, &ctx.user)?;
+    Ok(out.into_iter().filter(|i| own.contains(i)).collect())
+}
+
+/// `UserGroup::grantedDeviceGroupIds()`
+pub fn granted_device_group_ids(c: &Connection, group: i64) -> Result<Vec<i64>, Fault> {
+    let mut out = pivot_ids(c, "device_group_user_group", "user_group_id", "device_group_id", group)?;
+    for r in db::rows(c, r#"select "target_id" from "group_accesses" where "target_type" = ? and "accessor_type" = ? and "accessor_id" = ?"#, &[P(Val::str("device_group")), P(Val::str("user_group")), P(Val::Int(group))])? {
+        let t = r.val("target_id").to_int();
+        if !out.contains(&t) {
+            out.push(t);
+        }
+    }
+    Ok(out)
+}
+
+/// `grantableUserGroupIds($ids)`: groups whose grants the actor could hand out themselves.
+pub fn grantable_user_group_ids(ctx: &Ctx, c: &Connection, ids: &[i64]) -> Result<Vec<i64>, Fault> {
+    let mut out: Vec<i64> = vec![];
+    for i in ids {
+        if !out.contains(i) {
+            out.push(*i);
+        }
+    }
+    if ctx.is_admin() || out.is_empty() {
+        return Ok(out);
+    }
+    let allowed = crate::reach::accessible_device_group_ids(c, &ctx.user)?;
+    let mut keep = vec![];
+    for g in find_in(c, "user_groups", &out)? {
+        if granted_device_group_ids(c, g.id())?.iter().all(|d| allowed.contains(d)) {
+            keep.push(g.id());
+        }
+    }
+    Ok(keep)
+}
+
+/// `grantableDeviceGroups()`: the picker's rows.
+pub fn grantable_device_groups(ctx: &Ctx, c: &Connection) -> Result<Vec<Row>, Fault> {
+    if ctx.is_admin() {
+        return db::rows(c, r#"select * from "device_groups" order by "name" asc"#, &[]);
+    }
+    let mut ids = crate::reach::accessible_device_group_ids(c, &ctx.user)?;
+    if ids.is_empty() {
+        ids = vec![0];
+    }
+    db::rows(c, &format!(r#"select * from "device_groups" where "id" in ({}) order by "name" asc"#, marks(ids.len())), &ints_val(&ids))
+}
+
+/// `grantableUserGroups()`
+pub fn grantable_user_groups(ctx: &Ctx, c: &Connection) -> Result<Vec<Row>, Fault> {
+    let all = db::rows(c, r#"select * from "user_groups" order by "name" asc"#, &[])?;
+    if ctx.is_admin() {
+        return Ok(all);
+    }
+    let ids: Vec<i64> = all.iter().map(|g| g.id()).collect();
+    let ok = grantable_user_group_ids(ctx, c, &ids)?;
+    Ok(all.into_iter().filter(|g| ok.contains(&g.id())).collect())
+}
+
+/// `$user->displayName()`
+pub fn display_name(u: &Row) -> String {
+    let n = s(u, "name");
+    if n.is_empty() || n == "0" { s(u, "username") } else { n }
+}
+
+/// A user-supplied id list to a validator array value (Livewire sends integers).
+pub fn int_array(ids: &[i64]) -> Val {
+    let mut a = Arr::new();
+    for i in ids {
+        a.push(Val::Int(*i));
+    }
+    Val::Arr(a)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

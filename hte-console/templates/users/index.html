@@ -1,0 +1,319 @@
+{% extends "base.html" %}
+{% block content %}
+<div id="pg" hx-boost="true" hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+{% if result %}<div class="alert alert-success" data-rd-autohide="4000">{{ result }}</div>{% endif %}
+<div class="card">
+    <form class="rd-toolbar" method="get" action="/users" data-rd-autosubmit hx-disinherit="*"
+          hx-get="/users" hx-trigger="change, input delay:300ms from:#usr-search, submit" hx-sync="this:replace"
+          hx-target="#pg" hx-select="#pg" hx-swap="outerHTML" hx-push-url="true">
+        <div class="rd-toolbar-search">
+            <div class="input-group">
+                <span class="input-group-text"><i class="ri-search-line"></i></span>
+                <input type="search" id="usr-search" name="search" value="{{ st.search }}" class="form-control" placeholder="Search username, name, email…" hx-preserve="true">
+            </div>
+        </div>
+        <select class="form-select rd-toolbar-filter" name="role" aria-label="Role">
+            <option value="all">All roles</option>
+            <option value="admin"{{ ' selected' if st.role == 'admin' else '' }}>Administrators</option>
+            <option value="user"{{ ' selected' if st.role == 'user' else '' }}>Users</option>
+        </select>
+        <select class="form-select rd-toolbar-filter" name="status" aria-label="Status">
+            <option value="all">All statuses</option>
+            <option value="active"{{ ' selected' if st.status == 'active' else '' }}>Active</option>
+            <option value="disabled"{{ ' selected' if st.status == 'disabled' else '' }}>Disabled</option>
+        </select>
+        <div class="rd-toolbar-actions">
+            <a href="/users" class="btn btn-outline-light">Reset</a>
+            {% if can_manage %}
+                <a href="{{ create_url }}" class="btn btn-primary"><i class="ri-add-line"></i>Add User</a>
+            {% endif %}
+        </div>
+    </form>
+
+    <div class="table-responsive d-none d-md-block">
+        <table class="table table-hover table-centered mb-0">
+            <thead>
+            <tr>
+                <th>User</th><th>Email</th><th>Group</th><th>Role</th><th>Status</th><th>Devices</th><th>Created</th><th class="text-end">Action</th>
+            </tr>
+            </thead>
+            <tbody>
+            {% for u in rows %}
+                <tr>
+                    <td>
+                        <div class="rd-cell {{ 'rd-tone-accent' if u.admin else 'rd-tone-purple' }}">
+                            <span class="rd-avatar">{{ u.initial }}</span>
+                            <div class="min-width-0">
+                                <a href="/users/{{ u.id }}" class="rd-cell-title rd-cell-link" hx-boost="false">{{ u.username }}</a>
+                                <span class="rd-cell-sub">{{ u.name or '—' }}</span>
+                            </div>
+                        </div>
+                    </td>
+                    <td>{{ u.email or '—' }}</td>
+                    <td>
+                        {% for g in u.groups %}<span class="badge bg-secondary-subtle text-secondary">{{ g }}</span>{% else %}—{% endfor %}
+                    </td>
+                    <td>
+                        {% if u.admin %}<span class="badge bg-danger-subtle text-danger">Administrator</span>
+                        {% elif u.role %}<span class="badge bg-info-subtle text-info">{{ u.role }}</span>
+                        {% else %}<span class="badge bg-secondary-subtle text-secondary">User</span>{% endif %}
+                    </td>
+                    <td>
+                        {% if u.active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-warning-subtle text-warning">Disabled</span>{% endif %}
+                        {% if u.totp %}<span class="badge bg-info-subtle text-info" title="Two-factor authentication enabled"><i class="ri-shield-keyhole-line"></i> 2FA</span>{% endif %}
+                    </td>
+                    <td>{{ u.devices }}</td>
+                    <td><span class="text-nowrap" title="{{ u.created_at }}">{{ u.created }}</span></td>
+                    <td class="text-end rd-rowact">
+                        <a href="/users/{{ u.id }}" class="rd-act me-2" title="View details" hx-boost="false"><i class="ri-eye-line"></i></a>
+                        {% if u.touch %}
+                            <a href="{{ edit_prefix }}{{ u.id }}" class="rd-act me-2">Edit</a>
+                            <a href="{{ assign_prefix }}{{ u.id }}" class="rd-act me-2">Devices</a>
+                            {% if u.self %}
+                                <span class="text-muted me-2" title="You cannot disable your own account" style="cursor:not-allowed;">{{ 'Disable' if u.active else 'Enable' }}</span>
+                                <span class="text-muted" title="You cannot delete your own account" style="cursor:not-allowed;">Delete</span>
+                            {% else %}
+                                {% set uid = u.id %}{% set uname = u.username %}
+                                <form method="post" action="/users/act" class="d-inline">
+                                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ u.id }}">
+                                    <button type="submit" name="do" value="toggle" class="btn btn-link p-0 align-baseline rd-act me-2">{{ 'Disable' if u.active else 'Enable' }}</button>
+                                    <button type="submit" name="do" value="logout" class="btn btn-link p-0 align-baseline rd-act me-2" data-rd-confirm="Force {{ u.username }} to log out everywhere? This signs out their RustDesk clients and console sessions.">Log out</button>
+                                    {% if u.totp %}<button type="submit" name="do" value="reset2fa" class="btn btn-link p-0 align-baseline text-warning me-2" data-rd-confirm="Reset 2FA for {{ u.username }}? Their authenticator and recovery codes are removed and they must re-enroll.">Reset 2FA</button>{% endif %}
+                                    <button type="submit" name="do" value="delete" class="btn btn-link p-0 align-baseline text-danger" data-rd-confirm="Delete user {{ u.username }}? Their devices will be kept but no longer assigned to any user.">Delete</button>
+                                </form>
+                            {% endif %}
+                        {% endif %}
+                    </td>
+                </tr>
+            {% else %}
+                <tr>
+                    <td colspan="8" class="rd-empty-cell">
+                        <div class="rd-empty">
+                            <div class="rd-empty-icon"><i class="ri-user-line"></i></div>
+                            <p class="rd-empty-title">No users match your filters.</p>
+                            <p class="rd-empty-text">Console accounts sign in with a username, not an email address.</p>
+                            <a href="/users" class="btn btn-sm btn-outline-light">Clear filters</a>
+                        </div>
+                    </td>
+                </tr>
+            {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-md-none rd-cardlist">
+        {% for u in rows %}
+            <div class="rd-mini">
+                <div class="rd-mini-head">
+                    <div class="rd-cell {{ 'rd-tone-accent' if u.admin else 'rd-tone-purple' }}">
+                        <span class="rd-avatar">{{ u.initial }}</span>
+                        <div class="min-width-0">
+                            <a href="/users/{{ u.id }}" class="rd-mini-title text-truncate" hx-boost="false">{{ u.username }}</a>
+                            <span class="rd-mini-sub text-truncate">{{ u.name or (u.email or '—') }}</span>
+                        </div>
+                    </div>
+                    <div class="text-end flex-shrink-0">
+                        {% if u.admin %}<span class="badge bg-danger-subtle text-danger">Admin</span>{% elif u.role %}<span class="badge bg-info-subtle text-info">{{ u.role }}</span>{% endif %}
+                        {% if u.active %}<span class="badge bg-success-subtle text-success">Active</span>{% else %}<span class="badge bg-warning-subtle text-warning">Disabled</span>{% endif %}
+                        {% if u.totp %}<span class="badge bg-info-subtle text-info" title="2FA enabled"><i class="ri-shield-keyhole-line"></i></span>{% endif %}
+                    </div>
+                </div>
+                <span class="rd-mini-sub mt-2">
+                    {{ u.groups_line if u.groups else 'No group' }} ·
+                    {{ u.devices }} {{ u.devices_word }} ·
+                    <span class="text-nowrap">{{ u.created }}</span>
+                </span>
+                <div class="rd-mini-acts justify-content-end mt-2">
+                    <a href="/users/{{ u.id }}" class="rd-iconbtn" title="View details" hx-boost="false"><i class="ri-eye-line"></i></a>
+                    {% if u.touch %}
+                        <a href="{{ edit_prefix }}{{ u.id }}" class="rd-iconbtn" title="Edit"><i class="ri-pencil-line"></i></a>
+                        <a href="{{ assign_prefix }}{{ u.id }}" class="rd-iconbtn" title="Assign devices"><i class="ri-computer-line"></i></a>
+                        {% if not u.self %}
+                            <form method="post" action="/users/act" class="d-contents">
+                                <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ u.id }}">
+                                <button type="submit" name="do" value="toggle" class="rd-iconbtn" title="{{ 'Disable' if u.active else 'Enable' }}"><i class="{{ 'ri-user-unfollow-line' if u.active else 'ri-user-follow-line' }}"></i></button>
+                                <button type="submit" name="do" value="logout" class="rd-iconbtn" title="Force logout everywhere" data-rd-confirm="Force {{ u.username }} to log out everywhere? This signs out their RustDesk clients and console sessions."><i class="ri-logout-box-r-line"></i></button>
+                                {% if u.totp %}<button type="submit" name="do" value="reset2fa" class="rd-iconbtn text-warning" title="Reset 2FA" data-rd-confirm="Reset 2FA for {{ u.username }}? Their authenticator and recovery codes are removed and they must re-enroll."><i class="ri-shield-keyhole-line"></i></button>{% endif %}
+                                <button type="submit" name="do" value="delete" class="rd-iconbtn text-danger" title="Delete" data-rd-confirm="Delete user {{ u.username }}? Their devices will be kept but no longer assigned to any user."><i class="ri-delete-bin-line"></i></button>
+                            </form>
+                        {% endif %}
+                    {% endif %}
+                </div>
+            </div>
+        {% else %}
+            <div class="rd-empty">
+                <div class="rd-empty-icon"><i class="ri-user-line"></i></div>
+                <p class="rd-empty-title">No users match your filters.</p>
+                <p class="rd-empty-text">Console accounts sign in with a username, not an email address.</p>
+                <a href="/users" class="btn btn-sm btn-outline-light">Clear filters</a>
+            </div>
+        {% endfor %}
+    </div>
+
+    <div class="rd-tablefoot">
+        <span>Showing {{ pager.first_item or 0 }}–{{ pager.last_item or 0 }} of {{ pager.total }}</span>
+        {% include "partials/pager_plain.html" %}
+    </div>
+</div>
+
+{% if modal.kind == "edit" %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <form method="post" action="/users/save">
+                    <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off">
+                    <input type="hidden" name="id" value="{{ modal.id }}"><input type="hidden" name="return" value="{{ modal.return }}">
+                    <div class="modal-header">
+                        <h5 class="modal-title">{{ modal.title }}</h5>
+                        <a href="{{ modal.return }}" class="btn-close" aria-label="Close" data-rd-close></a>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label" for="ul-username">Username <span class="text-danger">*</span></label>
+                                    <input type="text" id="ul-username" name="username" value="{{ modal.values.username }}" class="form-control{{ ' is-invalid' if modal.errors.username else '' }}" autocomplete="off">
+                                    {% if modal.errors.username %}<div class="invalid-feedback">{{ modal.errors.username }}</div>{% endif %}
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="ul-name">Display Name</label>
+                                    <input type="text" id="ul-name" name="name" value="{{ modal.values.name }}" class="form-control{{ ' is-invalid' if modal.errors.name else '' }}" autocomplete="off">
+                                    {% if modal.errors.name %}<div class="invalid-feedback">{{ modal.errors.name }}</div>{% endif %}
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="ul-email">Email</label>
+                                    <input type="email" id="ul-email" name="email" value="{{ modal.values.email }}" class="form-control{{ ' is-invalid' if modal.errors.email else '' }}" autocomplete="off">
+                                    {% if modal.errors.email %}<div class="invalid-feedback">{{ modal.errors.email }}</div>{% endif %}
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label" for="ul-password">
+                                        Password
+                                        {% if modal.editing %}<small class="text-muted fw-normal">(leave blank to keep current)</small>{% else %}<span class="text-danger">*</span>{% endif %}
+                                    </label>
+                                    <input type="password" id="ul-password" name="password" value="" class="form-control{{ ' is-invalid' if modal.errors.password else '' }}" autocomplete="new-password">
+                                    {% if modal.errors.password %}<div class="invalid-feedback">{{ modal.errors.password }}</div>{% endif %}
+                                </div>
+                                {% if super %}
+                                    <div class="form-check form-switch mb-2">
+                                        <input class="form-check-input" type="checkbox" role="switch" id="ul-admin" name="is_admin" value="1"{{ ' checked' if modal.values.is_admin else '' }}>
+                                        <label class="form-check-label" for="ul-admin">Administrator</label>
+                                        <small class="text-muted d-block">Admins see and manage everything.</small>
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label" for="ul-role">Role</label>
+                                        <select id="ul-role" name="role_id" class="form-select{{ ' is-invalid' if modal.errors.role_id else '' }}">
+                                            <option value="">Standard user</option>
+                                            {% for r in modal.roles %}<option value="{{ r.id }}"{{ ' selected' if modal.values.role_id == r.id else '' }}>{{ r.name }}</option>{% endfor %}
+                                        </select>
+                                        {% if modal.errors.role_id %}<div class="invalid-feedback">{{ modal.errors.role_id }}</div>{% endif %}
+                                        <small class="text-muted d-block">
+                                            A role opens extra console sections. It never widens which devices or address books this user can see — that stays with the grants below. Ignored for an administrator.
+                                            <a href="/roles">Manage roles</a>
+                                        </small>
+                                    </div>
+                                {% endif %}
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" role="switch" id="ul-active" name="is_active" value="1"{{ ' checked' if modal.values.is_active else '' }}{{ ' disabled' if modal.self else '' }}>
+                                    <label class="form-check-label" for="ul-active">Active</label>
+                                    {% if modal.self %}<small class="text-muted d-block">You cannot disable your own account.</small>{% endif %}
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="mb-3">
+                                    <label class="form-label">Groups</label>
+                                    <p class="text-muted fs-13 mb-2">A user can belong to several groups. Groups control address-book sharing and device-group access.</p>
+                                    <div class="rd-scrollbox p-2" style="max-height: 210px; overflow-y: auto;">
+                                        {% for g in modal.user_groups %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="ul-ug-{{ g.id }}" name="user_group_ids[]" value="{{ g.id }}"{{ ' checked' if g.id in modal.values.user_group_ids else '' }}>
+                                                <label class="form-check-label" for="ul-ug-{{ g.id }}">{{ g.name }}</label>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted fs-13 mb-0">{{ 'No user groups exist yet.' if super else 'No user groups you can grant.' }}</p>
+                                        {% endfor %}
+                                    </div>
+                                    {% if modal.errors.user_group_ids %}<div class="text-danger fs-13">{{ modal.errors.user_group_ids }}</div>{% endif %}
+                                </div>
+                                <div class="mb-1">
+                                    <label class="form-label">Device access</label>
+                                    <p class="text-muted fs-13 mb-2">This user sees only devices they own plus devices in the groups checked below. Not used for an administrator.</p>
+                                    <div class="rd-scrollbox p-2" style="max-height: 210px; overflow-y: auto;">
+                                        {% for dg in modal.device_groups %}
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="ul-dg-{{ dg.id }}" name="device_group_ids[]" value="{{ dg.id }}"{{ ' checked' if dg.id in modal.values.device_group_ids else '' }}>
+                                                <label class="form-check-label" for="ul-dg-{{ dg.id }}">{{ dg.name }}</label>
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted fs-13 mb-0">{{ 'No device groups exist yet.' if super else 'No device groups you can grant.' }}</p>
+                                        {% endfor %}
+                                    </div>
+                                    {% if modal.errors.device_group_ids %}<div class="text-danger fs-13">{{ modal.errors.device_group_ids }}</div>{% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <a href="{{ modal.return }}" class="btn btn-light">Cancel</a>
+                        <button type="submit" class="btn btn-primary">{{ 'Save Changes' if modal.editing else 'Create User' }}</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+{% elif modal.kind == "assign" %}
+    <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Assign Devices</h5>
+                    <a href="{{ modal.return }}" class="btn-close" aria-label="Close" data-rd-close></a>
+                </div>
+                <div class="modal-body">
+                    <p class="text-muted fs-13">
+                        Select the devices owned by <strong>{{ modal.username }}</strong>.
+                        Checked devices become theirs; unchecking a device they currently own releases it (no owner).
+                    </p>
+                    <form method="get" action="/users" class="mb-2" hx-boost="false">
+                        {% if st.search %}<input type="hidden" name="search" value="{{ st.search }}">{% endif %}
+                        {% if st.role != 'all' %}<input type="hidden" name="role" value="{{ st.role }}">{% endif %}
+                        {% if st.status != 'all' %}<input type="hidden" name="status" value="{{ st.status }}">{% endif %}
+                        <input type="hidden" name="assign" value="{{ modal.id }}">
+                        <input type="search" name="assign_search" value="{{ modal.search }}" class="form-control" placeholder="Search ID, alias, hostname… (Enter; unsaved ticks are dropped)">
+                    </form>
+                    <form method="post" action="/users/assign" id="assign-form">
+                        <input type="hidden" name="_token" value="{{ csrf }}" autocomplete="off"><input type="hidden" name="back" value="{{ back }}"><input type="hidden" name="id" value="{{ modal.id }}">
+                        <div class="rd-scrollbox" style="max-height: 340px; overflow-y: auto;">
+                            <table class="table table-sm table-hover mb-0">
+                                <tbody>
+                                {% for d in modal.devices %}
+                                    <tr>
+                                        <td style="width:38px;"><input class="form-check-input" type="checkbox" id="ul-ad-{{ d.id }}" name="ids[]" value="{{ d.id }}"{{ ' checked' if d.checked else '' }} aria-label="Assign device {{ d.rustdesk_id }}"></td>
+                                        <td>
+                                            <label class="rd-picklabel" for="ul-ad-{{ d.id }}">
+                                                <span class="fw-semibold">{{ d.rustdesk_id }}</span>
+                                                {% if d.label %}<small class="text-muted d-block">{{ d.label }}</small>{% endif %}
+                                            </label>
+                                        </td>
+                                        <td class="text-end">{% if d.owned_by %}<span class="badge bg-secondary-subtle text-secondary">owned by {{ d.owned_by }}</span>{% endif %}</td>
+                                    </tr>
+                                {% else %}
+                                    <tr><td class="text-center text-muted py-3">No devices match.</td></tr>
+                                {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                        <small class="text-muted">{{ modal.count }} selected{% if modal.capped %} · showing first 200, refine with search{% endif %}</small>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <a href="{{ modal.return }}" class="btn btn-light">Cancel</a>
+                    <button type="submit" form="assign-form" class="btn btn-primary">Save Assignment</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="modal-backdrop fade show"></div>
+{% endif %}
+</div>
+{% endblock %}
