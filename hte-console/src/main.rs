@@ -11,6 +11,7 @@
 //!   hte-console schedule-locks            phase 3: the PHP scheduler lock each job takes over (for the deploy's check)
 //!   hte-console backup|backups|restore|prune-logs|prune-invitations   phase 6: see housekeeping.rs
 //!   hte-console sql-apply <sqlite> <sql>  phase 3, replay only: apply a scenario step to a throwaway database
+//!   hte-console version|migrate [--check]|status|release-locks|db-copy <dest>   phase 9: see migrate.rs and maintenance.rs
 
 use hte_console::config::Config;
 use hte_console::{api, fixture, link, proxy, replay, sanitise, seed, snapshot, sweeps};
@@ -65,6 +66,15 @@ async fn main() {
             Err(e) => fail(&e),
         },
         Some("sweep") => sweep_cmd(&args[1..]),
+        // phase 9: the PHP-free image (schema ownership, status for the scripts, the rollback's lock release)
+        Some("version" | "--version") => {
+            println!("hte-console {}", env!("CARGO_PKG_VERSION"));
+            0
+        }
+        Some("migrate") => migrate_cmd(args.iter().any(|a| a == "--check")),
+        Some("status") => status_cmd(),
+        Some("release-locks") => release_locks_cmd(),
+        Some("db-copy") => db_copy_cmd(args.get(1)),
         Some("schedule-locks") => schedule_locks(),
         // phase 6: backups, restore, pruning (housekeeping.rs)
         Some("backup" | "backups" | "restore" | "prune-logs" | "prune-invitations" | "housekeeping-locks") => hte_console::housekeeping::cli(&args),
@@ -239,6 +249,101 @@ fn sweep_cmd(names: &[String]) -> i32 {
 }
 
 /// Phase 3: each job's lock key in `cache_locks` (with PHP's cache prefix) and expiry, one per line.
+/// The database named by HTE_CONSOLE_DATABASE, as the other commands read their environment.
+fn native_config() -> Result<hte_console::config::NativeConfig, String> {
+    Config::from_env()?.native.ok_or_else(|| "HTE_CONSOLE_DATABASE is not set".to_string())
+}
+
+fn read_only(path: &std::path::Path) -> Result<rusqlite::Connection, String> {
+    let c = rusqlite::Connection::open_with_flags(path, rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY | rusqlite::OpenFlags::SQLITE_OPEN_NO_MUTEX)
+        .map_err(|e| format!("cannot open {}: {e}", path.display()))?;
+    let _ = c.busy_timeout(std::time::Duration::from_secs(10));
+    Ok(c)
+}
+
+/// `hte-console migrate [--check]`: phase 9's schema ownership (migrate.rs). `--check` writes nothing and exits 1 when a PHP
+/// migration is missing; without it our pending migrations are applied.
+fn migrate_cmd(check_only: bool) -> i32 {
+    let n = match native_config() {
+        Ok(n) => n,
+        Err(e) => return fail(&e),
+    };
+    let report = if check_only {
+        read_only(&n.database).and_then(|c| hte_console::migrate::check(&c))
+    } else {
+        hte_console::sqlite::open(&n.database, n.busy, n.wal).and_then(|c| hte_console::migrate::run(&c))
+    };
+    match report {
+        Ok(r) if r.php_missing.is_empty() => {
+            println!("PHP migrations recorded: {}/{}; ours pending: {}; recorded but unknown: {}", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len(), r.own_pending.len(), r.unknown.len());
+            r.unknown.iter().for_each(|u| println!("unknown: {u}"));
+            0
+        }
+        Ok(r) => {
+            println!("PHP migrations recorded: {}/{}; missing:", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
+            r.php_missing.iter().for_each(|m| println!("  {m}"));
+            1
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// `hte-console status`: name=value lines for the deploy and rollback scripts, from a read-only open.
+fn status_cmd() -> i32 {
+    let n = match native_config() {
+        Ok(n) => n,
+        Err(e) => return fail(&e),
+    };
+    let prefix = hte_console::cache::Store::from_env().map(|s| s.prefix).unwrap_or_default();
+    match read_only(&n.database).and_then(|c| hte_console::maintenance::status(&c, &prefix, chrono::Utc::now().timestamp())) {
+        Ok(s) => {
+            println!("{s}");
+            0
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// `hte-console db-copy <dest>`: a consistent copy of the live database (`VACUUM INTO`, taken while the console runs; WAL
+/// readers and writers are not blocked for long). Refuses to overwrite. What `upgrade.sh` takes before an image swap, now
+/// that no PHP container is there to do it.
+fn db_copy_cmd(dest: Option<&String>) -> i32 {
+    let Some(dest) = dest else { return fail("usage: hte-console db-copy <dest.sqlite>") };
+    if std::path::Path::new(dest).exists() {
+        return fail(&format!("{dest} already exists; not overwriting it"));
+    }
+    let n = match native_config() {
+        Ok(n) => n,
+        Err(e) => return fail(&e),
+    };
+    match hte_console::sqlite::open(&n.database, n.busy, false).and_then(|c| c.execute("VACUUM INTO ?", [dest]).map_err(|e| format!("VACUUM INTO: {e}"))) {
+        Ok(_) => {
+            println!("copied to {dest}");
+            0
+        }
+        Err(e) => fail(&e),
+    }
+}
+
+/// `hte-console release-locks`: the rollback to the PHP stack gives PHP's scheduler its tasks back at once.
+fn release_locks_cmd() -> i32 {
+    let n = match native_config() {
+        Ok(n) => n,
+        Err(e) => return fail(&e),
+    };
+    let store = match hte_console::cache::Store::from_env() {
+        Ok(s) => s,
+        Err(e) => return fail(&e),
+    };
+    match hte_console::sqlite::open(&n.database, n.busy, false).and_then(|c| hte_console::maintenance::release_locks(&c, &store.prefix)) {
+        Ok(k) => {
+            println!("released {k} lock(s)");
+            0
+        }
+        Err(e) => fail(&e),
+    }
+}
+
 fn schedule_locks() -> i32 {
     match hte_console::cache::Store::from_env() {
         Ok(store) => {
@@ -293,6 +398,23 @@ async fn serve() -> i32 {
             Err(e) => return fail(&e),
         },
     };
+    // phase 9: PHP no longer owns the schema. Check the 41 PHP migrations are recorded and apply our own additive ones
+    // (HTE_CONSOLE_MIGRATE=0 skips it: the PHP stack's hte-console images never needed it).
+    if let Some(x) = &native {
+        if std::env::var("HTE_CONSOLE_MIGRATE").map_or(false, |v| v.trim() == "1") {
+            let r = hte_console::migrate::run(&x.db.lock().unwrap_or_else(|e| e.into_inner()));
+            match r {
+                Ok(r) => {
+                    tracing::info!("schema: {}/{} PHP migrations recorded, ours up to date", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
+                    if !r.unknown.is_empty() {
+                        tracing::warn!(unknown = ?r.unknown, "schema: migrations recorded that this version does not know (a newer PHP release?)");
+                    }
+                }
+                Err(e) => return fail(&e),
+            }
+        }
+        hte_console::maintenance::start(x.clone());
+    }
     tracing::info!(
         "hte-console listening on {}; device endpoints {}; other paths {}; recording {}",
         cfg.listen,

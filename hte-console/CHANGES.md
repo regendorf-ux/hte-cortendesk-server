@@ -2,6 +2,16 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 0.9.0 (2026-10-25): phase 9, the PHP-free image
+- One image with hbbs, hbbr and hte-console (`Dockerfile.hte`, tag `v1.1.1-hte.4`); hte-console serves `/assets/*`, `/rdclient/*`,
+  `/robots.txt` and `/favicon.ico` itself (`tests/phpfree.rs`: every embedded asset, health, sign-in and 404s with no upstream).
+- `migrate.rs`: `HTE_CONSOLE_MIGRATE=1` (set in the image) checks that the 41 PHP migrations are recorded in `migrations` and refuses
+  an empty or older database; applies its own additive idempotent migrations (first: `hte_console_sessions`), batch = max+1. Never creates or alters a PHP table.
+- `maintenance.rs`: `HTE_CONSOLE_SNOOZE_PRUNE=1` prunes expired presence snoozes every minute (PHP's `pruneForSweep`); `status` and `release-locks` helpers.
+- Subcommands: `version`, `migrate [--check]`, `status`, `release-locks`, `db-copy <dest>` (online copy, refuses to overwrite).
+- The image defaults: SIGNIN=1, LARAVEL_SESSIONS=0, PHP_SESSION_BRIDGE=0, SWEEPS=reach,passwords,stale,diagnostics, JOBS=backup,prune-logs,prune-invitations.
+  `HTE_CONSOLE_UPSTREAM` is not set: nothing is forwarded to PHP any more.
+
 ## 0.8.0 (2026-10-25): phase 8, the console's own sign-in and session cookie (and all of 0.7.19, phase 7c)
 - One image for 7c and 8: phase 7c's branch is merged in (Diagnostics, Roles, health routes, below). Phase 7c's scripts accept 0.8.x.
 - New modules `pages/websession.rs` (hte-console's own session: cookie `__Host-hte-remote` over https, a random 40-character id,

@@ -734,6 +734,28 @@ async fn asset(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::ex
     assets::respond(&path, req.method() == Method::HEAD)
 }
 
+/// `GET /robots.txt`, byte for byte what the PHP console's `public/robots.txt` says.
+async fn robots(req: Request<Body>) -> Response<Body> {
+    static_file(req.method(), "text/plain; charset=utf-8", b"User-agent: *\nDisallow:\n")
+}
+
+/// `GET /favicon.ico`: PHP's file is empty (the pages name their icon in the head); the same answer here.
+async fn favicon(req: Request<Body>) -> Response<Body> {
+    static_file(req.method(), "image/x-icon", b"")
+}
+
+fn static_file(method: &Method, ctype: &'static str, bytes: &'static [u8]) -> Response<Body> {
+    if method != Method::GET && method != Method::HEAD {
+        return error_response(405, "Method Not Allowed", false);
+    }
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, ctype)
+        .header(header::CACHE_CONTROL, "public, max-age=86400")
+        .body(if method == Method::HEAD { Body::empty() } else { Body::from(bytes) })
+        .unwrap()
+}
+
 /// `GET /health/live`: `{"live":true}`; 429 past PHP's limit.
 async fn health_live(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
@@ -904,6 +926,9 @@ pub fn routes_with(n: Arc<Native>, php: Option<Router>, own: websession::OwnConf
     r = login::routes(r);
     r = r.route("/assets/*path", any(asset));
     r = r.route("/rdclient/*path", any(rdclient));
+    // PHP's `public/robots.txt` and its empty `public/favicon.ico`, the two files nginx served beside /assets (phase 9)
+    r = r.route("/robots.txt", any(robots));
+    r = r.route("/favicon.ico", any(favicon));
     Ok(r.with_state(pages))
 }
 

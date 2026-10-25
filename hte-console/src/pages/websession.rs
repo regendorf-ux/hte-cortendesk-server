@@ -39,7 +39,7 @@ pub const FINGERPRINT: &str = "hte.fp";
 pub const BRIDGED: &str = "hte.bridged";
 pub const INTENDED: &str = "url.intended";
 
-const SCHEMA: &str = r#"create table if not exists "hte_console_sessions" (
+pub(crate) const SCHEMA: &str = r#"create table if not exists "hte_console_sessions" (
     "id_hash" varchar not null primary key,
     "user_id" integer,
     "ip_address" varchar,

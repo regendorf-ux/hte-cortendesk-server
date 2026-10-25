@@ -1,0 +1,49 @@
+# HTE (2026-10-25), phase 9: the one image of HTE Remote's server, without PHP and without nginx.
+#   hbbs (ID server) + hbbr (relay) + hte-console (the console: pages, client API, server link, scheduler), under supervisord.
+# Built by .github/workflows/hte-image.yml on a tag `v<upstream>-hte.<n>` as ghcr.io/regendorf-ux/hte-cortendesk-server:<upstream>-hte.<n>
+# (from 1.1.1-hte.4 on this name is the all-in-one image; 1.1.1-hte.1 to .3 are the plain hbbs/hbbr image the PHP console's
+# Dockerfile takes its binaries from, and stay that). The binaries are built ahead of this (static musl, `cross`), per
+# architecture, and dropped in `bin/<target arch>/`; nothing is compiled here.
+#
+# Runs as uid 82 (the owner of /opt/hte-remote/data and ./rustdesk on the server, www-data in the PHP image), so the files it
+# writes stay readable by the old PHP image should it ever come back. No root, no capabilities: compose adds read_only,
+# cap_drop ALL and tmpfs for /tmp.
+FROM alpine:3.20
+
+ARG TARGETARCH=amd64
+
+# supervisor: the same supervisord that ran hbbs and hbbr inside the PHP image (docker/rustdesk-server.conf there), with the
+# same restart behaviour; ca-certificates for the Microsoft sign-in (rustls also ships its own roots, this is belt and braces).
+RUN apk add --no-cache supervisor ca-certificates
+
+COPY bin/${TARGETARCH}/hbbs bin/${TARGETARCH}/hbbr bin/${TARGETARCH}/cortendesk-utils bin/${TARGETARCH}/hte-console /usr/bin/
+COPY docker/hte/supervisord.conf /etc/supervisord.conf
+COPY docker/hte/entrypoint.sh /entrypoint.sh
+RUN chmod +x /usr/bin/hbbs /usr/bin/hbbr /usr/bin/cortendesk-utils /usr/bin/hte-console /entrypoint.sh \
+    && mkdir -p /data/rustdesk && chown -R 82:82 /data
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    HTE_RELAY_GATE_PORT=21120 \
+    HTE_CONSOLE_LISTEN=0.0.0.0:8080 \
+    HTE_CONSOLE_DATABASE=/data/cortendesk.sqlite \
+    HTE_CONSOLE_MIGRATE=1 \
+    HTE_CONSOLE_SIGNIN=1 \
+    HTE_CONSOLE_LARAVEL_SESSIONS=0 \
+    HTE_CONSOLE_PHP_SESSION_BRIDGE=0 \
+    HTE_CONSOLE_SWEEPS=reach,passwords,stale,diagnostics \
+    HTE_CONSOLE_JOBS=backup,prune-logs,prune-invitations \
+    HTE_CONSOLE_SNOOZE_PRUNE=1
+
+# 8080 console, API and web client (Caddy); 21115 NAT test, 21116 tcp+udp signalling, 21117 relay (published);
+# 21118 / 21119 the WebSocket ports of hbbs / hbbr, reached only by Caddy over the compose network (/ws/id, /ws/relay).
+EXPOSE 8080 21115 21116 21116/udp 21117 21118 21119
+VOLUME /data
+USER 82:82
+WORKDIR /data/rustdesk
+
+# Liveness of the console (the PHP image probed its /health/live the same way). /health/ready (also the ID server and the
+# relay) is for monitoring, not for restarting the container.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
+    CMD wget -q -O /dev/null http://127.0.0.1:8080/health/live || exit 1
+
+ENTRYPOINT ["/entrypoint.sh"]

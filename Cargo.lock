@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "hbbs"
-version = "1.1.1-hte.3"
+version = "1.1.1-hte.4"
 dependencies = [
  "async-speed-limit",
  "async-trait",
@@ -1905,7 +1905,7 @@ dependencies = [
 
 [[package]]
 name = "hte-console"
-version = "0.8.0"
+version = "0.9.0"
 dependencies = [
  "aes",
  "axum 0.7.9",

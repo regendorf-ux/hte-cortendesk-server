@@ -8,6 +8,19 @@ file is the statement of modifications the AGPL asks for (section 5(a)), kept ap
 
 **What this repository may hold (owner, 2026-10-16):** HTE's code and placeholders, nothing else. HTE's server addresses, keys, e-mail domain, device IDs and host names live in `/opt/hte-remote/.env` on the server, the Mac's gitignored files, the private apps repository and GitHub secrets. The history was rewritten on 2026-10-16 to take out what had been committed.
 
+## 1.1.1-hte.4 and hte-console 0.9.0 (2026-10-25), phase 9: the PHP-free image
+
+`Dockerfile.hte` builds ONE image, `ghcr.io/regendorf-ux/hte-cortendesk-server:1.1.1-hte.4`, with `hbbs`, `hbbr` and `hte-console` under
+`supervisord` (uid 82, read-only root, no PHP, no nginx). `.github/workflows/hte-image.yml` builds `hte-console` beside hbbs/hbbr on the tag
+`v1.1.1-hte.4` and refuses a tag that differs from `Cargo.toml`'s version. The image carries hbbs/hbbr `c153365` (the web client's relay fix).
+`docker/hte/` holds `supervisord.conf` and `entrypoint.sh`.
+
+`hte-console` 0.9.0: serves `/assets/*`, `/rdclient/*`, `/robots.txt`, `/favicon.ico` itself; new subcommands `version`, `migrate [--check]`,
+`status`, `release-locks`, `db-copy`; `migrate.rs` checks the PHP fork's 41 migrations are recorded and applies its own additive ones
+(never creates or alters a PHP table); `maintenance.rs` prunes presence snoozes (PHP's `pruneForSweep`). Scripts, checklist and notes:
+`phase9/` in HTE's private notes. The PHP console (`regendorf-ux/hte-cortendesk`, branch `hte`, last PHP version 1.15.0-hte.1) is archived source:
+it is no longer built into the server image; its AGPL source stays available at that repository for as long as the service runs.
+
 ## hte-console 0.1.0 (2026-10-24), phase 1: the device endpoints without PHP
 
 `hte-console` now answers the unauthenticated device endpoints itself when `HTE_CONSOLE_DATABASE` is set:

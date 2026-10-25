@@ -1,6 +1,12 @@
 # HTE (2026-10-16): build the HTE image of CortenDesk Server for the server.
 # Upstream's release.yml stays as it is (it only runs on a GitHub release,
 # which this fork never publishes). amd64 only: the server is amd64.
+#
+# Since 1.1.1-hte.4 (2026-10-25, phase 9 of the PHP-free console) the image is the ONE image of HTE Remote's server:
+# hbbs, hbbr and hte-console (the console, in Rust, from this same workspace) under supervisord, built from
+# Dockerfile.hte. The same name and the same tag rule as before: push a tag `v<upstream>-hte.<n>`, never reuse one.
+# 1.1.1-hte.1 to .3 stay what they were (hbbs and hbbr only), which is what the PHP console image's Dockerfile pins.
+# The tag must equal the version in Cargo.toml (hbbs), so a tag cut before the version bump fails here, not on the server.
 name: hte-image
 
 permissions:
@@ -42,11 +48,16 @@ jobs:
         run: cargo install cross --git https://github.com/cross-rs/cross --locked
       - name: Build
         run: cross build --release --all-features --target x86_64-unknown-linux-musl
+      # The console links libsodium and SQLite (C, built from source by their -sys crates): the same `cross` that builds
+      # hbbs gets both static for musl, exactly as .github/workflows/hte-console.yml has built it since phase 1.
+      - name: Build hte-console
+        run: cross build --release -p hte-console --target x86_64-unknown-linux-musl
       - name: Collect binaries
         run: |
           mkdir -p bin/amd64
-          cp target/x86_64-unknown-linux-musl/release/{hbbs,hbbr,cortendesk-utils} bin/amd64/
+          cp target/x86_64-unknown-linux-musl/release/{hbbs,hbbr,cortendesk-utils,hte-console} bin/amd64/
           chmod +x bin/amd64/*
+          file bin/amd64/* || true
       - uses: actions/upload-artifact@v4
         with:
           name: bin-amd64
@@ -75,15 +86,20 @@ jobs:
         run: |
           ref="${GITHUB_REF_NAME}"
           case "$ref" in v*-hte.*) version="${ref#v}" ;; *) version="dev-${GITHUB_SHA::7}" ;; esac
+          crate="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)"
+          console="$(sed -n 's/^version = "\(.*\)"/\1/p' hte-console/Cargo.toml | head -1)"
+          echo "tag version: $version; hbbs (Cargo.toml): $crate; hte-console: $console"
+          case "$ref" in v*-hte.*) [ "$version" = "$crate" ] || { echo "the tag $ref does not match Cargo.toml's version $crate: bump it, commit, and tag the next number (a tag is never reused)" >&2; exit 1; } ;; esac
           echo "tags=${IMAGE}:${version}" >> "$GITHUB_OUTPUT"
       - uses: docker/build-push-action@v6
         with:
           context: .
+          file: Dockerfile.hte
           platforms: linux/amd64
           push: true
           tags: ${{ steps.tag.outputs.tags }}
           labels: |
-            org.opencontainers.image.title=HTE CortenDesk Server
-            org.opencontainers.image.description=CortenDesk Server with HTE's per-person reach enforcement. AGPL-3.0.
+            org.opencontainers.image.title=HTE Remote server
+            org.opencontainers.image.description=HTE Remote's ID server, relay and console (hbbs, hbbr, hte-console) in one image, with per-person reach enforcement. No PHP. AGPL-3.0.
             org.opencontainers.image.licenses=AGPL-3.0-only
             org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server

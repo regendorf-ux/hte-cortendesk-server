@@ -1,3 +1,6 @@
+# Since phase 9 (2026-10-25) the PHP-free server image is built by hte-image.yml (hbbs, hbbr and hte-console in one image, tag
+# v<upstream>-hte.<n>). This workflow stays for the hte-console images of the PHP stack (0.x up to 0.8.x), which are also what the
+# rollback from phase 9 runs; do not cut new tags here once phase 9 is deployed.
 # HTE (2026-10-24): build the hte-console image (the console without PHP: phase 0 shadow proxy, phase 1 device endpoints).
 # Separate from hte-image.yml on purpose: its own tag (`hte-console-v<version>`, which that workflow's
 # `v*-hte.*` filter does not match) and its own image. The server image (hbbs, hbbr) is not touched.

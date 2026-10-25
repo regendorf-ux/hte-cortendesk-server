@@ -433,3 +433,11 @@ remaining pages: `notes/phase8/NOTES.md`. Off unless `HTE_CONSOLE_SIGNIN=1`.
 | password reset, invitations | pages | "not available" (404) |
 | a guest page | a session row per visit | one row per browser (GET only), at most 600 new rows a minute per address |
 | `SESSION_SECURE_COOKIE=true` on plain http | the cookie is dropped, the post fails (419), back to `/login` | no sign-in completed: back to `/login` (the page shows PHP's https note) |
+
+## Phase 9: the PHP-free image
+
+`Dockerfile.hte` (tag `v1.1.1-hte.4`) puts hbbs, hbbr and hte-console in one container under supervisord, uid 82, no PHP. Environment defaults are
+in the Dockerfile; `HTE_CONSOLE_MIGRATE=1` checks the schema at start (41 PHP migrations recorded, else it refuses to start) and applies hte-console's
+own additive tables. CLI: `hte-console version | migrate [--check] | status | release-locks | db-copy <dest> | backup [--no-copy] | restore ...`.
+`docker exec cortendesk hte-console status` prints name=value lines (migrations, devices, scheduler heartbeat, policy pull age and agent).
+Scripts and checklist for the cutover: `phase9/` (private notes).

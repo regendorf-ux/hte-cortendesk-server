@@ -26,6 +26,8 @@ pub mod fixture;
 pub mod housekeeping;
 pub mod laravel;
 pub mod link;
+pub mod maintenance;
+pub mod migrate;
 pub mod multipart;
 pub mod oidc;
 pub mod pagereplay;
