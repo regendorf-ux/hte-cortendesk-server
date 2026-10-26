@@ -35,4 +35,23 @@ ignore = [
   # the crate at build time. Nothing parses XML at runtime.
   "RUSTSEC-2026-0194",
   "RUSTSEC-2026-0195",
+
+  # rustls 0.20 / webpki-roots 0.22 (RUSTSEC-2026-0349, -0381) and crypto-bigint 0.5
+  # (RUSTSEC-2026-0387, in Cargo.lock only through sqlx's MySQL driver, which is not
+  # built): all come in with sqlx 0.6's runtime-tokio-rustls feature, which only opens
+  # TLS for Postgres and MySQL; SQLite never does. Same reason as RUSTSEC-2024-0336
+  # above, and they go away together with sqlx 0.7 or later.
+  "RUSTSEC-2026-0349",
+  "RUSTSEC-2026-0381",
+  "RUSTSEC-2026-0387",
+
+  # zstd 0.13 / zstd-safe 7 / zstd-sys 2.1.0 (RUSTSEC-2026-0391, -0398, -0403, -0410
+  # and the other zstd-safe advisories). Pulled in by libs/hbb_common (the upstream
+  # RustDesk submodule) for its file-transfer compression, which only the client uses;
+  # hbbs, hbbr and hte-console never call hbb_common::compress. The fix needs zstd 0.14,
+  # that is a change in the upstream submodule.
+  "RUSTSEC-2026-0391",
+  "RUSTSEC-2026-0398",
+  "RUSTSEC-2026-0403",
+  "RUSTSEC-2026-0410",
 ]

@@ -38,4 +38,10 @@ jobs:
       - name: Run gitleaks
         run: |
           docker run --rm -v "$PWD:/repo" zricethezav/gitleaks:v8.28.0 \
-            git /repo --config /repo/.gitleaks.toml --no-banner --redact --exit-code 1
+            git /repo --config /repo/.gitleaks.toml --no-banner --redact --exit-code 1 \
+            --report-format json --report-path /repo/gitleaks-report.json || status=$?
+          # the secrets are redacted; rule, file, commit and line say where a finding is
+          if [ -s gitleaks-report.json ]; then
+            python3 -c 'import json; [print(f["RuleID"], f["File"], f["StartLine"], f["Commit"][:10]) for f in json.load(open("gitleaks-report.json"))]'
+          fi
+          exit "${status:-0}"
