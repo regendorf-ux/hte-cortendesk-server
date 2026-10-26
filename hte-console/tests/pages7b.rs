@@ -960,10 +960,8 @@ async fn the_replay_writes_run_on_hte_console() {
     std::env::set_var("APP_KEY", APP_KEY);
     std::env::set_var("HTE_CONSOLE_BACKUPS_DIR", keep.path().join("backups"));
     std::env::set_var("HTE_CONSOLE_RUSTDESK_DIR", keep.path().join("rustdesk"));
-    std::env::set_var("HTE_PAGEREPLAY_RUST_ONLY", "1");
     h.sql(&hte_console::pagereplay::seed_sql(NOW).unwrap());
     let r = hte_console::pagereplay::run_with(&h.url, &h.url, APP_KEY, "hte-remote-session", NOW, true).await.unwrap();
-    std::env::remove_var("HTE_PAGEREPLAY_RUST_ONLY");
     assert!(r.differences.is_empty(), "{}", r.differences.join("\n"));
     assert_eq!(h.count("devices where id = 4 and status = 'active'"), 1);
     assert_eq!(h.count("device_groups where name = 'Lab'"), 1);

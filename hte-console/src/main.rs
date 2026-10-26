@@ -135,7 +135,7 @@ async fn page_replay(args: &[String]) -> i32 {
         },
     };
     let Some(cookie) = std::env::var("HTE_CONSOLE_SESSION_COOKIE").ok().filter(|c| !c.trim().is_empty()) else {
-        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name the previous console uses (config('session.cookie'))");
+        return fail("set HTE_CONSOLE_SESSION_COOKIE to the session cookie's name");
     };
     let writes = std::env::var("HTE_PAGEREPLAY_READS_ONLY").map_or(true, |v| v.trim().is_empty() || v == "0");
     match hte_console::pagereplay::run_with(php, rust, &key, &cookie, now, writes).await {

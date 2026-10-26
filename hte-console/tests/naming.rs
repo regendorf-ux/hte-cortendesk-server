@@ -267,7 +267,7 @@ fn no_previous_console_runtime_in_the_repository() {
         ("naming.rs", "", "this test"),
     ];
     // whole files whose subject is the comparison with the previous console (used by tests with two hte-console instances)
-    let comparison = ["pagereplay.rs", "webreplay.rs"];
+    let comparison = ["webreplay.rs"];
     let mut bad = vec![];
     for f in repository_text_files() {
         let rel = f.strip_prefix(root().join("..")).unwrap_or(&f).display().to_string();

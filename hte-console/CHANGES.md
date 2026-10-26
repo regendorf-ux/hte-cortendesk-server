@@ -9,6 +9,8 @@ New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `
   "the previous console" where they explained behaviour by the PHP console.
 - Removed: the replay scripts that started the previous console's image, the fixture generators, the asset and migration sync scripts,
   the separate hte-console image (`Dockerfile`, `.github/workflows/hte-console.yml`). The golden fixtures and every test stay.
+- `pagereplay.rs` no longer talks to the previous console: no update calls, no capture or saved answers; it compares two hte-console instances
+  (pages, dialogs, downloads) and posts forms to the candidate. `webreplay.rs` stays a two-instance comparison.
 - Comments, templates, CSS/JS and SQL headers describe formats inherited from the previous console instead of PHP; the compatibility
   modules (`php.rs`, `laravel.rs`) and the scheduler's lock-name format are unchanged.
 - `tests/naming.rs`: no company, person, private host, e-mail address or tenant id in the repository (private names checked by digest),
