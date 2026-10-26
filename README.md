@@ -1,190 +1,178 @@
-# CortenDesk Server
+# HTE Remote server
 
-ID/rendezvous (`hbbs`) and relay (`hbbr`) servers for RustDesk clients.
+A self-hosted remote-desktop server and console for [RustDesk](https://rustdesk.com) clients: the ID server (`hbbs`),
+the relay (`hbbr`) and a web console (`hte-console`), shipped as **one container image**, `ghcr.io/regendorf-ux/hte-rd-server`.
 
-This is a fork of [rustdesk-server](https://github.com/rustdesk/rustdesk-server),
-in sync with upstream release 1.1.17, with one change that matters:
-**signed-in clients can connect.**
+It is built on the ID/relay server of [RustDesk Server](https://github.com/rustdesk/rustdesk-server) by way of
+[CortenDesk Server](https://github.com/marcpope/cortendesk-server), and its console reproduces, in Rust, the console of
+[CortenDesk](https://github.com/marcpope/cortendesk), on the same database. Credits and licences: [`NOTICE`](NOTICE),
+[`hte-console/NOTICE`](hte-console/NOTICE) and Settings > About in the console. The statement of modifications is
+[`HTE.md`](HTE.md). Licence: GNU AGPL-3.0.
 
-It is a drop-in replacement. Same binaries, same ports, same command-line flags,
-same data files — point your existing compose file at these images and nothing
-else changes.
+"HTE Remote" is the product's name on screen. Clients are stock RustDesk clients (or a custom build of one).
 
-## Why this fork exists
+## What it does
 
-RustDesk clients from 1.4.1 onwards encrypt their signalling channel whenever
-they are signed in to an API server, because the access token travels over it.
-The client opens that exchange by waiting for the server to send it a signed
-key. The open-source `hbbs` has no code to send one, so the client waits, times
-out after 18 seconds, and reports:
+**Access control**
+- **Per-person reach.** Each console user sees and may *reach* only their own devices and the device groups granted to them
+  or their user groups; administrators reach everything. The rule is enforced by `hbbs` where sessions start, not only shown
+  in the console. A refused attempt raises an alarm (type 102); a device removed from someone's reach raises another (103).
+- **Relay gate.** `hbbr` pairs only sessions `hbbs` admitted (upstream pairs anyone presenting the public key).
+- **Per-computer passwords.** The console issues a password per device, rotates it on schedule and on demand, and hands it
+  only to people who may reach that device (address book, web client).
+- **Pending devices.** New devices wait for approval; signing in to a client approves and owns its device.
 
-```
-Failed to secure tcp: deadline has elapsed
-```
+**Console**
+- Devices, users, groups, user groups, strategies (client settings pushed to devices), roles, address books, logs
+  (connections, file transfers, sign-ins, alarms, console audit), API tokens, diagnostics.
+- **Shared address book / accessible devices** for signed-in clients: the "Accessible devices" tab and group tab.
+- **Web client** in the browser, signed in with the console session, with the same reach rule and the device's password
+  supplied without a prompt.
+- **Sign-in**: OpenID Connect (Microsoft Entra ID, Okta, Keycloak, Google Workspace, …) and a local break-glass password,
+  for the console and the RustDesk client. **Two-factor** (TOTP, recovery codes) and **e-mailed sign-in codes**, invitations
+  and password reset over SMTP.
+- **Admin API** (`/api/v1/*`, token-guarded) and `--assign` from the client command line.
 
-Every connection *from* a signed-in client fails this way — address book,
-recents, or a manually typed ID, direct or relayed. Sign out and the same client
-connects immediately, because a signed-out client has no token and skips the
-exchange. That is the whole difference, and it makes the address book — the
-reason to sign in at all — unusable.
+**Operations**
+- **Backups**: daily archives with retention tiers, restore from Settings, off-site copies to FTP(S) or S3.
+- **Scheduled jobs**: reach and password sweeps, stale-session cleanup, log and invitation pruning, a diagnostics heartbeat.
+- **Release check**: the sidebar says when a newer `hte-rd-server-v*` tag exists in this repository (once a day, public
+  GitHub API, no token; switch off with `HTE_REMOTE_UPDATE_CHECK=0`).
 
-This fork implements the server side of that exchange. A signed-in client
-negotiates an encrypted channel and connects normally, with no client-side
-workarounds and no settings to change.
+### Differences from upstream
 
-Clients that do not encrypt signalling are unaffected: the offer is sent, they
-skip past it (RustDesk clients have ignored unsolicited key-exchange frames
-since 1.2.0), and the connection carries on in plain text exactly as before.
+- From **CortenDesk Server** (inherited): signed-in RustDesk clients (1.4.1+) can connect (the server side of the secure
+  signalling channel), and `hbbs` enforces a device policy pulled from the console.
+- Added here: per-person reach in `hbbs` (`src/hte_scope.rs`), the relay gate (`src/hte_relay_gate.rs`), and the console in
+  Rust (`hte-console/`) in place of CortenDesk's console, all in one non-root container.
+- Not carried over from CortenDesk's console: Apprise notifications, live page updates, the client downloads page.
 
-## What is different from upstream
+## Requirements
 
-- `hbbs` completes the signalling key exchange on plain TCP connections, and
-  encrypts the rest of the connection once it has. Requires a server key pair,
-  which is the default (`-k _`, or the generated `id_ed25519`); with no key
-  there is nothing to sign the offer with, so nothing is offered.
-- `hbbr` is untouched. Clients never run this exchange against the relay.
-- WebSocket connections are untouched. Clients skip the exchange there because
-  the transport handles encryption, so offering it would only confuse them.
-- Optional device policy from a CortenDesk console: refuse devices the
-  console has not approved, and devices marked incoming-only. Off unless
-  configured; see below.
-- Packaging trimmed to what is published here: Docker images and static Linux
-  binaries. Upstream's Debian packaging, Windows installer UI, s6 image and
-  Kubernetes example are not carried.
+- Docker with compose, amd64.
+- A reverse proxy with TLS in front of the console (any; a Caddy example is below).
+- Ports reachable by clients: `21115/tcp`, `21116/tcp+udp`, `21117/tcp`.
+- **A database created by CortenDesk 1.15.** This image checks the schema at start and does not create a new one: run
+  CortenDesk's image once on the data directory (or restore a backup made by CortenDesk or by this console), then switch the
+  image. An existing CortenDesk installation moves over as is (same data directory, key pair and secret).
 
-Full detail, with dates, is in [CHANGES.md](CHANGES.md).
-
-## Running it
+## Quick start (docker compose)
 
 ```yaml
+# compose.yml
 services:
-  hbbs:
-    image: ghcr.io/marcpope/cortendesk-server:1
-    command: hbbs -r relay.example.com:21117
-    ports: ["21115:21115", "21116:21116", "21116:21116/udp"]
-    volumes: ["./data:/root"]
+  hte-remote:
+    image: ghcr.io/regendorf-ux/hte-rd-server:2.0.0   # pin a digest in production
+    container_name: hte-remote
     restart: unless-stopped
-
-  hbbr:
-    image: ghcr.io/marcpope/cortendesk-server:1
-    command: hbbr
-    ports: ["21117:21117"]
-    volumes: ["./data:/root"]
-    restart: unless-stopped
+    user: "82:82"
+    env_file: .env
+    ports:
+      - "21115:21115"
+      - "21116:21116"
+      - "21116:21116/udp"
+      - "21117:21117"
+    expose: ["8080", "21118", "21119"]   # console and WebSocket ports, for the reverse proxy only
+    volumes:
+      - ./data:/data                     # owned by 82:82; holds the database, .app_key, .server_secret, backups
+      - ./rustdesk:/data/rustdesk        # hbbs's key pair and peer database
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    stop_grace_period: 45s
 ```
 
-Leave 21118/21119 (WebSocket) unpublished unless you have RustDesk clients in
-WebSocket mode. Then put them behind a reverse proxy that sets `X-Real-IP`:
-hbbs and hbbr take the client address from that header on WebSocket
-connections, so a directly exposed port lets a client claim any address.
+```dotenv
+# .env
+APP_URL=https://remote.example.com           # the public address; the relay address clients get derives from it
+HTE_CONSOLE_PUBLIC_URL=https://remote.example.com
+APP_NAME=HTE Remote
+HTE_SIGNIN_DOMAIN=example.com                # optional: the e-mail domain the sign-in page names
+TRUSTED_PROXIES=172.16.0.0/12                # the reverse proxy's network
+```
 
+Reverse proxy (Caddy) — the console, and the web client's WebSocket bridge to `hbbs`/`hbbr`. Overwrite the forwarding headers
+so a browser cannot choose the address `hbbs` sees:
 
-Also published to `docker.io/marcpope/cortendesk-server`. Static `linux/amd64`
-and `linux/arm64` binaries are attached to each
-[release](https://github.com/marcpope/cortendesk-server/releases).
+```caddyfile
+remote.example.com {
+	handle /ws/id {
+		reverse_proxy hte-remote:21118 {
+			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	handle /ws/relay {
+		reverse_proxy hte-remote:21119 {
+			header_up X-Real-IP {client_ip}
+			header_up X-Forwarded-For {client_ip}
+		}
+	}
+	reverse_proxy hte-remote:8080
+}
+```
 
-### Coming from rustdesk-server
+Then point clients at `remote.example.com` with the server's public key (Settings > Server shows it).
 
-Stop the containers, change the image, start them again. Keep the same `./data`
-volume: the key pair (`id_ed25519`, `id_ed25519.pub`) and the peer database
-(`db_v2.sqlite3`) are read as-is, so device IDs and keys survive and clients need
-no reconfiguration.
-
-Going back is the same move in reverse — nothing in the data directory changes
-format. Signed-in clients simply stop connecting again.
+`docker exec hte-remote hte-console status` prints the state as `name=value` lines (schema, devices, scheduler, the ID server's
+last policy pull, old setting names in use, the release check). Other commands: `hte-console version | migrate [--check] |
+backup [--no-copy] | restore … | release-locks | db-copy <dest>`.
 
 ## Configuration
 
-Flags, environment variables and `.env` / `--config` files work as they do
-upstream; `hbbs --help` and `hbbr --help` list the flags. Since 1.1.1 both
-servers take `-b` / `BIND` to listen on one local IPv4 or IPv6 address instead
-of all interfaces. Every option is in
-[docs/environment-variables.md](docs/environment-variables.md).
+Settings live in the console (Settings) and in the database. The environment covers what must be known before the database is
+read. The most used variables:
 
-## Device policy from a CortenDesk console
+| Variable | Default | Meaning |
+|---|---|---|
+| `APP_URL` | (required) | Public address of the console; the ID and relay addresses given to clients derive from its host |
+| `HTE_CONSOLE_PUBLIC_URL` | `APP_URL` | Origin for links and the OIDC redirect URI (never taken from the Host header) |
+| `APP_NAME` | `HTE Remote` | Page titles, mail From name and subjects |
+| `HTE_SIGNIN_DOMAIN` | empty | E-mail domain named on the sign-in page |
+| `TRUSTED_PROXIES` | private ranges | Proxies whose `X-Forwarded-*` headers are believed |
+| `HTE_REMOTE_ID_SERVER` | `<APP_URL host>:21116` | ID server address given to clients |
+| `HTE_REMOTE_RELAY_SERVER` | `<APP_URL host>:21117` | Relay address `hbbs` hands out |
+| `HTE_REMOTE_SERVER_SECRET` | `/data/.server_secret` | Secret `hbbs` and the console share (generated once when missing) |
+| `HTE_REMOTE_LOG_LEVEL` | `info` | `hbbs`/`hbbr` log level (`debug`, `info`, `warning`, `error`) |
+| `HTE_CONSOLE_LOG` | `info` | The console's log filter (`RUST_LOG` syntax) |
+| `HTE_REMOTE_OIDC_DISABLED` | off | Kill switch for single sign-on |
+| `HTE_REMOTE_UPDATE_CHECK` | on | The sidebar's release check (`HTE_REMOTE_UPDATE_REPO` points it at another `owner/name`) |
+| `HTE_REMOTE_ONLINE_WINDOW` | `60` | Seconds a device stays "online" after its last heartbeat (a setting overrides it) |
+| `HTE_REMOTE_LOG_RETENTION_DAYS` | `365` | Log retention default (a setting overrides it) |
+| `HTE_CONSOLE_SWEEPS` | all four (image) | Scheduled sweeps run here: `reach,passwords,stale,diagnostics` |
+| `HTE_CONSOLE_JOBS` | all three (image) | Daily jobs run here: `backup,prune-logs,prune-invitations` |
+| `HTE_CONSOLE_CACHE_PREFIX` | from `APP_NAME` | Cache key prefix in the database (keep it stable: scheduler locks use it) |
+| `HTE_RELAY_GATE_PORT` | `21120` (image) | Loopback port of the relay gate; unset turns the gate off |
 
-Since 1.1.0 `hbbs` can enforce the device policy set in a
-[CortenDesk](https://github.com/marcpope/cortendesk) console. The CortenDesk
-image runs this server inside it and wires this up on its own. For a separate
-`hbbs`, set on the `hbbs` container:
+Every `HTE_REMOTE_<X>` was `CORTENDESK_<X>` in CortenDesk. The old names are still read when the new one is unset, with a
+warning per name; `hte-console status` lists any in use (`env_old_names=`). The full list, including tuning and test
+variables: [`hte-console/README.md`](hte-console/README.md) and, for `hbbs`/`hbbr`, [`docs/environment-variables.md`](docs/environment-variables.md).
 
-| Variable | Meaning |
-|---|---|
-| `CORTENDESK_CONSOLE_URL` | Base URL of the console as `hbbs` reaches it, e.g. `https://desk.example.com` |
-| `CORTENDESK_SERVER_SECRET` | Shared secret. Same value as `CORTENDESK_SERVER_SECRET` on the console |
-| `CORTENDESK_POLICY_INTERVAL` | Seconds between policy fetches. Default `5`, range 1 to 300 |
+### Upgrading from the CortenDesk image
 
-Both of the first two must be set, or the link stays off and `hbbs` behaves as
-1.0.0. `hbbr` needs nothing.
-
-What it does:
-
-- Pulls the policy from `GET /api/server/policy` every interval and enforces
-  it from memory. Unchanged policy is a 304.
-- In approved-only mode, a device the console has not approved cannot start a
-  session and cannot be reached. It still registers, so it shows up in the
-  console as pending.
-- A device marked incoming-only can be reached but cannot start a session, in
-  either mode.
-- Refused clients see why: "This device is not approved on this server...",
-  "This device is set to incoming only...", or "The remote device is not
-  approved on this server."
-- Posts the LAN address a device reports during connection setup to
-  `POST /api/server/local-addrs`, so the console can show it.
-
-The console is the source of truth. If it is unreachable, `hbbs` keeps the
-last policy it got, and keeps it across restarts in `policy_snapshot.json`.
-With no policy at all, on a first start with the console down, every device is
-allowed and the log says so. This is deliberate: failing closed would stop
-every session on the server whenever the console is down.
-
-### How `hbbs` knows who is asking
-
-A connection request names the device to reach, not the device asking. `hbbs`
-identifies the sender by, in order:
-
-1. a ticket signed with the shared secret, which the console's web client sends;
-2. the console access token a signed-in RustDesk client sends;
-3. its IP address, matched against devices that registered from that address
-   in the last 30 seconds, not counting the target.
-
-Signed-in clients are identified exactly. The IP match is weak: behind a
-shared NAT, or a proxy that rewrites source addresses (Docker's userland
-proxy, IPv6 port publishing, Docker Desktop), every client looks like every
-other one behind it. So in approved-only mode it is off unless the console
-turns it on ("Identify signed-out devices by IP address"), and only signed-in
-clients and the web client can start sessions. Open mode still uses it to stop
-incoming-only devices, which is best effort for signed-out clients.
-
-### Limits
-
-- Sessions already running are not cut. A device that loses approval cannot
-  start or receive new ones after the next fetch.
-- `hbbr` does not see the policy. It pairs two connections that present the
-  same uuid and the server key. Stock clients only learn that uuid through
-  `hbbs`, so the policy covers them; modified clients that agree on a uuid some
-  other way can still use the relay.
+Same data directory, same key pair and secret, same ports. Stop CortenDesk, rename `CORTENDESK_*` to `HTE_REMOTE_*` in the
+environment (optional: the old names keep working), start this image on the same `data/` and `rustdesk/` directories, and add the
+`/ws/*` routes to the proxy. hte-console checks the 41 CortenDesk migrations at start and only adds tables of its own, so the
+CortenDesk image can be started on the same data again. Backups made here are named `hte-remote-backup-<stamp>.tar` in
+CortenDesk's format; rename one to `cortendesk-backup-<stamp>.tar` to restore it there.
 
 ## Building
 
-```bash
-git clone --recurse-submodules https://github.com/marcpope/cortendesk-server.git
-cd cortendesk-server
-cargo build --release
+```sh
+cargo test --workspace
+cross build --release --target x86_64-unknown-linux-musl            # hbbs, hbbr, cortendesk-utils
+cross build --release -p hte-console --target x86_64-unknown-linux-musl
 ```
 
-`hbbs`, `hbbr` and `cortendesk-utils` land in `target/release`.
-
-```bash
-cargo test          # end-to-end tests of the handshake and the device policy
-```
+The image is built by `.github/workflows/hte-rd-server.yml` from `Dockerfile.hte`: push a git tag `hte-rd-server-v<x.y.z>`
+equal to `hte-console/Cargo.toml`'s version (the job refuses anything else) and it publishes `hte-rd-server:<x.y.z>`, with the
+upstream versions as image labels. Tags are never reused. `hte-console/` has its own tests and a replay harness that compares
+its answers with the golden fixtures recorded from CortenDesk's console (`hte-console/fixtures/`).
 
 ## Licence
 
-AGPL-3.0-only, inherited from rustdesk-server. See [LICENSE](LICENSE) and
-[NOTICE](NOTICE).
-
-RustDesk is a trademark of its owners. This project is not affiliated with,
-endorsed by, or supported by the RustDesk project. Do not report problems with
-these builds to them — [open an issue
-here](https://github.com/marcpope/cortendesk-server/issues).
+GNU Affero General Public License v3.0 ([`LICENSE`](LICENSE)), as for RustDesk Server, CortenDesk Server and CortenDesk. If you
+run a modified version for others, offer them its source. Third-party assets in `hte-console/assets/vendor/` keep their own
+licences (see `hte-console/NOTICE`). RustDesk is a trademark of its owners; this project is not affiliated with or endorsed by
+the RustDesk project or CortenDesk.

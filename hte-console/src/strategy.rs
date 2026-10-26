@@ -1,6 +1,6 @@
 //! Strategy delivery in the heartbeat answer: a line-by-line port of `App\Models\Strategy` (v1.15.0-hte.1):
 //! `sanitizeOptions`, `resolve`/`syncResolvedFor` (run when sysinfo creates a device) and `deliveryFor`.
-//! The console UI that edits strategies stays in PHP; this side only reads them and writes the device's
+//! The console UI that edits strategies stays in the previous console; this side only reads them and writes the device's
 //! delivery state (strategy_version, strategy_options, strategy_acked_*, strategy_sent_at).
 
 use crate::sqlite::{self as db, Row, P};
@@ -96,7 +96,7 @@ pub fn string_map(column: &Val) -> Map {
     ksorted(m)
 }
 
-/// The value PHP writes for an `array`-cast column holding this map (`json_encode`, `[]` when empty).
+/// The value the previous console writes for an `array`-cast column holding this map (`json_encode`, `[]` when empty).
 pub fn map_json(m: &Map) -> Result<Val, Fault> {
     let mut a = Arr::new();
     for (k, v) in m {

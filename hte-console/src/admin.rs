@@ -1,4 +1,4 @@
-//! Phase 5: the admin automation API, answered natively. A port of the PHP console's (v1.15.0-hte.1) token guard,
+//! Phase 5: the admin automation API, answered natively. A port of the previous console's (v1.15.0-hte.1) token guard,
 //! middleware and controllers, statement by statement:
 //!
 //!   /api/v1/users, /devices, /user-groups, /device-groups, /address-books (+ peers, tags, rules), /audits/*   48 routes
@@ -144,7 +144,7 @@ const fn r(method: &'static str, pattern: &'static str, op: Op, resource: &'stat
 use Bind::*;
 use Op::*;
 
-/// routes/api.php (the `v1` group) and routes/client-cli.php, in file order.
+/// routes/api (the `v1` group) and routes/client-cli, in file order.
 pub const ROUTES: &[Route] = &[
     r("GET", "/api/v1/users", UsersIndex, "user", "r", &[]),
     r("GET", "/api/v1/users/{}", UsersShow, "user", "r", &[User]),
@@ -273,7 +273,7 @@ fn lookup(method: &str, raw_path: &[u8]) -> Lookup {
 }
 
 /// Registers the paths; `lookup` decides the rest. `/api/v1/*` takes every shape under it, so an unknown one gets
-/// Laravel's own 404 JSON instead of reaching PHP; `/api/v1` itself and the other casings stay PHP's.
+/// Laravel's own 404 JSON instead of reaching the previous console; `/api/v1` itself and the other casings stay the previous console's.
 pub fn mount(r: Router<Arc<Native>>) -> Router<Arc<Native>> {
     r.route("/api/v1/*rest", any(handle)).route("/api/devices/cli", any(handle))
 }
@@ -341,7 +341,7 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
         }
     };
 
-    // ValidatePostSize, bounded here far below PHP's limit
+    // ValidatePostSize, bounded here far below the previous console's limit
     let max = max_body();
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
     if declared.map_or(false, |l| l > max as u64) {
@@ -385,7 +385,7 @@ fn too_many(max: u64, retry: i64, now: i64) -> (Out, Headers) {
     )
 }
 
-/// Hardening PHP does not have: a client address that keeps presenting tokens nobody issued is slowed down
+/// Hardening the previous console does not have: a client address that keeps presenting tokens nobody issued is slowed down
 /// (300 refused sign-ins a minute per address, then 429). A valid client never meets it.
 const AUTH_FAILURES_PER_MINUTE: u64 = 300;
 
@@ -400,7 +400,7 @@ pub struct Auth {
     pub user: Row,
 }
 
-/// `Permissions::rank()` of whatever the matrix holds: the string form of a scalar (PHP coerces it), a TypeError
+/// `Permissions::rank()` of whatever the matrix holds: the string form of a scalar (the previous console coerces it), a TypeError
 /// for an array.
 fn rank(have: &Val) -> Result<i64, Fault> {
     if matches!(have, Val::Arr(_)) {
@@ -769,7 +769,7 @@ impl Cx<'_> {
         Ok(Reply::Json(200, enc(&body)?))
     }
 
-    /// `'%'.$request->query($key).'%'` (a missing or null value is empty; an array is PHP's warning, a 500)
+    /// `'%'.$request->query($key).'%'` (a missing or null value is empty; an array is the previous console's warning, a 500)
     pub fn like(&self, key: &str) -> Result<Val, Fault> {
         let v = self.input.query(key).cloned().unwrap_or(Val::Null);
         let mut s = b"%".to_vec();
@@ -779,7 +779,7 @@ impl Cx<'_> {
     }
 
     /// `Model::find($input)` for a request value: an array is `findMany` (a collection, which the callers then use
-    /// as a model: PHP throws), a scalar the primary key.
+    /// as a model: the previous console throws), a scalar the primary key.
     pub fn find_by_input(&self, table: &str, soft_deletes: bool, v: &Val) -> Result<Option<Row>, Fault> {
         if matches!(v, Val::Arr(_)) {
             return Err(Fault::Other("a collection used as a model (find() with an array)".into()));
@@ -907,7 +907,7 @@ mod tests {
         assert!(!token_allows(&t, "group", "r").unwrap());
         assert!(!token_allows(&t, "address_book", "r").unwrap());
         assert!(!token_allows(&t, "strategy", "r").unwrap());
-        // an array in the matrix is PHP's TypeError
+        // an array in the matrix is the previous console's TypeError
         t.set("permissions", Val::str(r#"{"device":["rw"]}"#));
         assert!(token_allows(&t, "device", "r").is_err());
         // a matrix that is not an object grants nothing

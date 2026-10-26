@@ -1,13 +1,13 @@
-# HTE (2026-10-25), phase 9: HTE Remote's server image, without PHP and without nginx.
+# (2026-10-25) HTE Remote's server image: hbbs, hbbr and hte-console in one non-root container.
 #   hbbs (ID server) + hbbr (relay) + hte-console (the console: pages, client API, server link, scheduler), under supervisord.
 # Built by .github/workflows/hte-rd-server.yml on a git tag `hte-rd-server-v<x.y.z>` as ghcr.io/regendorf-ux/hte-rd-server:<x.y.z>
 # (HTE Remote's own version, from 2.0.0; the upstream versions are labels). The binaries are built ahead of this (static musl,
 # `cross`), per architecture, and dropped in `bin/<target arch>/`; nothing is compiled here.
-# Based on CortenDesk (the PHP console, whose pages hte-console reproduces) and CortenDesk Server / RustDesk Server (hbbs, hbbr):
+# Based on CortenDesk (the console whose pages hte-console reproduces) and CortenDesk Server / RustDesk Server (hbbs, hbbr):
 # AGPL-3.0, see LICENSE, NOTICE and hte-console/NOTICE, all copied into the image.
 #
-# Runs as uid 82 (the owner of /opt/hte-remote/data and ./rustdesk on the server, www-data in the PHP image), so the files it
-# writes stay readable by the old PHP image should it ever come back. No root, no capabilities: compose adds read_only,
+# Runs as uid 82 (the owner of the data directory: www-data in the CortenDesk image it replaces), so the files it
+# writes stay readable by the CortenDesk image should it ever come back. No root, no capabilities: compose adds read_only,
 # cap_drop ALL and tmpfs for /tmp.
 FROM alpine:3.20
 
@@ -15,7 +15,7 @@ ARG TARGETARCH=amd64
 ARG HTE_REMOTE_VERSION=dev
 ARG HTE_REMOTE_SERVER_VERSION=dev
 
-# supervisor: the same supervisord that ran hbbs and hbbr inside the PHP image (docker/rustdesk-server.conf there), with the
+# supervisor: the same supervisord that ran hbbs and hbbr inside the CortenDesk image (docker/rustdesk-server.conf there), with the
 # same restart behaviour; ca-certificates for the Microsoft sign-in (rustls also ships its own roots, this is belt and braces).
 RUN apk add --no-cache supervisor ca-certificates
 
@@ -47,7 +47,7 @@ VOLUME /data
 USER 82:82
 WORKDIR /data/rustdesk
 
-# Liveness of the console (the PHP image probed its /health/live the same way). /health/ready (also the ID server and the
+# Liveness of the console (the CortenDesk image probed its /health/live the same way). /health/ready (also the ID server and the
 # relay) is for monitoring, not for restarting the container.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s \
     CMD wget -q -O /dev/null http://127.0.0.1:8080/health/live || exit 1

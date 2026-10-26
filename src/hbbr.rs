@@ -21,7 +21,7 @@ fn main() -> ResultType<()> {
     );
     let matches = App::new("hbbr")
         .version(version::VERSION)
-        .author("HTE (HTE Remote) — based on CortenDesk Server <https://github.com/marcpope/cortendesk-server>, a fork of rustdesk-server")
+        .author("HTE Remote — based on CortenDesk Server <https://github.com/marcpope/cortendesk-server>, a fork of rustdesk-server")
         .about("HTE Remote relay server (hbbr) — relay server for RustDesk clients")
         .args_from_usage(&args)
         .get_matches();

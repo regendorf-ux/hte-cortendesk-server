@@ -5,7 +5,7 @@
 //!   GET  /account/two-factor
 //!   POST /account/two-factor   do=start | cancel | confirm | regenerate | disable | dismiss
 //!
-//! Deliberate difference: PHP keeps the candidate secret in the session until it is confirmed; here it travels in the
+//! Deliberate difference: the previous console keeps the candidate secret in the session until it is confirmed; here it travels in the
 //! form as `Crypt::encryptString("<user id>|<secret>")` (the app key's AES-256-CBC + HMAC), so the page writes no
 //! session state; a blob made for one account does not work for another, and the secret is on the screen anyway.
 //! Recovery codes are only ever in the answer to the post that made them.
@@ -18,10 +18,10 @@ use crate::sqlite::{self as db, P};
 use rusqlite::Connection;
 use serde_json::json;
 
-/// `TwoFactor::ISSUER` (PHP's said CortenDesk; the name in the authenticator app only, codes do not depend on it), `RECOVERY_COUNT`
+/// `TwoFactor::ISSUER` (the previous console's said CortenDesk; the name in the authenticator app only, codes do not depend on it), `RECOVERY_COUNT`
 const ISSUER: &str = "HTE Remote";
 const RECOVERY_COUNT: usize = 10;
-/// How long a started enrolment can be confirmed (PHP's lasts as long as the session).
+/// How long a started enrolment can be confirmed (the previous console's lasts as long as the session).
 const SETUP_TTL: i64 = 15 * 60;
 
 /// RFC 4648 base32, upper case, no padding (otphp's `Base32::encodeUpper`, trimmed).

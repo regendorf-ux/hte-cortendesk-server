@@ -1,12 +1,12 @@
-//! The Laravel session, read from the `sessions` table (PHP runs with `SESSION_DRIVER=database`), and CSRF.
+//! The Laravel session, read from the `sessions` table (the previous console runs with `SESSION_DRIVER=database`), and CSRF.
 //!
 //! A browser carries one cookie (`<slug of APP_NAME>-session`, `SESSION_COOKIE` when set) whose value is
 //! `Crypt::encryptString(hmac_sha1(name . "v2", key) . "|" . session_id)` (EncryptCookies + CookieValuePrefix).
-//! The row's `payload` is `base64(json)` (`'serialization' => 'json'` in the console's config/session.php; a payload
-//! that is not JSON is never served here, the request goes to PHP). Expiry is `DatabaseSessionHandler::read`'s:
+//! The row's `payload` is `base64(json)` (`'serialization' => 'json'` in the console's config/session; a payload
+//! that is not JSON is never served here, the request goes to the previous console). Expiry is `DatabaseSessionHandler::read`'s:
 //! `last_activity < now - lifetime*60` reads as no session.
 //!
-//! Writing is kept to the minimum, and never replaces a payload blindly: PHP and this service share rows, so every
+//! Writing is kept to the minimum, and never replaces a payload blindly: the previous console and this service share rows, so every
 //! write is a compare-and-swap on the payload text read (`update ... where id = ? and payload = ?`), and a lost race is
 //! simply retried by the next request. This module writes: `last_activity` (sliding expiry, at most once a minute),
 //! the aged flash data (what Laravel's `ageFlashData` does at the start of every request), a flash message for the
@@ -40,7 +40,7 @@ pub struct SessionConfig {
 }
 
 impl SessionConfig {
-    /// From the environment as the PHP image has it: `SESSION_COOKIE`, else the slug of `APP_NAME` + `-session`.
+    /// From the environment as the CortenDesk image has it: `SESSION_COOKIE`, else the slug of `APP_NAME` + `-session`.
     pub fn from_env(app_name: &str) -> SessionConfig {
         let set = |n: &str| crate::envvar::var(n).ok().map(|v| v.trim().to_string()).filter(|v| !v.is_empty());
         let cookie = set("HTE_CONSOLE_SESSION_COOKIE")
@@ -59,9 +59,9 @@ pub struct Session {
     pub stored: String,
     pub data: Map<String, Value>,
     pub last_activity: i64,
-    /// Phase 8: hte-console's own session (`websession`), not a row PHP wrote.
+    /// Phase 8: hte-console's own session (`websession`), not a row the previous console wrote.
     pub own: bool,
-    /// When an own session was signed in (its absolute lifetime counts from here); `last_activity` for PHP's.
+    /// When an own session was signed in (its absolute lifetime counts from here); `last_activity` for the previous console's.
     pub created: i64,
 }
 
@@ -111,7 +111,7 @@ fn prefix(name: &str, key: &[u8]) -> String {
     format!("{}|", hex::encode(m.finalize().into_bytes()))
 }
 
-/// The value of cookie `name` in a `Cookie` header, url-decoded as PHP does.
+/// The value of cookie `name` in a `Cookie` header, url-decoded as the previous console does.
 pub fn cookie_value(header: &str, name: &str) -> Option<Vec<u8>> {
     for part in header.split(';') {
         let part = part.trim();
@@ -166,8 +166,8 @@ pub fn load(c: &Connection, cfg: &SessionConfig, crypt: &Encrypter, now: i64, co
 }
 
 /// Phase 8: the session a request carries. hte-console's own when it is signed in; else (while
-/// `HTE_CONSOLE_LARAVEL_SESSIONS` allows) one PHP signed in, never a PHP row the bridge minted (that one exists only for
-/// PHP's pages and lives and dies with ours); else our guest session, if any.
+/// `HTE_CONSOLE_LARAVEL_SESSIONS` allows) one the previous console signed in, never a previous-console row the bridge minted (that one exists only for
+/// The previous console's pages and lives and dies with ours); else our guest session, if any.
 pub fn load_any(c: &Connection, cfg: &SessionConfig, own: &super::websession::OwnConfig, crypt: &Encrypter, now: i64, cookie_header: &str, secure: bool) -> Result<Option<Session>, Fault> {
     let mine = super::websession::load(c, own, now, cookie_header, secure)?;
     if mine.as_ref().map_or(false, |s| s.user_id().is_some()) {
@@ -262,7 +262,7 @@ pub fn save(c: &Connection, s: &Session, data: &Map<String, Value>, now: i64) ->
     Ok(n == 1)
 }
 
-/// Slide the expiry like the next PHP request would, but at most once a minute.
+/// Slide the expiry like the next the previous console request would, but at most once a minute.
 pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
     if s.own {
         return super::websession::touch(c, s, now);
@@ -414,7 +414,7 @@ mod tests {
         c.execute("insert into sessions values (?, 1, null, null, ?, ?)", rusqlite::params![id, payload, 1_000_000]).unwrap();
         assert!(load_id(&c, &cfg, 1_000_000 + 7200, &id).unwrap().is_some());
         assert!(load_id(&c, &cfg, 1_000_000 + 7201, &id).unwrap().is_none());
-        // a PHP-serialized payload (another SESSION_SERIALIZATION) is not read here
+        // a previous-console-serialized payload (another SESSION_SERIALIZATION) is not read here
         c.execute("update sessions set payload = ?", [base64::engine::general_purpose::STANDARD.encode(r#"a:1:{s:6:"_token";s:1:"t";}"#)]).unwrap();
         assert!(load_id(&c, &cfg, 1_000_001, &id).unwrap().is_none());
     }

@@ -126,7 +126,7 @@
         });
     }
 
-    // My Account saves the choice through Livewire and announces it here.
+    // My Account saves the choice through the previous console's page components and announces it here.
     window.addEventListener('rd-theme', function (event) {
         var pref = event.detail && event.detail.theme;
         if (pref === 'dark' || pref === 'light' || pref === 'system') {

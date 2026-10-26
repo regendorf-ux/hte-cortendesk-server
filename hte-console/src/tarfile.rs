@@ -1,6 +1,6 @@
 //! Phase 6: the tar container of a backup archive, written and read by hand.
 //!
-//! PHP builds `cortendesk-backup-*.tar` with `PharData` (plain tar, no compression, no directory entries, entry names
+//! The previous console builds `cortendesk-backup-*.tar` with `PharData` (plain tar, no compression, no directory entries, entry names
 //! like `db/users.ndjson.gz`). This module writes the same: ustar headers, regular files only, two zero blocks at the
 //! end; and reads what PharData or GNU tar writes (ustar and v7 headers, pax `path`/`size` records, GNU long names;
 //! directory entries and anything else are skipped). Reading is by name: the caller says which names it wants and
@@ -178,7 +178,7 @@ pub fn extract<F: FnMut(&str) -> Option<std::path::PathBuf>>(archive: &Path, mut
     let mut zero_blocks = 0;
     loop {
         if !read_block(&mut r, &mut buf)? {
-            // PHP writes the two end blocks too; an archive without them was cut off between two entries
+            // The previous console writes the two end blocks too; an archive without them was cut off between two entries
             return Err(Bad("the archive is cut short (no end of archive)".into()));
         }
         if buf.iter().all(|b| *b == 0) {

@@ -11,7 +11,7 @@ pub const PERIOD: i64 = 30;
 pub const REPLAY_SECRET: &str = "GEZDGNBVGY3TQOJQGEZDGNBVGY3TQOJQ";
 
 /// RFC 4648 base32 as otphp reads a secret (ParagonIE `Base32::decodeUpper`, no padding required). A character
-/// outside the alphabet is an exception in PHP (500); None here.
+/// outside the alphabet is an exception in the previous console (500); None here.
 pub fn base32_decode(s: &[u8]) -> Option<Vec<u8>> {
     let s: Vec<u8> = s.iter().copied().take_while(|&c| c != b'=').collect();
     let mut out = Vec::with_capacity(s.len() * 5 / 8);

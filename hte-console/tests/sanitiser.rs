@@ -26,7 +26,7 @@ fn pair<'a>(path: &'a str, req: &'a [u8], resp: &'a [u8]) -> fixture::RawPair<'a
         response_headers: vec![
             ("content-type".into(), "application/json".into()),
             ("set-cookie".into(), "sess=NEWSECRET; Path=/; Domain=console.corp-internal.test".into()),
-            ("x-powered-by".into(), "PHP".into()),
+            ("x-powered-by".into(), "ExampleServer/1.0".into()),
         ],
         response_body: resp,
     }

@@ -1,4 +1,4 @@
-//! PHP's `S3Target`: S3 and S3-compatible storage (MinIO, Backblaze B2, Wasabi, R2, ...) over plain HTTP with
+//! The previous console's `S3Target`: S3 and S3-compatible storage (MinIO, Backblaze B2, Wasabi, R2, ...) over plain HTTP with
 //! Signature Version 4, written against the REST API directly. The payload is signed by its SHA-256, so an upload is
 //! streamed from disk and never held in memory.
 
@@ -29,7 +29,7 @@ fn hmac(key: &[u8], data: &[u8]) -> Vec<u8> {
     m.finalize().into_bytes().to_vec()
 }
 
-/// PHP's `rawurlencode`: everything but `A-Za-z0-9-._~` as %XX.
+/// The previous console's `rawurlencode`: everything but `A-Za-z0-9-._~` as %XX.
 fn rawurlencode(s: &str) -> String {
     let mut out = String::new();
     for b in s.bytes() {
@@ -116,7 +116,7 @@ impl S3 {
         self.bucket.trim()
     }
 
-    /// Sign and send; Ok(body text) on 2xx, PHP's error message otherwise.
+    /// Sign and send; Ok(body text) on 2xx, the previous console's error message otherwise.
     fn request(&self, method: &str, key: &str, query: &[(&str, String)], body_file: Option<&Path>) -> Result<String, String> {
         let endpoint = self.endpoint();
         let url = url::Url::parse(&endpoint).ok().filter(|u| u.host_str().is_some()).ok_or("The S3 endpoint is not a valid URL.")?;

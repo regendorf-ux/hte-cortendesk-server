@@ -1,6 +1,6 @@
-//! Phase 3: the minute half of HTE's per-computer passwords (v1.15.0-hte.1), a port of `App\Hte\Passwords::sweep`,
+//! Phase 3: the minute half of HTE Remote's per-computer passwords (v1.15.0-hte.1), a port of `App\Hte\Passwords::sweep`,
 //! `days`, `bookOwnerId` and `syncBooks` (`hte:passwords`, every minute). The check-in half (`hte_pw`, sealing,
-//! confirmation) is phase 1's `passwords.rs`; "Change now" stays the console page's button (PHP) and writes the same
+//! confirmation) is phase 1's `passwords.rs`; "Change now" stays the console page's button (the previous console) and writes the same
 //! row `issue` writes here.
 //!
 //! A computer gets a new password on schedule (7, 30 or 90 days after it confirmed the last, or never) and at once

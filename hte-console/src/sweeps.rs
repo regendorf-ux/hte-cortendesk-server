@@ -1,4 +1,4 @@
-//! Phase 3: the scheduled jobs hte-console takes over from PHP's scheduler (routes/console.php, v1.15.0-hte.1):
+//! Phase 3: the scheduled jobs hte-console takes over from the previous console's scheduler (routes/console, v1.15.0-hte.1):
 //!
 //!   hte:reach-sweep                      every 15 s   withoutOverlapping(1)    reach::sweep (alarm 103)
 //!   hte:passwords                        every minute withoutOverlapping(5)    passwords_sweep::sweep
@@ -6,11 +6,11 @@
 //!   cortendesk:diagnostics-heartbeat     every minute withoutOverlapping(10)   diagnostics_heartbeat
 //!
 //! Which ones run here is `HTE_CONSOLE_SWEEPS` (`reach,passwords,stale,diagnostics` or `all`; none by default, so an
-//! upgrade alone changes nothing). Before each run hte-console takes the lock PHP's scheduler takes for that task
-//! (`cache_locks`, the task's mutex name, PHP's expiry) and keeps it: PHP's `schedule:run` then skips the task, as it
-//! skips one still running. If PHP happens to hold it (it was mid-run), this tick is skipped. On a clean stop the
-//! locks are released, so PHP resumes at its next tick; if hte-console dies, they expire (1 to 30 minutes).
-//! The other scheduled tasks (backups, pruning, device notifications) stay PHP's.
+//! upgrade alone changes nothing). Before each run hte-console takes the lock the previous console's scheduler takes for that task
+//! (`cache_locks`, the task's mutex name, the previous console's expiry) and keeps it: the previous console's `schedule:run` then skips the task, as it
+//! skips one still running. If the previous console happens to hold it (it was mid-run), this tick is skipped. On a clean stop the
+//! locks are released, so the previous console resumes at its next tick; if hte-console dies, they expire (1 to 30 minutes).
+//! The other scheduled tasks (backups, pruning, device notifications) stay the previous console's.
 
 use crate::api::Native;
 use crate::cache::{self, Store};
@@ -46,7 +46,7 @@ impl Job {
     pub fn parse(s: &str) -> Option<Job> {
         ALL.iter().copied().find(|j| j.name() == s.trim())
     }
-    /// The artisan command PHP schedules.
+    /// The console command the previous console schedules.
     pub fn command(self) -> &'static str {
         match self {
             Job::Reach => "hte:reach-sweep",
@@ -78,7 +78,7 @@ impl Job {
             Job::Stale => 300,
         }
     }
-    /// The task's lock name in PHP's scheduler (`Event::mutexName()`), without the cache prefix.
+    /// The task's lock name in the previous console's scheduler (`Event::mutexName()`), without the cache prefix.
     pub fn mutex_name(self) -> String {
         cache::schedule_mutex_name(self.expression(), self.command())
     }
@@ -128,7 +128,7 @@ pub fn diagnostics_heartbeat(c: &Connection, store: &Store, now: i64) -> Result<
     store.forever(c, cache::SCHEDULER_HEARTBEAT_KEY, &Val::str(&at), now)
 }
 
-/// One run of a job's PHP command, without any lock.
+/// One run of a job's the previous console command, without any lock.
 pub fn run(n: &Native, c: &Connection, store: &Store, job: Job, now: i64) -> Result<String, Fault> {
     Ok(match job {
         Job::Reach => format!("closed {}", crate::reach::sweep(c, now)?),
@@ -144,7 +144,7 @@ pub fn run(n: &Native, c: &Connection, store: &Store, job: Job, now: i64) -> Res
     })
 }
 
-/// The service's lock owner (PHP's are 16 random letters). Fixed prefix, so a restarted service knows its own.
+/// The service's lock owner (the previous console's are 16 random letters). Fixed prefix, so a restarted service knows its own.
 const SERVICE_OWNER: &str = "hte-console-svc-";
 
 /// A lock owner for this process: `hte-console-svc-...` for the service, `hte-console-cli-...` for `sweep`.
@@ -152,7 +152,7 @@ pub fn owner(service: bool) -> String {
     format!("{}{}", if service { SERVICE_OWNER } else { "hte-console-cli-" }, laravel::str_random(12))
 }
 
-/// `hte-console sweep <job>...`: each job once, under PHP's lock (taken and released, so a PHP scheduler running at
+/// `hte-console sweep <job>...`: each job once, under the previous console's lock (taken and released, so a previous-console scheduler running at
 /// the same moment never overlaps it). Used by the replay and by hand.
 pub fn once(n: &Native, store: &Store, jobs: &[Job]) -> Result<Vec<String>, String> {
     let me = owner(false);
@@ -162,7 +162,7 @@ pub fn once(n: &Native, store: &Store, jobs: &[Job]) -> Result<Vec<String>, Stri
         let now = n.now();
         let name = job.mutex_name();
         if !store.acquire(&c, &name, job.expires_minutes() * 60, &me, now).map_err(|f| format!("{}: lock: {f:?}", job.name()))? {
-            out.push(format!("{}: skipped (PHP's scheduler is running it)", job.name()));
+            out.push(format!("{}: skipped (the previous console's scheduler is running it)", job.name()));
             continue;
         }
         let r = run(n, &c, store, job, now);
@@ -187,7 +187,7 @@ impl Scheduler {
         Arc::new(Scheduler { native, store, owner: owner(true), jobs, stopped: AtomicBool::new(false) })
     }
 
-    /// Start a tokio task per job. Each tick: take (or refresh) PHP's lock, run, keep the lock.
+    /// Start a tokio task per job. Each tick: take (or refresh) the previous console's lock, run, keep the lock.
     pub fn start(self: &Arc<Self>) {
         self.take_back();
         for &job in &self.jobs {
@@ -203,7 +203,7 @@ impl Scheduler {
             });
         }
         if !self.jobs.is_empty() {
-            tracing::info!(jobs = ?self.jobs.iter().map(|j| j.name()).collect::<Vec<_>>(), "scheduled jobs run here; PHP's scheduler skips them while hte-console holds their locks");
+            tracing::info!(jobs = ?self.jobs.iter().map(|j| j.name()).collect::<Vec<_>>(), "scheduled jobs run here; the previous console's scheduler skips them while hte-console holds their locks");
         }
     }
 
@@ -218,7 +218,7 @@ impl Scheduler {
         match self.store.acquire(&c, &job.mutex_name(), job.expires_minutes() * 60, &self.owner, now) {
             Ok(true) => {}
             Ok(false) => {
-                tracing::debug!(job = job.name(), "PHP's scheduler holds the lock: skipped this tick");
+                tracing::debug!(job = job.name(), "the previous console's scheduler holds the lock: skipped this tick");
                 return;
             }
             Err(f) => {
@@ -232,8 +232,8 @@ impl Scheduler {
     }
 
     /// At start: the locks a previous hte-console service left (killed before it could give them back) are ours to
-    /// take over at once, not after they expire (up to 30 minutes without the job, PHP skipping it too). Only the
-    /// service's own rows: PHP's and a `sweep` run's stay.
+    /// take over at once, not after they expire (up to 30 minutes without the job, the previous console skipping it too). Only the
+    /// service's own rows: the previous console's and a `sweep` run's stay.
     fn take_back(&self) {
         let c = self.native.db.lock().unwrap_or_else(|e| e.into_inner());
         for &job in &self.jobs {
@@ -253,7 +253,7 @@ impl Scheduler {
         }
     }
 
-    /// On a clean stop: give the locks back, so PHP's scheduler runs these tasks again at its next tick.
+    /// On a clean stop: give the locks back, so the previous console's scheduler runs these tasks again at its next tick.
     pub fn release_all(&self) {
         let c = self.native.db.lock().unwrap_or_else(|e| e.into_inner());
         self.stopped.store(true, Ordering::SeqCst);
@@ -261,7 +261,7 @@ impl Scheduler {
             let _ = self.store.release(&c, &job.mutex_name(), &self.owner);
         }
         if !self.jobs.is_empty() {
-            tracing::info!("scheduled jobs: locks released, PHP's scheduler takes them back");
+            tracing::info!("scheduled jobs: locks released, the previous console's scheduler takes them back");
         }
     }
 }

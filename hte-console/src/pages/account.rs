@@ -1,12 +1,12 @@
 //! "My Account" (`AccountProfile` + the two-factor card): the signed-in person's own name, email, password and theme.
 //!
-//! The Livewire component's three actions are plain form posts here (`/account/profile`, `/account/password`); a
+//! The previous console's page components component's three actions are plain form posts here (`/account/profile`, `/account/password`); a
 //! success redirects to the page with a one-request flash ("Profile saved."), a validation error renders the page
 //! again (422) with the messages and what was typed, as the component did in place. Each form carries `_token`; htmx
 //! swaps the result into `#account-cards` so the page does not reload. The theme radios post `/account/theme`
 //! (`AccountThemeController`), exactly as the top bar's switch does.
 //!
-//! What it writes is what PHP writes: `users.name`/`email` (dirty attributes only, then `updated_at`), `password`
+//! What it writes is what the previous console writes: `users.name`/`email` (dirty attributes only, then `updated_at`), `password`
 //! (a `$2y$` bcrypt hash), the person's `trusted_devices`, a regenerated session, and `console_audits` rows
 //! (`account.update`, `account.password`).
 
@@ -142,7 +142,7 @@ fn audit(ctx: &Ctx, c: &Connection, action: &str, summary: &str) -> Result<(), F
     Ok(())
 }
 
-/// The form body as Livewire's properties would hold it: no trimming, no empty-to-null.
+/// The form body as the previous console's properties would hold it: no trimming, no empty-to-null.
 fn form_body(req: &Req) -> Arr {
     php::parse_str(&req.input.raw)
 }
@@ -230,7 +230,7 @@ pub fn update_password(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fa
 pub fn theme(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
     let rules: [(&str, &[Rule]); 1] = [("theme", &[Rule::Required, Rule::String, Rule::In(&["dark", "light", "system"])])];
     match validate::validate_db(req.input.all(), &rules, &|_, _| Ok(true))? {
-        // deliberate difference from PHP (phase7/NOTES.md): PHP redirects back here (its JSON errors are for /api/* only);
+        // deliberate difference from the previous console: the previous console redirects back here (its JSON errors are for /api/* only);
         // the theme switch is a fetch() call, so the 422 and its messages are the useful answer
         Err(body) => Ok(Reply::Json(422, body)),
         Ok(valid) => {

@@ -1,6 +1,6 @@
-//! Roles (Livewire `RoleList`, v1.15.0-hte.1): named permission matrices over the console areas, assigned to people from
+//! Roles (the previous console's `RoleList`, v1.15.0-hte.1): named permission matrices over the console areas, assigned to people from
 //! the Users editor. Super-admin only, at the route (`admin` middleware: a redirect to the overview with the flash) and in
-//! every write (Livewire's `abort_unless(is_admin, 403)`), because a delegated admin who could edit roles could grant
+//! every write (the previous console's `abort_unless(is_admin, 403)`), because a delegated admin who could edit roles could grant
 //! themselves anything.
 //!
 //! What a role grants is read by `Ctx::allows` (every page) and `admin.rs` (the API token clamp); both read the same
@@ -213,7 +213,7 @@ pub fn save(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
             let key = if k.starts_with("permissions.") { "permissions".to_string() } else { k };
             errors.entry(key).or_insert(v);
         }
-        // the dialog shows what was typed; an invalid level shows as no choice, as Livewire's radio would
+        // the dialog shows what was typed; an invalid level shows as no choice, as the previous console's radio would
         let perms: Vec<(&'static str, String)> = RESOURCES.iter().map(|(k, _, _)| (*k, perms_json.get(*k).and_then(|v| v.as_str()).unwrap_or("").to_string())).collect();
         return render(ctx, c, 422, Modal::Edit { id, name, description, require_two_factor, perms, errors });
     }

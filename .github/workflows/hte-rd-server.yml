@@ -1,11 +1,11 @@
-# HTE (2026-10-25, phase 9): build HTE Remote's server image, ghcr.io/regendorf-ux/hte-rd-server.
+# (2026-10-25) Build HTE Remote's server image, ghcr.io/regendorf-ux/hte-rd-server.
 # ONE image: hbbs (ID server), hbbr (relay) and hte-console (the console, in Rust, from this same workspace) under supervisord,
-# built from Dockerfile.hte. No PHP, no nginx. amd64 only: the server is amd64.
+# built from Dockerfile.hte. amd64 only.
 #
 # Trigger: a git tag `hte-rd-server-v<x.y.z>` builds `hte-rd-server:<x.y.z>`. The version is HTE Remote's own (semver, from
 # 2.0.0), the version of hte-console/Cargo.toml: the job fails when the tag differs, so a tag cut before the bump fails here.
 # A tag is never reused or moved; a broken build gets the next number. The upstream versions it carries are image labels.
-# The older images stay on GHCR untouched for rollback: hte-cortendesk (PHP console), hte-console, hte-cortendesk-server
+# The older images stay on GHCR untouched: hte-cortendesk (the console it replaced), hte-console, hte-cortendesk-server
 # (plain hbbs/hbbr, built by hte-image.yml on `v<upstream>-hte.<n>`).
 name: hte-rd-server
 
@@ -115,6 +115,6 @@ jobs:
             com.hte.remote.upstream.cortendesk-server=1.1.1
             com.hte.remote.upstream.cortendesk=1.15.0
             org.opencontainers.image.title=HTE Remote server
-            org.opencontainers.image.description=HTE Remote's ID server, relay and console (hbbs, hbbr, hte-console) in one image, with per-person reach enforcement. No PHP. Based on CortenDesk and RustDesk Server. AGPL-3.0.
+            org.opencontainers.image.description=HTE Remote's ID server, relay and console (hbbs, hbbr, hte-console) in one image, with per-person reach enforcement. Based on CortenDesk and RustDesk Server. AGPL-3.0.
             org.opencontainers.image.licenses=AGPL-3.0-only
-            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server
+            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-rd-server

@@ -1,7 +1,7 @@
 //! Phase 7b end to end: the devices, users, groups, address-book, strategy, dashboard and settings pages on a real
 //! socket, against a temporary database made from tests/schema_live.sql (the live schema) and a synthetic seed.
-//! The session rows are minted here with the crate's own Encrypter, the way PHP's `SESSION_DRIVER=database` writes
-//! them. Expectations come from the PHP source (v1.15.0-hte.1) read for this phase: `phase7/NOTES.md`.
+//! The session rows are minted here with the crate's own Encrypter, the way the previous console's `SESSION_DRIVER=database` writes
+//! them. Expectations come from the previous console's source (v1.15.0-hte.1).
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -76,7 +76,7 @@ async fn harness() -> H {
     c.execute_batch(SEED).unwrap();
     let hash = laravel::hash_make(b"oldpass123").unwrap();
     for (id, username, name, email, admin, active, role) in [
-        (1, "owner", "owner D", "o@example.test", 1, 1, None),
+        (1, "jdoe", "Jane D", "o@example.test", 1, 1, None),
         (2, "dana", "", "dana@example.test", 0, 1, None),
         (3, "erin", "Erin", "erin@example.test", 0, 1, Some(1)),
         (4, "gone", "Gone", "gone@example.test", 0, 0, None),
@@ -122,7 +122,7 @@ impl H {
         self.db().query_row(q, [], |r| r.get::<_, Option<String>>(0)).unwrap().unwrap_or_default()
     }
 
-    /// A signed-in session row for `uid` (what PHP's database driver writes) and its cookie.
+    /// A signed-in session row for `uid` (what the previous console's database driver writes) and its cookie.
     fn login(&self, id: &str, uid: i64, extra: Value) -> String {
         let mut data = json!({"_token": TOKEN, session::LOGIN_KEY: uid, "_flash": {"old": [], "new": []}});
         if let Value::Object(m) = extra {
@@ -889,7 +889,7 @@ async fn backups_prune_and_api_tokens() {
     assert_eq!(r.headers.get("content-type").unwrap(), "application/x-tar");
     assert_eq!(r.headers.get("cache-control").unwrap(), "no-store, private");
     assert_eq!(h.get("/settings/backups/download?name=../../etc/passwd", &admin).await.status, 404);
-    // 7c: PHP's audit row for it, and PHP's own URL for the same file
+    // 7c: the previous console's audit row for it, and the previous console's own URL for the same file
     assert_eq!(h.text("select summary from console_audits where action = 'backup.download' order by id desc limit 1"), format!("Downloaded backup {name}"));
     let r = h.get(&format!("/settings/backups/{name}"), &admin).await;
     assert_eq!((r.status, r.path()), (302, format!("/settings/backups/download?name={name}")));
@@ -949,7 +949,7 @@ async fn backups_prune_and_api_tokens() {
     assert_eq!(h.count("api_tokens"), 0);
 }
 
-/// The Rust half of the page replay's writes (the replay on the server pairs each with PHP's Livewire call and compares the
+/// The Rust half of the page replay's writes (the replay against the previous console paired each with the previous console's page components call and compares the
 /// two databases): every form post must be taken, the reads equal themselves, and the writes must leave their rows.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_replay_writes_run_on_hte_console() {

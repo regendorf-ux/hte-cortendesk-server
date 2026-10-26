@@ -1,11 +1,11 @@
 //! `App\Services\OidcService` (v1.15.0-hte.1) for the RustDesk client's sign-in: the settings, discovery and JWKS
 //! (cached), the authorization URL with PKCE (S256), the token exchange, and the ID token's checks as
-//! firebase/php-jwt 7.1.0 makes them, with the same messages.
+//! the previous console's JWT library makes them, with the same messages.
 //!
-//! Stricter than PHP, quietly (the answer for a valid sign-in is the same; the crate's notes list each):
-//! - only RS256 is accepted, whatever the provider advertises (PHP accepts any advertised algorithm, HS* with the
+//! Stricter than the previous console, quietly (the answer for a valid sign-in is the same; the crate's notes list each):
+//! - only RS256 is accepted, whatever the provider advertises (the previous console accepts any advertised algorithm, HS* with the
 //!   client secret as the key);
-//! - `exp` and `nonce` must be present (PHP checks `exp` only when there is one);
+//! - `exp` and `nonce` must be present (the previous console checks `exp` only when there is one);
 //! - with more than one audience, `azp` must be this client; for a Microsoft issuer, `tid` must be the issuer's tenant;
 //! - an unknown `kid` refetches the key set once (at most once a minute) before failing, for key rotation;
 //! - the provider is spoken to over https only (`HTE_CONSOLE_OIDC_ALLOW_HTTP=1` for the replay's fake provider),
@@ -21,9 +21,9 @@ use std::collections::HashMap;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
-/// Discovery and JWKS cache lifetime (PHP: `DISCOVERY_TTL`).
+/// Discovery and JWKS cache lifetime (the previous console: `DISCOVERY_TTL`).
 pub const DISCOVERY_TTL: Duration = Duration::from_secs(300);
-/// Clock skew allowed on exp/nbf/iat (PHP: `LEEWAY`).
+/// Clock skew allowed on exp/nbf/iat (the previous console: `LEEWAY`).
 pub const LEEWAY: i64 = 60;
 /// An unknown `kid` refetches the key set at most this often.
 pub const JWKS_REFETCH: Duration = Duration::from_secs(60);
@@ -53,7 +53,7 @@ pub struct Settings {
     pub enabled: String,
     pub discovery_url: String,
     pub client_id: String,
-    /// Decrypted (or the stored value when it does not decrypt, as PHP tolerates a legacy plaintext). Never logged.
+    /// Decrypted (or the stored value when it does not decrypt, as the previous console tolerates a legacy plaintext). Never logged.
     pub client_secret: String,
     pub button_label: String,
     pub public_base_url: String,
@@ -140,7 +140,7 @@ pub fn env_disabled() -> bool {
     crate::envvar::var("HTE_REMOTE_OIDC_DISABLED").map_or(false, |v| matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"))
 }
 
-/// PHP's `empty()` of a value.
+/// The previous console's `empty()` of a value.
 pub fn empty(v: Option<&Val>) -> bool {
     match v {
         None => true,
@@ -173,7 +173,7 @@ pub struct Oidc {
     allow_http: bool,
     discovery: Mutex<HashMap<String, Cached>>,
     jwks: Mutex<HashMap<String, Cached>>,
-    /// The kill switch, read once at start like PHP's cached config.
+    /// The kill switch, read once at start like the previous console's cached config.
     pub env_disabled: bool,
     /// How old the cached key set must be before an unknown kid fetches it again (`JWKS_REFETCH`).
     pub jwks_refetch: Duration,
@@ -233,7 +233,7 @@ impl Oidc {
         m.insert(key.to_string(), Cached { doc, at: Instant::now() });
     }
 
-    /// Forget both caches (PHP: `forgetCaches()`, after a settings change; here also for tests).
+    /// Forget both caches (the previous console: `forgetCaches()`, after a settings change; here also for tests).
     pub fn forget(&self) {
         self.discovery.lock().unwrap_or_else(|e| e.into_inner()).clear();
         self.jwks.lock().unwrap_or_else(|e| e.into_inner()).clear();
@@ -369,7 +369,7 @@ impl Oidc {
         }
         let mut jwks = self.jwks(s, d, false).await?;
 
-        // JWT::decode($jwt, JWK::parseKeySet($jwks, $alg)), step by step with php-jwt's messages; the key set is
+        // JWT::decode($jwt, JWK::parseKeySet($jwks, $alg)), step by step with the previous console's JWT library's messages; the key set is
         // parsed first (it is the call's argument).
         let mut keys = parse_key_set(&jwks, &alg).map_err(|m| fail(&m))?;
         let payload_raw = laravel::base64_decode_lenient(&b64url_to_b64(parts[1]));
@@ -424,7 +424,7 @@ impl Oidc {
         }
         match num("exp") {
             Some(exp) if ((now - LEEWAY) as f64) < exp => {}
-            // Hardened: a token without exp is refused (php-jwt lets it through).
+            // Hardened: a token without exp is refused (the previous console's JWT library lets it through).
             _ => return Err(fail("Expired token")),
         }
 
@@ -474,7 +474,7 @@ fn segment_json(seg: &str) -> Option<Val> {
     php::json_decode(&raw, &php::JsonOpts::default())
 }
 
-/// php-jwt's `convertBase64UrlToBase64`.
+/// the previous console's JWT library's `convertBase64UrlToBase64`.
 fn b64url_to_b64(s: &str) -> Vec<u8> {
     let mut v = s.replace('-', "+").replace('_', "/");
     let r = v.len() % 4;
@@ -484,7 +484,7 @@ fn b64url_to_b64(s: &str) -> Vec<u8> {
     v.into_bytes()
 }
 
-/// A numeric claim as PHP compares it.
+/// A numeric claim as the previous console compares it.
 fn to_f64(v: &Val) -> f64 {
     match v {
         Val::Int(i) => *i as f64,
@@ -536,7 +536,7 @@ fn strip_zeros(v: Vec<u8>) -> Vec<u8> {
 }
 
 /// `JWK::parseKeySet($jwks, $defaultAlg)` for RSA keys (keys of other types are left out; the set's other errors
-/// carry php-jwt's messages).
+/// carry the previous console's JWT library's messages).
 pub fn parse_key_set(jwks: &Val, default_alg: &str) -> Result<HashMap<Vec<u8>, Jwk>, String> {
     let Some(Val::Arr(keys)) = get(jwks, "keys") else { return Err("\"keys\" member must exist in the JWK Set".into()) };
     if keys.is_empty() {

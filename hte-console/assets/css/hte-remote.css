@@ -2064,7 +2064,7 @@ a.rd-mini-sub:hover {
 
 /* --- Row actions --------------------------------------------------------
    The text links in the last cell of a table row. Kept as links (they are
-   Livewire actions, not form buttons) but given one consistent size and a
+   the previous console's page components actions, not form buttons) but given one consistent size and a
    separator-free rhythm. */
 .rd-rowact {
     white-space: nowrap;
@@ -2435,7 +2435,7 @@ a.rd-mini-sub:hover {
     flex: 0 0 auto;
 }
 
-/* Livewire toggles these dialogs by hand, so the backdrop is a sibling div
+/* the previous console's page components toggles these dialogs by hand, so the backdrop is a sibling div
    (or an inline style) rather than Bootstrap's own. Deepen it either way. */
 .modal-backdrop.show {
     --bs-backdrop-opacity: 0.6;
@@ -2828,7 +2828,7 @@ a.rd-mini-sub:hover {
 }
 
 /* --- 19e. Modals ---------------------------------------------------------
-   Every dialog in the console is toggled by Livewire rather than by
+   Every dialog in the console is toggled by the previous console's page components rather than by
    Bootstrap's JS, so none of them get `modal-open` on the body. What that
    costs on a phone is only the background scroll-lock; the dialog itself
    still scrolls, because .modal is overflow-y:auto. What it must not cost is
@@ -2898,7 +2898,7 @@ a.rd-mini-sub:hover {
 /* =========================================================================
    20. DOWNLOAD TILES
    .rd-dl — the published client installers, rendered by
-   resources/views/components/client-download-links.blade.php on the sign-in
+   the previous console's view on the sign-in
    page, the public /downloads page and the console preview card.
 
    One tile per build: platform icon, label, size, download glyph. Rows rather

@@ -1,8 +1,8 @@
-//! The five log pages (Livewire `AlarmLogList`, `ConnectionLog`, `FileTransferLog`, `LoginLogList`,
+//! The five log pages (the previous console's `AlarmLogList`, `ConnectionLog`, `FileTransferLog`, `LoginLogList`,
 //! `ConsoleAuditList`): the same queries in the same order, the same filters, pages and CSV exports, as plain
 //! `GET`s that htmx swaps in place (the filter bar is a form; the list under it is `#log-body`).
 //!
-//! Every filter is a query parameter, as Livewire's `#[Url]` properties were: `search`, `type` (alarms), `action`
+//! Every filter is a query parameter, as the previous console's `#[Url]` properties were: `search`, `type` (alarms), `action`
 //! (console), `dateFrom`, `dateTo`, `page`; `perPage` (20, 50, 100) was a component property there and is a
 //! parameter here. Who sees what: the alarm, connection and file-transfer logs list only the approved devices a
 //! non-administrator may see (`Device::visibleTo`), so the console's own alarms (`rustdesk_id = 'console'`) stay
@@ -22,7 +22,7 @@ struct Listing {
     page: paginate::Page,
 }
 
-/// The filter bar, read from the query string like the Livewire properties (a missing one is '').
+/// The filter bar, read from the query string like the previous console's page components properties (a missing one is '').
 struct Filters {
     search: String,
     kind: String,
@@ -40,7 +40,7 @@ fn text(req: &Req, key: &str) -> String {
 impl Filters {
     fn from(req: &Req) -> Filters {
         let per_page = text(req, "perPage").parse::<i64>().ok().filter(|n| PER_PAGES.contains(n)).unwrap_or(20);
-        // Livewire's pagination: `page` is a positive integer, anything else is the first page
+        // The previous console's pagination: `page` is a positive integer, anything else is the first page
         let page = text(req, "page").parse::<i64>().ok().filter(|n| *n >= 1).unwrap_or(1);
         Filters { search: text(req, "search"), kind: text(req, "type"), action: text(req, "action"), date_from: text(req, "dateFrom"), date_to: text(req, "dateTo"), per_page, page }
     }
@@ -149,7 +149,7 @@ fn s(r: &Row, col: &str) -> String {
     String::from_utf8_lossy(&r.val(col).to_php_string().unwrap_or_default()).into_owned()
 }
 
-/// PHP truthiness of a string (`$x ?: '—'`).
+/// The previous console truthiness of a string (`$x ?: '—'`).
 fn falsy(v: &str) -> bool {
     v.is_empty() || v == "0"
 }

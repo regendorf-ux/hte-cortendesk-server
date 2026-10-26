@@ -1,7 +1,7 @@
 //! Phase 7a end to end: the console pages behind the Laravel session (`/logs/*`, `/account*`, `/assets/*`) on a real
 //! socket, against a temporary database made from tests/schema_live.sql (the live schema) and a synthetic seed.
-//! The session rows are minted here with the crate's own Encrypter, the way PHP's `SESSION_DRIVER=database` writes
-//! them. Expectations come from the PHP source (v1.15.0-hte.1) read for this phase: `phase7/NOTES.md`.
+//! The session rows are minted here with the crate's own Encrypter, the way the previous console's `SESSION_DRIVER=database` writes
+//! them. Expectations come from the previous console's source (v1.15.0-hte.1).
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -71,7 +71,7 @@ async fn harness() -> H {
     c.execute_batch(SEED).unwrap();
     let hash = laravel::hash_make(b"oldpass123").unwrap();
     for (id, username, name, email, admin, active, role) in [
-        (1, "owner", "owner D", "o@example.test", 1, 1, None),
+        (1, "jdoe", "Jane D", "o@example.test", 1, 1, None),
         (2, "dana", "", "dana@example.test", 0, 1, None),
         (3, "erin", "Erin", "erin@example.test", 0, 1, Some(1)),
         (4, "gone", "Gone", "gone@example.test", 0, 0, None),
@@ -117,7 +117,7 @@ impl H {
         self.db().query_row(q, [], |r| r.get::<_, Option<String>>(0)).unwrap().unwrap_or_default()
     }
 
-    /// A signed-in session row for `uid` (what PHP's database driver writes) and its cookie.
+    /// A signed-in session row for `uid` (what the previous console's database driver writes) and its cookie.
     fn login(&self, id: &str, uid: i64, extra: Value) -> String {
         let mut data = json!({"_token": TOKEN, session::LOGIN_KEY: uid, "_flash": {"old": [], "new": []}});
         if let Value::Object(m) = extra {
@@ -244,7 +244,7 @@ async fn an_expired_session_a_disabled_person_and_the_middlewares_that_redirect(
     // ... but not for a session signed in through SSO
     let cookie = h.login(&sid("sso"), 2, json!({session::OIDC_KEY: "oidc"}));
     assert_eq!(h.get("/account", &cookie).await.status, 200);
-    // RequireMailHealthy: with verification off the mark is simply dropped (PHP: "fixed")...
+    // RequireMailHealthy: with verification off the mark is simply dropped (the previous console: "fixed")...
     h.sql("delete from settings");
     let cookie = h.login(&sid("mailrepair"), 2, json!({"mail_repair": true}));
     assert_eq!(h.get("/logs/alarms", &cookie).await.status, 200);
@@ -295,8 +295,8 @@ async fn every_page_renders_for_an_administrator_with_the_console_markup() {
     h.alarms(3);
     h.sql("insert into audit_connections (rustdesk_id, from_peer, from_name, ip, conn_type, created_at, closed_at, note, note_user_id) values ('1001', '555', 'Front PC', '10.1.1.1', 1, '2025-10-25 03:10:00', '2025-10-25 03:12:05', 'ticket 42', 1), ('1002', '', '', '', 0, '2025-10-25 03:19:00', null, null, null)");
     h.sql("insert into audit_file_transfers (rustdesk_id, from_peer, path, info, direction, file_count, ip, created_at) values ('1001', '555', '/tmp/a.pdf', null, 1, 1, '10.1.1.1', '2025-10-25 03:00:00'), ('1002', '555', '', '{\"files\":[[\"x.txt\",1],[\"y.txt\",2],[\"z.txt\",3]]}', 0, 3, '', '2025-10-25 02:00:00')");
-    h.sql("insert into login_logs (username, client, device_id, device_os, ip, successful, note, created_at) values ('owner', 'web', '', '', '10.9.9.9', 1, null, '2025-10-25 03:18:00'), ('mallory', 'desktop', '9', 'macOS', '10.9.9.8', 0, 'bad password', '2025-10-25 03:17:00')");
-    h.sql("insert into console_audits (user_id, username, action, target_type, target_id, summary, ip, created_at) values (1, 'owner', 'device.update', 'device', '1001', 'Updated device 1001', '10.9.9.9', '2025-10-25 03:15:00')");
+    h.sql("insert into login_logs (username, client, device_id, device_os, ip, successful, note, created_at) values ('jdoe', 'web', '', '', '10.9.9.9', 1, null, '2025-10-25 03:18:00'), ('mallory', 'desktop', '9', 'macOS', '10.9.9.8', 0, 'bad password', '2025-10-25 03:17:00')");
+    h.sql("insert into console_audits (user_id, username, action, target_type, target_id, summary, ip, created_at) values (1, 'jdoe', 'device.update', 'device', '1001', 'Updated device 1001', '10.9.9.9', '2025-10-25 03:15:00')");
     let cookie = h.login(&sid("admin"), 1, json!({}));
     for (path, title, needle) in [
         ("/logs/alarms", "Alarm Log", "Rapid access attempts"),
@@ -325,7 +325,7 @@ async fn every_page_renders_for_an_administrator_with_the_console_markup() {
     assert!(body.contains("File Transfer</span>"));
     assert!(body.contains(r#"<span title="Closed 2025-10-25 03:12:05"> 2m 5s </span>"#), "{body}");
     assert!(body.contains("Active</span>"));
-    assert!(body.contains(r#"<span class="rd-cell-sub">owner</span>"#));
+    assert!(body.contains(r#"<span class="rd-cell-sub">jdoe</span>"#));
     assert!(body.contains(r#"title="2025-10-25 03:10:00">10 minutes ago</span>"#));
     // the alarm log: the three rows, info shown as key: value pairs, the paging line
     let r = h.get("/logs/alarms", &cookie).await;
@@ -366,7 +366,7 @@ async fn filters_dates_and_paging() {
     // an unknown perPage is the default
     let r = h.get("/logs/alarms?perPage=7", &cookie).await;
     assert!(body(&r).contains("Showing 1–20 of 47"));
-    // LIKE is not escaped: a % matches everything, as in PHP
+    // LIKE is not escaped: a % matches everything, as in the previous console
     let r = h.get("/logs/alarms?search=%25", &cookie).await;
     assert!(body(&r).contains("of 47"));
 }
@@ -423,7 +423,7 @@ async fn csv_exports() {
     let r = h.get("/logs/connections/export?search=1001", &cookie).await;
     assert_eq!(
         r.body,
-        "When,\"Controlled Device\",\"From ID\",\"From Name\",Type,IP,\"Closed At\",\"Duration (s)\",Note,\"Note By\"\n\"2025-10-25 03:10:00\",1001,555,\"Front PC\",Terminal,10.1.1.1,\"2025-10-25 03:12:05\",125,\"ticket 42\",owner\n"
+        "When,\"Controlled Device\",\"From ID\",\"From Name\",Type,IP,\"Closed At\",\"Duration (s)\",Note,\"Note By\"\n\"2025-10-25 03:10:00\",1001,555,\"Front PC\",Terminal,10.1.1.1,\"2025-10-25 03:12:05\",125,\"ticket 42\",jdoe\n"
     );
     let r = h.get("/logs/connections/export", &cookie).await;
     assert!(r.body.contains("\"Type 9\",,active,,,"), "{}", r.body);
@@ -462,7 +462,7 @@ async fn saving_the_profile_writes_what_php_writes() {
     let r = h.get("/account", &cookie).await;
     assert!(r.body.contains("Profile saved."));
     assert!(!h.get("/account", &cookie).await.body.contains("Profile saved."));
-    // saving nothing new writes no row (Eloquent's dirty check) but is still audited, like PHP
+    // saving nothing new writes no row (Eloquent's dirty check) but is still audited, like the previous console
     let before = h.text("select updated_at from users where id = 2");
     h.post_form("/account/profile", &cookie, &[("_token", TOKEN), ("name", "Dana S"), ("email", "dana2@example.test")]).await;
     assert_eq!(h.text("select updated_at from users where id = 2"), before);
@@ -536,7 +536,7 @@ async fn the_theme_is_saved_and_validated() {
     assert_eq!(r.status, 204);
     assert_eq!(h.text("select theme from users where id = 1"), "light");
     let r = post(r#"{"theme":"purple"}"#).await;
-    // deliberate: PHP redirects back here; this answers 422 with the messages (phase7/NOTES.md)
+    // deliberate: the previous console redirects back here; this answers 422 with the messages
     assert_eq!(r.status, 422);
     assert!(r.body.contains("The selected theme is invalid."));
     let r = post("{}").await;
@@ -567,7 +567,7 @@ async fn assets_are_served_and_the_server_refuses_anything_else() {
 async fn a_wrong_method_is_php_s_business_for_everyone() {
     let h = harness().await;
     let cookie = h.login(&sid("method"), 1, json!({}));
-    // nothing is answered before the session is checked: even a wrong method goes to PHP (here: the sign-in redirect)
+    // nothing is answered before the session is checked: even a wrong method goes to the previous console (here: the sign-in redirect)
     assert_eq!(h.go("DELETE", "/logs/alarms", Some(&cookie), None, "", &[]).await.status, 302);
     assert_eq!(h.go("POST", "/logs/alarms", None, None, "", &[]).await.status, 302);
     let big = "x".repeat(70 * 1024);
@@ -577,7 +577,7 @@ async fn a_wrong_method_is_php_s_business_for_everyone() {
 // ------------------------------------------------------------------------------------- the replay tool itself ---
 
 /// `hte-console page-replay` against hte-console on both sides must find nothing (it is how the tool is checked here:
-/// PHP is not available on this machine), and must see a difference when one exists.
+/// The previous console is not available on this machine), and must see a difference when one exists.
 #[tokio::test(flavor = "multi_thread")]
 async fn the_page_replay_finds_no_difference_between_two_identical_consoles_and_sees_a_real_one() {
     use hte_console::pagereplay;

@@ -2,8 +2,8 @@
 //! with what they call: `AuditConnection::reconcileFor` / `pendingDisconnectsFor`, `Strategy::deliveryFor`,
 //! the HTE password hook, `DeviceEnrollment` and the presence half of `CheckDeviceNotifications::reportOnline`.
 //!
-//! Not ported (and why): Apprise notifications (`device.online`, `device.pending_approval`). HTE has Apprise off;
-//! the durable recovery marker is still consumed exactly as PHP does, so the database stays the same.
+//! Not ported (and why): Apprise notifications (`device.online`, `device.pending_approval`). Apprise is not ported;
+//! the durable recovery marker is still consumed exactly as the previous console does, so the database stays the same.
 
 use crate::api::{fail, Native, Reply};
 use crate::sqlite::{self as db, Row, P};

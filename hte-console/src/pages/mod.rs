@@ -1,12 +1,12 @@
 //! Phase 7: the console's pages, one group at a time, answered here behind the Laravel session; every other path
-//! (and every request that has no valid session) is handed to the PHP console unchanged, so nothing is ever served
-//! to someone PHP has not signed in. See `phase7/NOTES.md` for how to add a page.
+//! (and every request that has no valid session) is handed to the previous console unchanged, so nothing is ever served
+//! to someone the previous console has not signed in.
 //!
 //! The request pipeline of a page (what Laravel's `web` group and the route's middleware do, in their order):
-//!   1. the session cookie -> the `sessions` row -> the signed-in user (`auth`); none: forward to PHP, which
+//!   1. the session cookie -> the `sessions` row -> the signed-in user (`auth`); none: forward to the previous console, which
 //!      redirects to its sign-in page (and handles the remember-me cookie, which is not read here)
 //!   2. `EnsureUserIsActive`, `RequireTwoFactor`, `RequireEmailAddress`, `RequireMailHealthy`: when any of them
-//!      would redirect, the request is forwarded to PHP, which does exactly that
+//!      would redirect, the request is forwarded to the previous console, which does exactly that
 //!   3. CSRF (`PreventRequestForgery`) for anything that is not a read: a refusal is Laravel's 419 page
 //!   4. `console-can:<area>,<level>`: a refusal redirects to the overview with the flash `denied`
 //!   5. the page's handler, on the one database connection; its flash messages and a regenerated session id are
@@ -64,7 +64,7 @@ use tower::ServiceExt;
 
 pub struct Pages {
     pub n: Arc<Native>,
-    /// The PHP console (the shadow proxy), for everything not served here. None: a request without a session is
+    /// The previous console (the shadow proxy), for everything not served here. None: a request without a session is
     /// redirected to `/login` (tests and a standalone run).
     pub php: Option<Router>,
     pub session: session::SessionConfig,
@@ -75,7 +75,7 @@ pub struct Pages {
     pub own: websession::OwnConfig,
 }
 
-/// What the PHP console reads from `config()` for its layout: the same environment variables.
+/// What the previous console reads from `config()` for its layout: the same environment variables.
 #[derive(Clone, Debug)]
 pub struct PageConfig {
     pub update_check: bool,
@@ -286,7 +286,7 @@ pub fn legacy_level(resource: &str) -> &'static str {
 
 impl Pages {
     /// `(upgrade available, a release is known)` from the cached release check (`update_check::CACHE_KEY`, filled once a
-    /// day by `update_check::start` from HTE's own release tags), compared with HTE Remote's version. Nothing cached: "unknown".
+    /// day by `update_check::start` from the project's own release tags), compared with HTE Remote's version. Nothing cached: "unknown".
     fn update_state(&self, c: &Connection, now: i64) -> Result<(Option<String>, bool), Fault> {
         if !self.config.update_check {
             return Ok((None, false));
@@ -312,7 +312,7 @@ pub(crate) fn unserialize_string(b: &[u8]) -> Option<String> {
     body.get(..len).map(str::to_string)
 }
 
-/// PHP's `version_compare($a, $b)`: -1, 0 or 1.
+/// The previous console's `version_compare($a, $b)`: -1, 0 or 1.
 pub fn version_compare(a: &str, b: &str) -> i32 {
     fn canon(v: &str) -> Vec<String> {
         let mut out: Vec<String> = vec![];
@@ -417,7 +417,7 @@ fn hstr<'a>(h: &'a HeaderMap, name: &str) -> Option<&'a str> {
 /// Everything the gate decides before a handler runs. Err(Out) ends the request.
 fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, body: &[u8], peer: SocketAddr, route: &Route) -> Result<(Ctx<'a>, Req), Out> {
     let now = p.n.now();
-    // the local page comparison (`replay/compare-local.sh`) renders each page at the second PHP answered it; only while
+    // the local page comparison (`replay/compare-local.sh`) renders each page at the second the previous console answered it; only while
     // the console runs on a set clock (HTE_CONSOLE_CLOCK_START), never in production
     let now = if p.n.clock_is_set() { hstr(&parts.headers, "x-hte-replay-clock").and_then(|v| v.trim().parse::<i64>().ok()).unwrap_or(now) } else { now };
     let fault = |f: Fault| {
@@ -433,7 +433,7 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
     let ip = laravel::client_ip(peer.ip(), &xff, trusted);
     let root = crate::api::request_root(&p.n, &parts.headers, peer.ip()).unwrap_or_default();
     let secure = root.starts_with("https://");
-    // phase 8: without a session, hte-console's own sign-in page when it has one (HTE_CONSOLE_SIGNIN), else PHP's
+    // phase 8: without a session, hte-console's own sign-in page when it has one (HTE_CONSOLE_SIGNIN), else the previous console's
     let to_login = |message: Option<&str>| {
         if !p.own.signin {
             return Out::Forward;
@@ -461,7 +461,7 @@ fn gate<'a>(p: &'a Pages, c: &Connection, parts: &axum::http::request::Parts, bo
             Err(f) => return Err(fault(f)),
         }
     }
-    // EnsureUserIsActive: PHP signs the person out
+    // EnsureUserIsActive: the previous console signs the person out
     if !user.val("is_active").to_bool() {
         return Err(Out::Forward);
     }
@@ -596,7 +596,7 @@ fn finish(ctx: &Ctx, c: &Connection, mut resp: Response<Body>, _head: bool) -> R
     if let Ok(v) = HeaderValue::from_str(&cookie) {
         resp.headers_mut().append(header::SET_COOKIE, v);
     }
-    // phase 8: PHP's bridged session is re-sent with ours, so PHP's pages keep working as long as ours does
+    // phase 8: the previous console's bridged session is re-sent with ours, so the previous console's pages keep working as long as ours does
     if ctx.session.own {
         if let Ok(Some(l)) = websession::bridged_id(c, &ctx.session) {
             if let Ok(v) = HeaderValue::from_str(&session::set_cookie(&ctx.p.session, &ctx.p.n.crypt, &l, ctx.secure, ctx.now)) {
@@ -668,7 +668,7 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
         Err(_) => return error_response(413, "Content Too Large", head),
     };
     if !route.methods.contains(&parts.method.as_str()) && !(head && route.methods.contains(&"GET")) {
-        // Laravel answers 405 only after routing and the session; PHP's own answer is what the person gets, so nothing is
+        // Laravel answers 405 only after routing and the session; the previous console's own answer is what the person gets, so nothing is
         // served (not even a 405) before the session has been checked
         return forward(&p, Request::from_parts(parts, Body::from(bytes))).await;
     }
@@ -712,7 +712,7 @@ async fn serve(State(p): State<Arc<Pages>>, ConnectInfo(peer): ConnectInfo<Socke
     }
 }
 
-/// Hand the request to PHP unchanged (its session redirect, its own page); without PHP, to the sign-in page.
+/// Hand the request to the previous console unchanged (its session redirect, its own page); without the previous console, to the sign-in page.
 pub(super) async fn forward(p: &Pages, req: Request<Body>) -> Response<Body> {
     match &p.php {
         Some(php) => match php.clone().oneshot(req).await {
@@ -730,12 +730,12 @@ async fn asset(State(_p): State<Arc<Pages>>, axum::extract::Path(path): axum::ex
     assets::respond(&path, req.method() == Method::HEAD)
 }
 
-/// `GET /robots.txt`, byte for byte what the PHP console's `public/robots.txt` says.
+/// `GET /robots.txt`, byte for byte what the previous console's `public/robots.txt` says.
 async fn robots(req: Request<Body>) -> Response<Body> {
     static_file(req.method(), "text/plain; charset=utf-8", b"User-agent: *\nDisallow:\n")
 }
 
-/// `GET /favicon.ico`: PHP's file is empty (the pages name their icon in the head); the same answer here.
+/// `GET /favicon.ico`: the previous console's file is empty (the pages name their icon in the head); the same answer here.
 async fn favicon(req: Request<Body>) -> Response<Body> {
     static_file(req.method(), "image/x-icon", b"")
 }
@@ -752,7 +752,7 @@ fn static_file(method: &Method, ctype: &'static str, bytes: &'static [u8]) -> Re
         .unwrap()
 }
 
-/// `GET /health/live`: `{"live":true}`; 429 past PHP's limit.
+/// `GET /health/live`: `{"live":true}`; 429 past the previous console's limit.
 async fn health_live(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return error_response(405, "Method Not Allowed", false);
@@ -772,7 +772,7 @@ fn health_json(status: u16, body: String) -> Response<Body> {
 }
 
 /// `GET /health/ready`: the database, the ID server and every relay (`FleetDiagnostics::readiness`); 503 when not ready, 429
-/// past PHP's limit. The database lock is held only to read the targets, never while probing.
+/// past the previous console's limit. The database lock is held only to read the targets, never while probing.
 async fn health_ready(State(p): State<Arc<Pages>>, req: Request<Body>) -> Response<Body> {
     if req.method() != Method::GET && req.method() != Method::HEAD {
         return error_response(405, "Method Not Allowed", false);
@@ -892,7 +892,7 @@ pub static ROUTES: &[Route] = &[
     Route { path: "/account/theme", methods: &["POST"], need: None, handler: account::theme },
 ];
 
-/// The pages' routes and `/assets/*`. Merge with the API router; `php` is the fallback for what is not served here.
+/// The pages' routes and `/assets/*`. Merge with the API router; `php` (the field) is the optional upstream fallback for what is not served here.
 pub fn routes(n: Arc<Native>, php: Option<Router>) -> Result<Router, String> {
     routes_with(n, php, websession::OwnConfig::from_env())
 }
@@ -900,7 +900,7 @@ pub fn routes(n: Arc<Native>, php: Option<Router>) -> Result<Router, String> {
 /// `routes` with phase 8's switches given (tests).
 pub fn routes_with(n: Arc<Native>, php: Option<Router>, own: websession::OwnConfig) -> Result<Router, String> {
     let store = crate::cache::Store::from_env()?;
-    // phase 8's table (additive; PHP never reads it)
+    // phase 8's table (additive; the previous console never reads it)
     websession::migrate(&n.db.lock().unwrap_or_else(|e| e.into_inner()))?;
     let pages = Arc::new(Pages {
         own,
@@ -925,13 +925,13 @@ pub fn routes_with(n: Arc<Native>, php: Option<Router>, own: websession::OwnConf
     r = login::routes(r);
     r = r.route("/assets/*path", any(asset));
     r = r.route("/rdclient/*path", any(rdclient));
-    // PHP's `public/robots.txt` and its empty `public/favicon.ico`, the two files nginx served beside /assets (phase 9)
+    // The previous console's `public/robots.txt` and its empty `public/favicon.ico`, the two files its web server served beside /assets (phase 9)
     r = r.route("/robots.txt", any(robots));
     r = r.route("/favicon.ico", any(favicon));
     Ok(r.with_state(pages))
 }
 
-/// A row as JSON for a template: PHP's values (INTEGER -> int, TEXT -> string, NULL -> null).
+/// A row as JSON for a template: the previous console's values (INTEGER -> int, TEXT -> string, NULL -> null).
 pub fn row_json(r: &Row) -> Value {
     let mut m = Map::new();
     for (k, v) in &r.0 {

@@ -1,6 +1,6 @@
-//! The sidebar's release check (phase 9). PHP read `cortendesk.latest_version`, which its own pages filled from upstream
-//! CortenDesk's releases; HTE Remote is its own program now, so hte-console asks HTE's repository instead: the public GitHub
-//! API's tag list (no token, nothing of HTE's sent but the request itself), about once a day, and caches the newest
+//! The sidebar's release check (phase 9). The previous console read `cortendesk.latest_version`, which its own pages filled from upstream
+//! CortenDesk's releases; HTE Remote is its own program now, so hte-console asks its own repository instead: the public GitHub
+//! API's tag list (no token, nothing about the installation sent but the request itself), about once a day, and caches the newest
 //! `hte-rd-server-v<x.y.z>` tag where the pages read it. `HTE_REMOTE_UPDATE_CHECK=0` turns it off (old name:
 //! `CORTENDESK_UPDATE_CHECK`); `HTE_REMOTE_UPDATE_REPO` points it at another `owner/name`.
 
@@ -9,17 +9,17 @@ use std::sync::Arc;
 use crate::api::Native;
 use crate::php::Val;
 
-/// Where the pages read the newest release (a serialized string, as PHP cached it).
+/// Where the pages read the newest release (a serialized string, as the previous console cached it).
 pub const CACHE_KEY: &str = "hte_remote.latest_version";
 /// The git tag that builds the image `hte-rd-server:<x.y.z>`.
 pub const TAG_PREFIX: &str = "hte-rd-server-v";
-pub const DEFAULT_REPO: &str = "regendorf-ux/hte-cortendesk-server";
+pub const DEFAULT_REPO: &str = "regendorf-ux/hte-rd-server";
 const EVERY: u64 = 24 * 3600;
 const RETRY: u64 = 3600;
 /// Kept a little over two days, so one failed day does not turn the line to "unknown".
 const KEEP: i64 = 50 * 3600;
 
-/// `filter_var(..., FILTER_VALIDATE_BOOL)` with true as the default, as PHP read `cortendesk.update_check`.
+/// `filter_var(..., FILTER_VALIDATE_BOOL)` with true as the default, as the previous console read `cortendesk.update_check`.
 pub fn enabled() -> bool {
     match crate::envvar::var("HTE_REMOTE_UPDATE_CHECK") {
         Ok(v) if !v.trim().is_empty() => matches!(v.trim().to_ascii_lowercase().as_str(), "1" | "true" | "on" | "yes"),
@@ -27,7 +27,7 @@ pub fn enabled() -> bool {
     }
 }
 
-/// `owner/name` of the repository whose tags are read; anything else falls back to HTE's.
+/// `owner/name` of the repository whose tags are read; anything else falls back to the default.
 pub fn repo() -> String {
     let r = crate::envvar::var("HTE_REMOTE_UPDATE_REPO").unwrap_or_default().trim().to_string();
     let ok = |s: &str| !s.is_empty() && s.chars().all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c)) && s != "." && s != "..";

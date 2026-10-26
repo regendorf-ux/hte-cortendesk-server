@@ -1,6 +1,6 @@
 //! Phase 1 end to end: the native device endpoints on a real socket, against a temporary database made from
 //! tests/schema.sql, a stand-in hbbs peer table with a known key pair, and a clock the tests move.
-//! Expectations come from the PHP source (v1.15.0-hte.1); each test names the PHP behaviour it pins.
+//! Expectations come from the previous console's source (v1.15.0-hte.1); each test names the previous console behaviour it pins.
 
 use base64::Engine;
 use hte_console::api::{router, Limiter, Native, Nonces};
@@ -231,7 +231,7 @@ async fn strategy_is_pushed_acked_and_not_repeated() {
     let v = r.json();
     assert_eq!(v["modified_at"], json!(T0));
     assert_eq!(v["strategy"], json!({"config_options": {"direct-server": "N", "enable-audio": "Y", "whitelist": "10.0.0.0/8"}}));
-    assert!(r.body.contains(r#""10.0.0.0\/8""#), "slashes escaped as PHP's json_encode does: {}", r.body);
+    assert!(r.body.contains(r#""10.0.0.0\/8""#), "slashes escaped as the previous console's json_encode does: {}", r.body);
     assert_eq!(h.one::<i64>("select strategy_version from devices"), T0);
     assert_eq!(h.one::<String>("select strategy_options from devices"), r#"{"direct-server":"N","enable-audio":"Y","whitelist":"10.0.0.0\/8"}"#);
     assert_eq!(h.one::<String>("select strategy_sent_at from devices"), h.ts());
@@ -372,7 +372,7 @@ async fn audit_conn_authorized_without_new_creates_a_row() {
 #[tokio::test]
 async fn audit_write_failure_answers_500_and_forgets_the_nonce() {
     let h = harness().await;
-    // an array where PHP casts to string inside the write: "Audit record not stored", and the retry may store it
+    // an array where the previous console casts to string inside the write: "Audit record not stored", and the retry may store it
     let bad = json!({"action": "new", "id": "990000001", "conn_id": 1, "ip": ["x"], "nonce": "n"});
     let r = h.post("/api/audit/conn", bad).await;
     assert_eq!((r.status, r.json()), (500, json!({"error": "Audit record not stored"})));
@@ -458,7 +458,7 @@ async fn client_address_follows_the_trusted_proxies() {
         };
         assert_eq!(h.one::<String>("select last_online_ip from devices"), want, "{trusted}");
     }
-    // trusting nobody (or only a name, which PHP cannot match either): the peer is the client
+    // trusting nobody (or only a name, which the previous console cannot match either): the peer is the client
     for trusted in ["", "proxy.example"] {
         let h = harness_with(trusted).await;
         h.device("990000001", UUID, None);
@@ -511,13 +511,13 @@ async fn bad_input_gets_what_php_gives() {
     // invalid JSON is an empty input bag: no id
     assert_eq!(h.post_raw("/api/heartbeat", "{\"id\":").await.body, "{}");
     assert_eq!(h.post_raw("/api/sysinfo", "garbage").await.body, "ID_NOT_FOUND");
-    // nesting beyond PHP's 512 levels is invalid JSON too
+    // nesting beyond the previous console's 512 levels is invalid JSON too
     let deep = format!("{{\"id\":\"990000001\",\"x\":{}{}}}", "[".repeat(600), "]".repeat(600));
     assert_eq!(h.post_raw("/api/heartbeat", &deep).await.body, "{}");
     // Laravel only reads JSON when the Content-Type says so (case-sensitively)
     let r = h.send("POST", "/api/heartbeat", Some("text/plain"), br#"{"id":"990000001"}"#.to_vec(), "203.0.113.9").await;
     assert_eq!(r.body, "{}");
-    // an array where PHP casts to string: the limiter's (string) cast throws, Laravel answers 500
+    // an array where the previous console casts to string: the limiter's (string) cast throws, Laravel answers 500
     let r = h.post("/api/heartbeat", json!({"id": ["990000001"]})).await;
     assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
     assert!(r.headers.get("x-ratelimit-limit").is_none());
@@ -526,11 +526,11 @@ async fn bad_input_gets_what_php_gives() {
     assert_eq!(h.count("devices where rustdesk_id = '990000009'"), 0);
     let r = h.post("/api/audit/file", json!({"id": "990000001", "info": ["x"]})).await;
     assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
-    // numbers and booleans are cast as PHP casts them
+    // numbers and booleans are cast as the previous console casts them
     h.post("/api/sysinfo", json!({"id": 990000005, "uuid": UUID, "hostname": 1.0, "cpu": true, "memory": false})).await;
     let row: (String, String, String) = h.db().query_row("select hostname, cpu, memory from devices where rustdesk_id = '990000005'", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
     assert_eq!(row, ("1".into(), "1".into(), "".into()));
-    // query parameters are input too (PHP merges them under the body)
+    // query parameters are input too (the previous console merges them under the body)
     let r = h.send("POST", "/api/heartbeat?id=990000001&uuid=UExBQ0VIT0xERVIhAAAAAA%3D%3D", None, vec![], "203.0.113.9").await;
     assert_eq!(r.body, "{}");
     assert_eq!(h.one::<String>("select last_online_at from devices where rustdesk_id = '990000001'"), h.ts());
@@ -646,7 +646,7 @@ async fn sealed_password_needs_a_known_usable_key() {
     // no key registered with hbbs: a password is issued but nothing can be sent
     assert_eq!(h.post("/api/heartbeat", json!({"id": "990000888", "uuid": UUID, "hte_pw": 0})).await.body, "{}");
     assert_eq!(h.one::<i64>("select current_version from hte_device_passwords"), 1);
-    // a key libsodium cannot convert: PHP's SodiumException, a 500
+    // a key libsodium cannot convert: the previous console's SodiumException, a 500
     let r = h.post("/api/heartbeat", json!({"id": "990000666", "uuid": UUID, "hte_pw": 0})).await;
     assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
     // switched off: the device is still recorded as capable, but nothing is issued
@@ -678,7 +678,7 @@ async fn sealed_password_pending_devices_and_missing_ciphertext() {
 // --------------------------------------------------------------------------------------------- no panic ---
 
 /// Random bytes and randomly typed fields straight into every handler (not through HTTP, where a panic would
-/// only become a 500): nothing may panic, and every answer is one PHP can give.
+/// only become a 500): nothing may panic, and every answer is one the previous console can give.
 #[tokio::test]
 async fn random_input_never_panics() {
     use hte_console::laravel::Input;
@@ -738,8 +738,8 @@ async fn random_input_never_panics() {
 
 // ----------------------------------------------------------------------------------------------- replay ---
 
-/// The replay runner against this service, with the synthetic fixtures (the PHP half of the comparison runs in
-/// replay/replay.sh against a throwaway PHP console).
+/// The replay runner against this service, with the synthetic fixtures (the previous console half of the comparison runs in
+/// replay/replay.sh against a throwaway previous console).
 #[tokio::test]
 async fn synthetic_fixtures_replay_clean_against_the_native_service() {
     let h = harness().await;

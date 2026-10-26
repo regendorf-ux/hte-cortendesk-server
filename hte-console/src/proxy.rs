@@ -1,4 +1,4 @@
-//! Shadow mode: forward every request to the PHP console, return its answer unchanged, record a sanitised
+//! Shadow mode: forward every request to the previous console, return its answer unchanged, record a sanitised
 //! fixture of the pair on the side. Nothing here computes an answer.
 
 use crate::config::Config;
@@ -113,7 +113,7 @@ async fn handle(
     };
     let mut raw_req_headers = pairs(&parts.headers);
     if !parts.headers.contains_key("x-forwarded-for") {
-        raw_req_headers.push(("x-forwarded-for".into(), peer.ip().to_string())); // what PHP was told
+        raw_req_headers.push(("x-forwarded-for".into(), peer.ip().to_string())); // what the previous console was told
     }
     let raw_resp_headers = pairs(&resp_headers);
     let (method, query) = (parts.method.to_string(), parts.uri.query().map(str::to_string));

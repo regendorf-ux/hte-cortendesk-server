@@ -2,7 +2,7 @@
 //! users needs it: a dot-atom local part and a host name (or a bracketed IPv4 literal) as the domain.
 //!
 //! Deliberately narrower than egulias: quoted local parts, comments, folding whitespace, obsolete forms and
-//! non-ASCII characters are refused here and accepted by PHP. Refusing is the safe direction (an account is not
+//! non-ASCII characters are refused here and accepted by the previous console. Refusing is the safe direction (an account is not
 //! created from an address nobody can mail); everything an ordinary address looks like passes the same in both.
 
 /// `atext` of RFC 5322 section 3.2.3.

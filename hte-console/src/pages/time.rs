@@ -1,8 +1,8 @@
 //! Carbon's wording of time, as the console's views print it (`diffForHumans()`, `diffForHumans(short: true)`,
-//! `shortAbsoluteDiffForHumans($other, 2)`), read from Carbon 3 as shipped in the PHP image (CarbonInterval::forHumans,
+//! `shortAbsoluteDiffForHumans($other, 2)`), read from Carbon 3 as shipped in the CortenDesk image (CarbonInterval::forHumans,
 //! the `en` language file). The app runs in UTC, so every time is a Unix second.
 //!
-//! The calendar part is PHP's `DateTime::diff` (years, months, days, hours, minutes, seconds, borrowing days from the
+//! The calendar part is the previous console's `DateTime::diff` (years, months, days, hours, minutes, seconds, borrowing days from the
 //! month before the later date); Carbon then names the first non-zero unit (parts = 1: truncated, never rounded), a
 //! week being `d / 7`. A zero difference reads "1 second ago" (Carbon's default `NO_ZERO_DIFF`).
 

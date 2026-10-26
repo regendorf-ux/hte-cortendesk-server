@@ -1,4 +1,4 @@
-//! Settings -> API tokens (Livewire `ApiTokenManager`): create a scoped bearer token for the automation API, list
+//! Settings -> API tokens (the previous console's `ApiTokenManager`): create a scoped bearer token for the automation API, list
 //! them, revoke. Only the sha256 is stored; the plaintext is shown once, in the answer to the create post itself (it
 //! is never put in the session, a flash or a log).
 

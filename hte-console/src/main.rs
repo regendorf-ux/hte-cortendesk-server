@@ -4,11 +4,11 @@
 //!   hte-console scan <dir>                fail if any fixture holds anything real
 //!   hte-console replay <dir> <base-url>   replay fixtures, print differences (exit 1 when any)
 //!   hte-console seed-sql <dir>            SQL (placeholders only) for the replay database
-//!   hte-console snapshot <sqlite>         the database as comparable text (replay: PHP's state vs ours)
+//!   hte-console snapshot <sqlite>         the database as comparable text (replay: the previous console's state vs ours)
 //!   hte-console seed-expand <sql> <idp>   a phase 2 seed made concrete (fake provider URL, app-key ciphertexts)
 //!   hte-console fake-idp                  a fake OpenID provider for the replay (TEST ONLY; see fake_idp.rs)
 //!   hte-console sweep <job>...|all        phase 3: run scheduled jobs once (reach, passwords, stale, diagnostics)
-//!   hte-console schedule-locks            phase 3: the PHP scheduler lock each job takes over (for the deploy's check)
+//!   hte-console schedule-locks            phase 3: the previous console's scheduler lock each job takes over (for the deploy's check)
 //!   hte-console backup|backups|restore|prune-logs|prune-invitations   phase 6: see housekeeping.rs
 //!   hte-console sql-apply <sqlite> <sql>  phase 3, replay only: apply a scenario step to a throwaway database
 //!   hte-console version|migrate [--check]|status|release-locks|db-copy <dest>   phase 9: see migrate.rs and maintenance.rs
@@ -66,7 +66,7 @@ async fn main() {
             Err(e) => fail(&e),
         },
         Some("sweep") => sweep_cmd(&args[1..]),
-        // phase 9: the PHP-free image (schema ownership, status for the scripts, the rollback's lock release)
+        // phase 9: the all-in-one image (schema ownership, status for the scripts, the rollback's lock release)
         Some("version" | "--version") => {
             println!("hte-console {}", env!("CARGO_PKG_VERSION"));
             0
@@ -78,7 +78,7 @@ async fn main() {
         Some("schedule-locks") => schedule_locks(),
         // phase 6: backups, restore, pruning (housekeeping.rs)
         Some("backup" | "backups" | "restore" | "prune-logs" | "prune-invitations" | "housekeeping-locks") => hte_console::housekeeping::cli(&args),
-        // phase 7: the pages, PHP's against ours (pagereplay.rs)
+        // phase 7: the pages, the previous console's against ours (pagereplay.rs)
         Some("page-seed") => match args.get(1).and_then(|n| n.parse::<i64>().ok()).map(hte_console::pagereplay::seed_sql) {
             Some(Ok(s)) => {
                 print!("{s}");
@@ -93,7 +93,7 @@ async fn main() {
             Some(idp) => web_signin_seed(idp),
             None => fail("usage: hte-console web-signin-seed <idp-url>"),
         },
-        // phase 8: the console's sign-in, PHP against hte-console (replay/replay-signin-web.sh)
+        // phase 8: the console's sign-in, two consoles compared 
         Some("web-signin-replay") => match (args.get(1), args.get(2)) {
             (Some(php), Some(rust)) => match hte_console::webreplay::run(php, rust).await {
                 Ok(r) => {
@@ -104,9 +104,9 @@ async fn main() {
                 }
                 Err(e) => fail(&e),
             },
-            _ => fail("usage: hte-console web-signin-replay <php-url> <rust-url>"),
+            _ => fail("usage: hte-console web-signin-replay <reference-url> <candidate-url>"),
         },
-        // the cookie `page-seed`'s session row for a person goes with (for a browser or curl against the throwaway PHP)
+        // the cookie `page-seed`'s session row for a person goes with (for a browser or curl against the throwaway the previous console)
         Some("page-cookie") => match (args.get(1), args.get(2).and_then(|n| n.parse::<i64>().ok())) {
             (Some(who), Some(now)) => page_cookie(who, now),
             _ => fail("usage: hte-console page-cookie <hteadmin|dana|erin> <unix-now>"),
@@ -120,12 +120,12 @@ async fn main() {
     std::process::exit(code);
 }
 
-/// Phase 7: `hte-console page-replay <php-url> <rust-url> <unix-now>`; the app key from APP_KEY or
+/// Phase 7: `hte-console page-replay <reference-url> <candidate-url> <unix-now>`; the app key from APP_KEY or
 /// HTE_CONSOLE_APP_KEY_FILE, the session cookie's name from HTE_CONSOLE_SESSION_COOKIE; HTE_PAGEREPLAY_READS_ONLY=1 skips
 /// the writes (the mutation check wants a run that changes nothing).
 async fn page_replay(args: &[String]) -> i32 {
     let (Some(php), Some(rust), Some(now)) = (args.first(), args.get(1), args.get(2).and_then(|n| n.parse::<i64>().ok())) else {
-        return fail("usage: hte-console page-replay <php-url> <rust-url> <unix-now>");
+        return fail("usage: hte-console page-replay <reference-url> <candidate-url> <unix-now>");
     };
     let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
@@ -135,7 +135,7 @@ async fn page_replay(args: &[String]) -> i32 {
         },
     };
     let Some(cookie) = std::env::var("HTE_CONSOLE_SESSION_COOKIE").ok().filter(|c| !c.trim().is_empty()) else {
-        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name PHP uses (config('session.cookie'))");
+        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name the previous console uses (config('session.cookie'))");
     };
     let writes = std::env::var("HTE_PAGEREPLAY_READS_ONLY").map_or(true, |v| v.trim().is_empty() || v == "0");
     match hte_console::pagereplay::run_with(php, rust, &key, &cookie, now, writes).await {
@@ -182,7 +182,7 @@ fn page_cookie(who: &str, now: i64) -> i32 {
         },
     };
     let Some(name) = std::env::var("HTE_CONSOLE_SESSION_COOKIE").ok().filter(|c| !c.trim().is_empty()) else {
-        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name PHP uses");
+        return fail("set HTE_CONSOLE_SESSION_COOKIE to the cookie name the previous console uses");
     };
     match hte_console::pagereplay::cookie(&key, &name, who, now) {
         Ok(c) => {
@@ -194,7 +194,7 @@ fn page_cookie(who: &str, now: i64) -> i32 {
 }
 
 fn seed_expand(file: &str, idp: &str) -> i32 {
-    // the app key as the PHP image reads it: APP_KEY, else the key file
+    // the app key as the CortenDesk image reads it: APP_KEY, else the key file
     let key = match std::env::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
         Some(k) => k,
         None => match std::fs::read_to_string(std::env::var("HTE_CONSOLE_APP_KEY_FILE").unwrap_or_else(|_| "/data/.app_key".into())) {
@@ -248,7 +248,7 @@ fn sweep_cmd(names: &[String]) -> i32 {
     }
 }
 
-/// Phase 3: each job's lock key in `cache_locks` (with PHP's cache prefix) and expiry, one per line.
+/// Phase 3: each job's lock key in `cache_locks` (with the previous console's cache prefix) and expiry, one per line.
 /// The database named by HTE_CONSOLE_DATABASE, as the other commands read their environment.
 fn native_config() -> Result<hte_console::config::NativeConfig, String> {
     Config::from_env()?.native.ok_or_else(|| "HTE_CONSOLE_DATABASE is not set".to_string())
@@ -261,7 +261,7 @@ fn read_only(path: &std::path::Path) -> Result<rusqlite::Connection, String> {
     Ok(c)
 }
 
-/// `hte-console migrate [--check]`: phase 9's schema ownership (migrate.rs). `--check` writes nothing and exits 1 when a PHP
+/// `hte-console migrate [--check]`: phase 9's schema ownership (migrate.rs). `--check` writes nothing and exits 1 when a previous-console
 /// migration is missing; without it our pending migrations are applied.
 fn migrate_cmd(check_only: bool) -> i32 {
     let n = match native_config() {
@@ -275,12 +275,12 @@ fn migrate_cmd(check_only: bool) -> i32 {
     };
     match report {
         Ok(r) if r.php_missing.is_empty() => {
-            println!("PHP migrations recorded: {}/{}; ours pending: {}; recorded but unknown: {}", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len(), r.own_pending.len(), r.unknown.len());
+            println!("the previous console migrations recorded: {}/{}; ours pending: {}; recorded but unknown: {}", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len(), r.own_pending.len(), r.unknown.len());
             r.unknown.iter().for_each(|u| println!("unknown: {u}"));
             0
         }
         Ok(r) => {
-            println!("PHP migrations recorded: {}/{}; missing:", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
+            println!("the previous console migrations recorded: {}/{}; missing:", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
             r.php_missing.iter().for_each(|m| println!("  {m}"));
             1
         }
@@ -306,7 +306,7 @@ fn status_cmd() -> i32 {
 
 /// `hte-console db-copy <dest>`: a consistent copy of the live database (`VACUUM INTO`, taken while the console runs; WAL
 /// readers and writers are not blocked for long). Refuses to overwrite. What `upgrade.sh` takes before an image swap, now
-/// that no PHP container is there to do it.
+/// that no previous console container is there to do it.
 fn db_copy_cmd(dest: Option<&String>) -> i32 {
     let Some(dest) = dest else { return fail("usage: hte-console db-copy <dest.sqlite>") };
     if std::path::Path::new(dest).exists() {
@@ -325,7 +325,7 @@ fn db_copy_cmd(dest: Option<&String>) -> i32 {
     }
 }
 
-/// `hte-console release-locks`: the rollback to the PHP stack gives PHP's scheduler its tasks back at once.
+/// `hte-console release-locks`: the rollback to the CortenDesk stack gives the previous console's scheduler its tasks back at once.
 fn release_locks_cmd() -> i32 {
     let n = match native_config() {
         Ok(n) => n,
@@ -356,7 +356,7 @@ fn schedule_locks() -> i32 {
     }
 }
 
-/// The replay's sweeps scenario: a step's SQL on hte-console's copy of the throwaway database (PHP's copy gets the
+/// The replay's sweeps scenario: a step's SQL on hte-console's copy of the throwaway database (the previous console's copy gets the
 /// same file through PDO). Never pointed at the live database by any script.
 fn sql_apply(db: &str, file: &str) -> i32 {
     let sql = match std::fs::read_to_string(file) {
@@ -398,16 +398,16 @@ async fn serve() -> i32 {
             Err(e) => return fail(&e),
         },
     };
-    // phase 9: PHP no longer owns the schema. Check the 41 PHP migrations are recorded and apply our own additive ones
-    // (HTE_CONSOLE_MIGRATE=0 skips it: the PHP stack's hte-console images never needed it).
+    // phase 9: the previous console no longer owns the schema. Check the previous console's 41 migrations are recorded and apply our own additive ones
+    // (HTE_CONSOLE_MIGRATE=0 skips it: the CortenDesk stack's hte-console images never needed it).
     if let Some(x) = &native {
         if std::env::var("HTE_CONSOLE_MIGRATE").map_or(false, |v| v.trim() == "1") {
             let r = hte_console::migrate::run(&x.db.lock().unwrap_or_else(|e| e.into_inner()));
             match r {
                 Ok(r) => {
-                    tracing::info!("schema: {}/{} PHP migrations recorded, ours up to date", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
+                    tracing::info!("schema: {}/{} the previous console migrations recorded, ours up to date", r.php_recorded, hte_console::migrate::PHP_MIGRATIONS.len());
                     if !r.unknown.is_empty() {
-                        tracing::warn!(unknown = ?r.unknown, "schema: migrations recorded that this version does not know (a newer PHP release?)");
+                        tracing::warn!(unknown = ?r.unknown, "schema: migrations recorded that this version does not know (a newer the previous console release?)");
                     }
                 }
                 Err(e) => return fail(&e),
@@ -458,7 +458,7 @@ async fn serve() -> i32 {
                     Err(e) => return fail(&e),
                 }
             }
-            // phase 7: the console's pages behind the Laravel session (HTE_CONSOLE_PAGES=0 leaves them all to PHP)
+            // phase 7: the console's pages behind the Laravel session (HTE_CONSOLE_PAGES=0 leaves them all to the previous console)
             let pages = if std::env::var("HTE_CONSOLE_PAGES").map_or(false, |v| v.trim() == "0") {
                 axum::Router::new()
             } else {

@@ -1,8 +1,8 @@
-/* Phase 7 (2026-10-25, owner): two fixes to the console's chrome that PHP has too, kept in their own file so
+/* Phase 7 (2026-10-25): two fixes to the console's chrome that the previous console has too, kept in their own file so
    scripts/sync-assets.sh never overwrites them (it leaves this file alone). Loaded after hte-brand.css.
 
    1. The sidebar and top bar followed the theme only in dark: hte-remote.css pins them dark in both themes because its
-      wordmark is white. HTE's wordmark takes its colour from the chrome's own ink, so in the light theme the chrome now
+      wordmark is white. HTE Remote's wordmark takes its colour from the chrome's own ink, so in the light theme the chrome now
       uses the light tokens (the same ones the page content uses) and the wordmark darkens with it.
    2. The sidebar's mark was squashed: shell.css gives every logo image `height: 40px` (a rule that wins on specificity),
       hte-brand.css gives the 512x512 icon `width: 30px`, so the icon was 30x40. Both sides are set here. */
@@ -21,7 +21,7 @@ html[data-bs-theme="light"] {
 
 .rd-sidebar-logo .rd-logo-lg .hte-mark img { width: 30px; height: 30px; }
 
-/* Row actions that must POST (CSRF) are buttons with the very classes PHP's links carry (`rd-act me-2`, `text-danger`):
+/* Row actions that must POST (CSRF) are buttons with the very classes the previous console's links carry (`rd-act me-2`, `text-danger`):
    the form is inline and the button is drawn like the link beside it. */
 .rd-rowact form { display: inline; margin: 0; }
 .rd-rowact form > button {
@@ -34,7 +34,7 @@ html[data-bs-theme="light"] {
 
 form[action="/address-books"] { flex: 1 1 auto; }
 
-/* A POST control that must look like the link PHP has there: a class-free inline form around a button that carries the link's classes. */
+/* A POST control that must look like the link the previous console has there: a class-free inline form around a button that carries the link's classes. */
 form[style*="display:inline"] > button:not(.btn):not(.rd-iconbtn), form[style*="display:contents"] > button:not(.btn):not(.rd-iconbtn) {
     background: none; border: 0; padding: 0; margin: 0; font: inherit; line-height: inherit; vertical-align: baseline;
     color: var(--bs-link-color); cursor: pointer; text-decoration: none;

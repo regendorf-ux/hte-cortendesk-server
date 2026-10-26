@@ -1,9 +1,9 @@
-//! Users (Livewire `UserList` and `UserDetail`): the list with its filters, the add / edit dialog, the device
+//! Users (the previous console's `UserList` and `UserDetail`): the list with its filters, the add / edit dialog, the device
 //! assignment dialog, enable / disable, force logout, reset 2FA and delete; and the read-only person page.
 //!
 //! State is the URL (`?search=`, `?role=`, `?status=`, `?create=1`, `?edit=<id>`, `?assign=<id>`); every action is a
 //! form post that redirects back. A role-holder may only touch plain users and may only hand out what they hold
-//! themselves (`guardTarget`, the `grantable*` clamps): the same checks as PHP, applied before any write.
+//! themselves (`guardTarget`, the `grantable*` clamps): the same checks as the previous console, applied before any write.
 
 use super::kit::*;
 use super::{logs, paginate, time, Ctx, Reply, Req};

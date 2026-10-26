@@ -1,4 +1,4 @@
--- Phase 4: the further tables the bearer-token client endpoints read and write, as the PHP console's migrations
+-- Phase 4: the further tables the bearer-token client endpoints read and write, as the previous console's migrations
 -- (v1.15.0-hte.1) create them. Applied after schema.sql (address_book_entries and hte_auto_books are there).
 create table "address_books" ("id" integer primary key autoincrement not null, "guid" varchar not null, "name" varchar not null, "owner_user_id" integer not null, "is_personal" tinyint(1) not null default '0', "note" varchar, "created_at" datetime, "updated_at" datetime);
 create unique index "address_books_guid_unique" on "address_books" ("guid");

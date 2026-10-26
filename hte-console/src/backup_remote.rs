@@ -1,4 +1,4 @@
-//! The off-site copy of a backup (PHP's `App\Services\Backups\RemoteTarget`): somewhere off the box a finished archive
+//! The off-site copy of a backup (the previous console's `App\Services\Backups\RemoteTarget`): somewhere off the box a finished archive
 //! is mirrored to. Blocking on purpose: the backup code runs in `spawn_blocking` / the scheduler's worker thread.
 //! Every method returns an operator-readable message on failure; nothing retries, the next run does.
 
@@ -52,7 +52,7 @@ pub fn target(env: &Env, c: &rusqlite::Connection) -> Result<Option<Box<dyn Remo
 }
 
 /// Two runs copying at once can leave a copy that is full size but wrong, which no size check catches; the second leaves
-/// the target alone. `flock`, as PHP: the kernel lets go when a run dies.
+/// the target alone. `flock`, as the previous console: the kernel lets go when a run dies.
 struct CopyLock(Option<std::fs::File>);
 
 impl CopyLock {

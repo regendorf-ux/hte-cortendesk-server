@@ -1,4 +1,4 @@
-//! `LengthAwarePaginator` and `UrlWindow` (3 pages on each side), as Livewire's bootstrap pagination view lays them out.
+//! `LengthAwarePaginator` and `UrlWindow` (3 pages on each side), as the previous console's bootstrap pagination view lays them out.
 
 use serde::Serialize;
 

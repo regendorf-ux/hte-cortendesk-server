@@ -1,4 +1,4 @@
--- Phase 5: the further tables the admin automation API reads and writes, as the PHP console's migrations
+-- Phase 5: the further tables the admin automation API reads and writes, as the previous console's migrations
 -- (v1.15.0-hte.1) create them on SQLite. Applied after schema.sql and schema_p4.sql.
 create table "api_tokens" ("id" integer primary key autoincrement not null, "name" varchar not null, "token_hash" varchar not null, "token_prefix" varchar not null, "user_id" integer, "permissions" text not null, "last_used_at" datetime, "expires_at" datetime, "is_active" tinyint(1) not null default '1', "created_at" datetime, "updated_at" datetime, foreign key("user_id") references "users"("id") on delete set null);
 create unique index "api_tokens_token_hash_unique" on "api_tokens" ("token_hash");

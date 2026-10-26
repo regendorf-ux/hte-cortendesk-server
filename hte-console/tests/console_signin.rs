@@ -1,8 +1,8 @@
 //! Phase 8 end to end: hte-console's own console sign-in (`/login`, `/login/oidc`, `/login/oidc/callback`,
 //! `/logout`) and its session cookie, on a real socket, against a temporary database made from tests/schema_live.sql,
 //! phase 2's sign-in seed (the SSO accounts and settings) and a break-glass account made here, with the fake
-//! identity provider of src/fake_idp.rs on another socket. Expectations: the PHP source (v1.15.0-hte.1,
-//! AuthController, OidcController, OidcUserResolver) and the design in `phase8/NOTES.md`.
+//! identity provider of src/fake_idp.rs on another socket. Expectations: the previous console's source (v1.15.0-hte.1,
+//! AuthController, OidcController, OidcUserResolver).
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::fake_idp::{Config as IdpConfig, FakeIdp, MODES};
@@ -201,7 +201,7 @@ impl H {
     async fn password(&self, cookie: &str, token: &str, user: &str, pw: &str) -> Resp {
         self.go("POST", "/login", Some(cookie), Some(&[("_token", token), ("username", user), ("password", pw), ("remember", "on")]), &[]).await
     }
-    /// A whole break-glass sign-in: (our cookie, PHP's bridged cookie).
+    /// A whole break-glass sign-in: (our cookie, the previous console's bridged cookie).
     async fn sign_in(&self) -> (String, Option<String>) {
         let (c, t) = self.guest().await;
         let r = self.password(&c, &t, ADMIN, ADMIN_PW).await;
@@ -306,10 +306,10 @@ async fn the_break_glass_password_signs_in_with_a_new_session_and_php_s_rows() {
     // remember me: the cookie outlives the browser, up to the absolute lifetime
     let set = r.cookies().into_iter().find(|c| c.starts_with("hte-remote-console=")).unwrap();
     assert!(set.contains("Max-Age=43200"), "{set}");
-    // login_logs as PHP writes it
+    // login_logs as the previous console writes it
     assert_eq!(h.logins(), vec![(Some(920001), ADMIN.to_string(), "web".to_string(), 1)]);
-    // the bridge: PHP's own session row and cookie for the same person, marked
-    let php = r.php_cookie().expect("PHP's cookie");
+    // the bridge: the previous console's own session row and cookie for the same person, marked
+    let php = r.php_cookie().expect("the previous console's cookie");
     assert_eq!(h.count("sessions where user_id = 920001"), 1);
     let lid = h.text("select laravel_session_id from hte_console_sessions");
     assert_eq!(h.text("select id from sessions"), lid);
@@ -484,7 +484,7 @@ async fn idle_absolute_and_revoked_sessions_go_back_to_sign_in_and_keep_the_targ
     let r = h.get("/account?tab=x", Some(&own)).await;
     assert_eq!((r.status, r.path()), (302, "/login".into()));
     assert_eq!(h.count("hte_console_sessions where user_id is not null"), 0);
-    assert_eq!(h.count("sessions"), 0, "the bridged PHP row goes with it");
+    assert_eq!(h.count("sessions"), 0, "the bridged row goes with it");
     // the redirect opened a guest session that remembers where they were going
     let guest = r.own_cookie().unwrap();
     let page = h.get("/login", Some(&guest)).await;
@@ -498,7 +498,7 @@ async fn idle_absolute_and_revoked_sessions_go_back_to_sign_in_and_keep_the_targ
     }
     h.advance(1300);
     assert_eq!(h.get("/account", Some(&own)).await.path(), "/login");
-    // revoked anywhere: revokeAllAccess rotates remember_token (PHP's force logout does it too)
+    // revoked anywhere: revokeAllAccess rotates remember_token (the previous console's force logout does it too)
     let (own, _) = h.sign_in().await;
     assert_eq!(h.get("/account", Some(&own)).await.status, 200);
     h.sql("update users set remember_token = 'rt-2' where id = 920001");
@@ -557,17 +557,17 @@ async fn logout_ends_both_sessions_and_needs_the_token() {
     assert_eq!(h.count("sessions"), 0);
     assert_eq!(h.get("/account", Some(&own)).await.path(), "/login");
     // not signed in: to the sign-in page
-    // not signed in and no token: PHP's CSRF check answers first (419); from our own page (same-origin) to the sign-in page
+    // not signed in and no token: the previous console's CSRF check answers first (419); from our own page (same-origin) to the sign-in page
     assert_eq!(h.go("POST", "/logout", None, None, &[]).await.status, 419);
     assert_eq!(h.go("POST", "/logout", None, None, &[("sec-fetch-site", "same-origin")]).await.path(), "/login");
 }
 
-// ------------------------------------------------------------------------------- PHP's sessions meanwhile ---
+// ------------------------------------------------------------------------------- the previous console's sessions meanwhile ---
 
 #[tokio::test(flavor = "multi_thread")]
 async fn php_s_own_sign_in_still_works_but_the_bridge_is_not_a_sign_in_by_itself() {
     let h = harness().await;
-    // a session PHP signed in (its own /login) is read while HTE_CONSOLE_LARAVEL_SESSIONS allows it
+    // a session the previous console signed in (its own /login) is read while HTE_CONSOLE_LARAVEL_SESSIONS allows it
     let cfg = session::SessionConfig { cookie: "hte-remote-session".into(), lifetime_min: 120, secure: None };
     use base64::Engine;
     let mk = |id: &str, extra: &str| {
@@ -580,17 +580,17 @@ async fn php_s_own_sign_in_still_works_but_the_bridge_is_not_a_sign_in_by_itself
     // the bridged row alone (our session gone) opens nothing
     let bridged = mk(&"b".repeat(40), ",\"hte.bridged\":1");
     assert_eq!(h.get("/account", Some(&bridged)).await.path(), "/login");
-    // logout of a PHP-signed-in session deletes PHP's row
+    // logout of a previous-console-signed-in session deletes the previous console's row
     let r = h.go("POST", "/logout", Some(&php), Some(&[("_token", &"T".repeat(40))]), &[]).await;
     assert_eq!(r.path(), "/login");
     assert_eq!(h.count(&format!("sessions where id = '{}'", "a".repeat(40))), 0);
-    // phase 9: PHP's sessions no longer read
+    // phase 9: the previous console's sessions no longer read
     let h = harness_with(Opts { laravel_read: false, ..Default::default() }).await;
     let payload = base64::engine::general_purpose::STANDARD.encode(format!("{{\"_token\":\"t\",\"{}\":920001}}", session::LOGIN_KEY));
     h.db().execute("insert into sessions values (?, 920001, 'ip', 'ua', ?, ?)", rusqlite::params!["c".repeat(40), payload, T0]).unwrap();
     let c = session::set_cookie(&cfg, &h.crypt, &"c".repeat(40), false, T0).split(';').next().unwrap().to_string();
     assert_eq!(h.get("/account", Some(&c)).await.path(), "/login");
-    // no bridge: no PHP row
+    // no bridge: no previous console row
     let h = harness_with(Opts { bridge: false, ..Default::default() }).await;
     let (_own, php) = h.sign_in().await;
     assert!(php.is_none());
@@ -601,7 +601,7 @@ async fn php_s_own_sign_in_still_works_but_the_bridge_is_not_a_sign_in_by_itself
 async fn a_php_page_sends_the_person_back_and_the_bridge_is_repaired() {
     let h = harness().await;
     let (own, _) = h.sign_in().await;
-    // PHP lost its row (say, a restart of the file driver); PHP's guest session remembers where it wanted them
+    // The previous console lost its row (say, a restart of the file driver); the previous console's guest session remembers where it wanted them
     h.sql("delete from sessions");
     let cfg = session::SessionConfig { cookie: "hte-remote-session".into(), lifetime_min: 120, secure: None };
     use base64::Engine;
@@ -618,7 +618,7 @@ async fn a_php_page_sends_the_person_back_and_the_bridge_is_repaired() {
 #[tokio::test(flavor = "multi_thread")]
 async fn with_the_switch_off_everything_stays_php_s() {
     let h = harness_with(Opts { signin: false, ..Default::default() }).await;
-    // no PHP in the tests: forwarding answers with a redirect to /login and nothing is written
+    // no previous console in the tests: forwarding answers with a redirect to /login and nothing is written
     let r = h.get("/login", None).await;
     assert_eq!((r.status, r.location()), (302, "/login".into()));
     assert!(r.own_cookie().is_none());
@@ -630,7 +630,7 @@ async fn with_the_switch_off_everything_stays_php_s() {
 #[tokio::test(flavor = "multi_thread")]
 async fn steps_without_a_pending_sign_in_or_a_valid_link() {
     let h = harness().await;
-    // no challenge pending: back to the sign-in page (PHP's answer); the resend is a POST-only route
+    // no challenge pending: back to the sign-in page (the previous console's answer); the resend is a POST-only route
     for p in ["/login/2fa", "/login/email"] {
         assert_eq!(h.get(p, None).await.path(), "/login", "{p}");
     }
@@ -652,7 +652,7 @@ async fn microsoft_sign_in_links_by_email_once_then_by_subject() {
     assert_eq!(h.text("select oidc_sub from users where id = 910008"), "sub-5eed-linked");
     assert_eq!(h.text(&format!("select oidc_iss from users where id = 910008")), h.idp);
     assert_eq!(h.logins(), vec![(Some(910008), "user-5eed0008".into(), "sso".into(), 1)]);
-    // the session is marked as single sign-on (RequireTwoFactor exempts it), PHP's bridged one too
+    // the session is marked as single sign-on (RequireTwoFactor exempts it), the previous console's bridged one too
     use base64::Engine;
     let p: Value = serde_json::from_slice(&base64::engine::general_purpose::STANDARD.decode(h.text("select payload from hte_console_sessions where user_id = 910008")).unwrap()).unwrap();
     assert_eq!(p["oidc.authenticated"], true);
@@ -770,7 +770,7 @@ async fn no_secret_reaches_the_log() {
 #[tokio::test(flavor = "multi_thread")]
 async fn the_web_sign_in_replay_sees_no_difference_between_two_identical_consoles_and_sees_a_real_one() {
     let (a, b) = (harness().await, harness().await);
-    // the replay computes the TOTP step from the wall clock, as it does against PHP
+    // the replay computes the TOTP step from the wall clock, as it does against the previous console
     let now = chrono::Utc::now().timestamp();
     a.clock.store(now, Ordering::SeqCst);
     b.clock.store(now, Ordering::SeqCst);

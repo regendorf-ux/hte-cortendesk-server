@@ -1,6 +1,6 @@
-/* HTE Remote inside the console (2026-10-16, owner): CortenDesk's rust orange becomes HTE blue (the
+/* HTE Remote inside the console (2026-10-16): CortenDesk's rust orange becomes HTE blue (the
    suite's accent tokens); the sidebar and top-bar backgrounds stay CortenDesk's. Loaded after
-   hte-remote.css by layouts/app.blade.php (one line, marked HTE), so only the variables change. */
+   hte-remote.css by the previous console's view (one line, marked HTE), so only the variables change. */
 :root {
     --rd-accent: #0a66e8;
     --rd-accent-rgb: 10, 102, 232;

@@ -1,4 +1,4 @@
-//! Phase 5: `POST /api/devices/cli`, the RustDesk client's `--assign` (app/Http/Controllers/Api/DeviceCliController.php).
+//! Phase 5: `POST /api/devices/cli`, the RustDesk client's `--assign` (app/Http/Controllers/Api/DeviceCliController).
 //! The client reads the answer as text: an empty 200 is "Done!", anything else is printed as it is.
 //!
 //! The device is matched on the `id` the client posts (`rustdesk_id`) and registered ACTIVE whatever the approval

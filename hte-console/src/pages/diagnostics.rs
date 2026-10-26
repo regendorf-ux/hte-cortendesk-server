@@ -3,10 +3,10 @@
 //!
 //! What each check reads now that hte-console does the work behind it:
 //! - Scheduler: the cache key `cortendesk:diagnostics:scheduler-heartbeat`, which hte-console's `diagnostics` sweep writes every
-//!   minute (`HTE_CONSOLE_SWEEPS`) holding PHP's own lock, so a fresh heartbeat means hte-console's scheduler is alive.
+//!   minute (`HTE_CONSOLE_SWEEPS`) holding the previous console's own lock, so a fresh heartbeat means hte-console's scheduler is alive.
 //! - ID server link: the pull marker hte-console's `/api/server/policy` leaves (`link.rs`), read as Settings reads it.
 //! - ID and relay server: a TCP connect with a one-second timeout, as `SocketTcpProbe`. Both probes run at the same time, so the
-//!   page holds the database lock for at most about a second when a server does not answer (PHP: two seconds, one after the other).
+//!   page holds the database lock for at most about a second when a server does not answer (the previous console: two seconds, one after the other).
 
 use super::kit::*;
 use super::{Ctx, Reply, Req};
@@ -282,7 +282,7 @@ fn opt_str(s: &Option<String>) -> Val {
 }
 
 impl Report {
-    /// The report as PHP's array, for the download (`sanitized()`).
+    /// The report as the previous console's array, for the download (`sanitized()`).
     fn to_val(&self, sanitized: bool) -> Val {
         let a = |pairs: Vec<(&str, Val)>| php::assoc(pairs.into_iter().map(|(k, v)| (k.to_string(), v)));
         let l = &self.link;
@@ -482,7 +482,7 @@ pub fn ready_body(r: (bool, bool, bool, bool)) -> (u16, String) {
     (if ready { 200 } else { 503 }, format!(r#"{{"ready":{ready},"database":{database},"id_server":{id},"relay_server":{relay}}}"#))
 }
 
-/// `ThrottleHealthProbe` with `config/health.php`: one global bucket per probe (live 120, ready 30 a minute; a forwarded
+/// `ThrottleHealthProbe` with `config/health`: one global bucket per probe (live 120, ready 30 a minute; a forwarded
 /// address is no identity behind proxies), Laravel's RateLimiter window: 60 s from the first hit.
 pub fn probe_allowed(endpoint: &str, now: i64) -> bool {
     static BUCKETS: std::sync::Mutex<[(i64, u32); 2]> = std::sync::Mutex::new([(0, 0); 2]);

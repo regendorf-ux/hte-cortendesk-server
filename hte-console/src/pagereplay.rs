@@ -495,7 +495,7 @@ pub async fn run_with(php: &str, rust: &str, key: &str, cookie_name: &str, now: 
 async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64, writes: bool, diffs: &mut Vec<String>, by_design: &mut Vec<String>, total: &mut usize) -> Result<(), String> {
     let crypt = Encrypter::from_app_key(key)?;
     // HTE_PAGEREPLAY_RUST_ONLY=1: the writes run on hte-console alone (no Livewire), so the Rust half can be checked where
-    // there is no PHP; the comparison with PHP is the server run's
+    // there is no PHP; the comparison with PHP was the live run's
     let side = side();
     let offline = matches!(side, Side::From(_));
     let rust_only = offline || crate::envvar::var("HTE_PAGEREPLAY_RUST_ONLY").map_or(false, |v| !v.trim().is_empty() && v != "0");
@@ -752,7 +752,7 @@ async fn run_inner(php: &str, rust: &str, key: &str, cookie_name: &str, now: i64
             diffs.push(format!("hteadmin POST /account/theme on {side}: {}", r.status));
         }
         let r = fetch(&c, base, &cookie, "POST", "/account/theme", Some("application/json"), r#"{"theme":"purple"}"#.into(), &[("x-csrf-token", TOKEN), ("accept", "application/json")]).await?;
-        // deliberate difference (phase7/NOTES.md): a refusal is PHP's redirect back (JSON errors are for /api/* only) and
+        // deliberate difference: a refusal is PHP's redirect back (JSON errors are for /api/* only) and
         // hte-console's 422 with the messages
         let want = if *side == "php" { 302 } else { 422 };
         if r.status != want {

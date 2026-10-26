@@ -1,8 +1,8 @@
--- The tables the device endpoints read and write, as the PHP console's migrations (v1.15.0-hte.1) create them
+-- The tables the device endpoints read and write, as the previous console's migrations (v1.15.0-hte.1) create them
 -- through Laravel's SQLite grammar (string -> varchar, boolean -> tinyint(1), timestamp -> datetime, json -> text,
--- every integer kind -> integer). Hand-written for the tests: no PHP on the build machine. Column types matter,
+-- every integer kind -> integer). Hand-written for the tests: no the previous console on the build machine. Column types matter,
 -- they decide SQLite's affinity and so what is stored; columns no phase 1 code touches are kept where cheap.
--- The replay (replay/replay.sh) runs against a database PHP itself migrated, which is the real check.
+-- The replay (the replay against the previous console) runs against a database the previous console itself migrated, which is the real check.
 
 create table "users" ("id" integer primary key autoincrement not null, "username" varchar not null, "name" varchar, "email" varchar, "password" varchar not null, "avatar" varchar, "user_group_id" integer, "is_admin" tinyint(1) not null default '0', "is_active" tinyint(1) not null default '1', "note" varchar, "totp_secret" text, "remember_token" varchar, "created_at" datetime, "updated_at" datetime, "totp_enabled" tinyint(1) not null default '0', "totp_confirmed_at" datetime, "totp_last_timestep" integer, "auth_provider" varchar not null default 'local', "oidc_sub" varchar, "oidc_iss" varchar, "oidc_status" varchar, "role_id" integer, foreign key("role_id") references "roles"("id") on delete set null);
 create unique index "users_username_unique" on "users" ("username");

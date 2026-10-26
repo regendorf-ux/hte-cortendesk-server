@@ -1,8 +1,8 @@
 //! `App\Http\Controllers\Api\AuditController` (v1.15.0-hte.1), the tokenless half: POST /api/audit/conn,
 //! /api/audit/file, /api/audit/alarm. (The bearer-token half, PUT /api/audit and GET /api/audit/conn/active,
-//! stays in PHP until phase 4.)
+//! stays in the previous console until phase 4.)
 //!
-//! Not ported: the Apprise alarm notifications (`security.alarm`, `remote_connection.failure`); HTE has Apprise off.
+//! Not ported: the Apprise alarm notifications (`security.alarm`, `remote_connection.failure`); Apprise is not ported.
 
 use crate::api::{fail, Native, Reply};
 use crate::sqlite::{self as db, P};
@@ -48,7 +48,7 @@ fn once(n: &Native, input: &Input, endpoint: &str, id: &[u8], now: i64, write: i
     }
 }
 
-/// `AuditController::sessionId()`: a u64 that PHP would turn into a float is read again from the raw body
+/// `AuditController::sessionId()`: a u64 that the previous console would turn into a float is read again from the raw body
 /// with big integers kept as strings.
 fn session_id(input: &Input) -> Vec<u8> {
     let mut value = input.get("session_id").cloned().unwrap_or_else(|| Val::str(""));
@@ -301,7 +301,7 @@ mod tests {
         let i = Input::new("POST", Some("application/json"), None, br#"{"session_id":1.5}"#);
         assert_eq!(session_id(&i), b"");
         let i = Input::new("POST", Some("application/json"), None, br#"{"session_id":" 7 "}"#);
-        assert_eq!(session_id(&i), b" 7 "); // read raw, untrimmed, as PHP does
+        assert_eq!(session_id(&i), b" 7 "); // read raw, untrimmed, as the previous console does
         let i = Input::new("POST", Some("application/x-www-form-urlencoded"), Some("session_id=%209"), b"");
         assert_eq!(session_id(&i), b"9");
     }

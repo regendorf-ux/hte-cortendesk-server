@@ -1,11 +1,11 @@
-//! Phase 9: what the PHP container's scheduler still did that no earlier phase took over, and the small commands the
-//! PHP-free image's scripts need (`status`, `release-locks`).
+//! Phase 9: what the CortenDesk container's scheduler still did that no earlier phase took over, and the small commands the
+//! all-in-one image's scripts need (`status`, `release-locks`).
 //!
 //! `cortendesk:check-device-notifications` (every minute) does two things. With Apprise off (it is off at HTE; the
 //! deploy refuses when it is on) the second, sending and retrying notifications, has nothing to do. The first is
 //! `DevicePresenceSnooze::pruneForSweep()`: expired snoozes are deleted, and so are week-old ones whose device or group
 //! is gone. That is `prune_snoozes` below, run once a minute when `HTE_CONSOLE_SNOOZE_PRUNE=1`. It takes no scheduler
-//! lock (PHP's entry has none we could hold) and is idempotent, so a PHP scheduler running beside it does no harm.
+//! lock (the previous console's entry has none we could hold) and is idempotent, so a previous-console scheduler running beside it does no harm.
 
 use crate::api::Native;
 use crate::laravel;
@@ -53,8 +53,8 @@ pub fn start(n: Arc<Native>) {
     tracing::info!("presence snoozes are pruned here once a minute (what cortendesk:check-device-notifications did with Apprise off)");
 }
 
-/// Give back every scheduler lock a hte-console left in PHP's `cache_locks` (a service that was killed, a `sweep`).
-/// For the rollback to the PHP stack: PHP's scheduler skips a task while one is held, up to 30 minutes. Returns how many.
+/// Give back every scheduler lock a hte-console left in the previous console's `cache_locks` (a service that was killed, a `sweep`).
+/// For the rollback to the CortenDesk stack: the previous console's scheduler skips a task while one is held, up to 30 minutes. Returns how many.
 pub fn release_locks(c: &Connection, cache_prefix: &str) -> Result<usize, String> {
     let like = format!("{}framework/schedule-%", cache_prefix.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
     // the scheduler's task locks, and the backup lock Settings -> Backups and the nightly run share
@@ -104,7 +104,7 @@ pub fn status(c: &Connection, cache_prefix: &str, now: i64) -> Result<String, St
     out.push(format!("sessions_signed_in={}", one(r#"select count(*) from "hte_console_sessions" where "user_id" is not null"#)));
     let key = format!("{cache_prefix}{}", crate::cache::SCHEDULER_HEARTBEAT_KEY);
     let hb: String = c.query_row(r#"select "value" from "cache" where "key" = ?"#, params![key], |r| r.get(0)).unwrap_or_default();
-    // the value is PHP-serialised: s:25:"2026-10-25T12:00:00+00:00";
+    // the value is previous-console-serialised: s:25:"2026-10-25T12:00:00+00:00";
     let age = hb
         .split('"')
         .nth(1)
@@ -153,7 +153,7 @@ mod tests {
             ("device", 1, &future, &fresh),  // live: stays
             ("device", 1, &past, &fresh),    // expired: goes (distinct row, the unique index is not in this fixture)
             ("device", 9, &future, &old),    // week old, device gone: goes
-            ("device", 9, &future, &fresh),  // device gone but young: stays (as PHP)
+            ("device", 9, &future, &fresh),  // device gone but young: stays (as the previous console)
             ("group", 9, &future, &old),     // week old, group gone: goes
             ("group", 1, &future, &old),     // week old, group exists: stays
         ] {

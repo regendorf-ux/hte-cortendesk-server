@@ -241,7 +241,7 @@ fn save(ctx: &Ctx, c: &Connection, body: &Body, back: &str) -> Result<Reply, Fau
     super::users::page(ctx, c, back, 200, Modal::None, notice)
 }
 
-/// `GET /invitations`: hte-console's own old link target; the card lives on Users, as in PHP.
+/// `GET /invitations`: hte-console's own old link target; the card lives on Users, as in the previous console.
 pub fn to_users(_ctx: &Ctx, _c: &Connection, _req: &Req) -> Result<Reply, Fault> {
     Ok(Reply::Redirect("/users".into()))
 }

@@ -1,8 +1,8 @@
 //! Phase 8 (0.8.2) end to end: two-factor (enrolment, the sign-in challenge, recovery codes, enforcement), e-mailed
 //! sign-in codes (trusted browsers, the resend, a broken relay), password reset, invitations and Settings' test e-mail,
-//! on a real socket, with a fake SMTP relay on another socket that keeps every message. Expectations: the PHP source
+//! on a real socket, with a fake SMTP relay on another socket that keeps every message. Expectations: the previous console's source
 //! (v1.15.0-hte.1: AuthController, TwoFactorSettings, TwoFactor, PasswordResetController, InvitationManager,
-//! InvitationController, MailSettings) and phase8/NOTES.md.
+//! InvitationController, MailSettings).
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -270,7 +270,7 @@ async fn two_factor_enrolment_the_challenge_and_recovery_codes() {
     let secret = between(&start.body, "rd-mono\" readonly value=\"", "\"").to_string();
     assert_eq!(secret.len(), 103);
     let blob = between(&start.body, "name=\"setup\" value=\"", "\"").to_string();
-    // a wrong code keeps the wizard open with PHP's message
+    // a wrong code keeps the wizard open with the previous console's message
     let bad = h.go("POST", "/account/two-factor", Some(&me), &[("_token", &t), ("do", "confirm"), ("setup", &blob), ("code", "000000")]).await;
     assert!(bad.body.contains("That code is incorrect or has expired. Try the current one."));
     // a blob made for this account does not work for another
@@ -488,7 +488,7 @@ async fn invitations_from_the_users_page_to_a_signed_in_account() {
     let t = users.csrf();
     let dialog = h.get("/users?invite=1", Some(&me)).await;
     assert!(dialog.body.contains("modal-title\">Invite User"));
-    // taken username: the dialog again with PHP's message
+    // taken username: the dialog again with the previous console's message
     let taken = h.go("POST", "/users/invitations", Some(&me), &[("_token", &t), ("do", "save"), ("email", "new-5eed@example.invalid"), ("username", DANA)]).await;
     assert_eq!(taken.status, 422);
     assert!(taken.body.contains("That username is already taken or reserved by a pending invitation."));

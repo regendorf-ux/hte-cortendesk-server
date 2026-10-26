@@ -1,10 +1,10 @@
-//! Phase 3: HTE's per-person reach (v1.15.0-hte.1), a port of `App\Hte\Reach` (`policyBlock`, `sections` as far
+//! Phase 3: HTE Remote's per-person reach (v1.15.0-hte.1), a port of `App\Hte\Reach` (`policyBlock`, `sections` as far
 //! as `Passwords::reachIds` needs it, `recordRefusals`) and `App\Hte\ReachSweep` (`handle`, `verdict`), with the
 //! console's visibility rule they rest on (`Device::scopeVisibleTo`, `User::accessibleDeviceGroupIds`).
 //!
 //! The rule: administrators reach every approved device; anyone else reaches the approved devices they own plus
 //! those in a device group granted to them directly, to one of their user groups, or through a group-access entry
-//! (to them or to one of their user groups). Queries are PHP's, in PHP's order, so the same rows come back in the
+//! (to them or to one of their user groups). Queries are the previous console's, in the previous console's order, so the same rows come back in the
 //! same order.
 
 use crate::laravel;
@@ -115,7 +115,7 @@ fn sha256_hex(b: &[u8]) -> String {
     hex::encode(Sha256::digest(b))
 }
 
-/// A JSON object as PHP writes `(object) $array` (`{}` when empty, keys in order), values already encoded.
+/// A JSON object as the previous console writes `(object) $array` (`{}` when empty, keys in order), values already encoded.
 fn object(pairs: &[(String, String)]) -> Result<String, Fault> {
     let mut out = String::from("{");
     for (n, (k, v)) in pairs.iter().enumerate() {
@@ -134,8 +134,8 @@ fn enc(v: &Val) -> Result<String, Fault> {
     php::json_encode(v).ok_or_else(|| Fault::Other("json_encode of the policy failed".into()))
 }
 
-/// `ksort` of the hash map, then `(object)`. The keys are sha256 hex digests, compared as PHP 8 compares two
-/// non-numeric strings (a digest made only of digits would be an integer key in PHP: one in 10^13, ignored).
+/// `ksort` of the hash map, then `(object)`. The keys are sha256 hex digests, compared as the previous console's runtime (8) compares two
+/// non-numeric strings (a digest made only of digits would be an integer key in the previous console: one in 10^13, ignored).
 fn ksorted(mut v: Vec<(String, String)>) -> Result<String, Fault> {
     v.sort_by(|a, b| php::smart_strcmp(a.0.as_bytes(), b.0.as_bytes()));
     object(&v)
@@ -184,7 +184,7 @@ pub fn policy_block(c: &Connection, now: i64) -> Result<String, Fault> {
     Ok(format!(r#"{{"enforce":true,"users":{},"token_users":{}}}"#, object(&users)?, ksorted(token_users)?))
 }
 
-/// `ServerLink::policy()`, encoded as `response()->json()` writes it: what hbbs enforces, HTE's `scope` included.
+/// `ServerLink::policy()`, encoded as `response()->json()` writes it: what hbbs enforces, HTE Remote's `scope` included.
 pub fn server_policy(c: &Connection, now: i64) -> Result<String, Fault> {
     let mut allow = php::Arr::new();
     let mut incoming_only = php::Arr::new();
@@ -282,9 +282,9 @@ pub fn reach_ids(c: &Connection, device: &Row) -> Result<Vec<i64>, Fault> {
     Ok(seen)
 }
 
-/// One row's writes all or none (PHP's are separate statements; a failure half way, a busy database say, could leave
+/// One row's writes all or none (the previous console's are separate statements; a failure half way, a busy database say, could leave
 /// a disconnect without its alarm, or a lost person recorded without the new password: here the row is left as it
-/// was and the next run does it again). The end state of a run that succeeds is PHP's.
+/// was and the next run does it again). The end state of a run that succeeds is the previous console's.
 pub(crate) fn atomically<T>(c: &Connection, f: impl FnOnce() -> Result<T, Fault>) -> Result<T, Fault> {
     c.execute_batch("SAVEPOINT hte_row").map_err(db::fault)?;
     match f() {

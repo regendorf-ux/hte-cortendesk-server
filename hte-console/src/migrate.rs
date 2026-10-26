@@ -1,24 +1,24 @@
-//! Phase 9: who owns the database schema once PHP is gone.
+//! Phase 9: who owns the database schema once the previous console is gone.
 //!
-//! **Decision.** The PHP console created the schema (41 migrations, the last one HTE's `hte_device_passwords`), and
-//! hte-console never changed an existing table. From the PHP-free image on, hte-console owns the schema in the narrowest
-//! way that lets a later change happen without PHP:
-//! - it does NOT create the PHP tables. On start it checks that every one of the 41 PHP migrations is recorded in the
-//!   `migrations` table and refuses to run otherwise (an empty or older database must come from the PHP image once, or
-//!   from a restored backup: the PHP-free image is an upgrade path for a console that already has its data, not an installer);
+//! **Decision.** The previous console created the schema (41 migrations, the last one HTE Remote's `hte_device_passwords`), and
+//! hte-console never changed an existing table. From the all-in-one image on, hte-console owns the schema in the narrowest
+//! way that lets a later change happen without the previous console:
+//! - it does NOT create the previous console's tables. On start it checks that every one of the previous console's 41 migrations is recorded in the
+//!   `migrations` table and refuses to run otherwise (an empty or older database must come from the CortenDesk image once, or
+//!   from a restored backup: the all-in-one image is an upgrade path for a console that already has its data, not an installer);
 //! - it applies its own **additive** migrations (`OWN`: new tables or new columns only, written `create ... if not exists`,
-//!   never touching a PHP table), each recorded in the same `migrations` table under its own name with the next batch
-//!   number, as Laravel records one. The PHP image, should it ever come back, ignores names it has no file for;
-//! - a name recorded that is in neither list (a newer PHP release, a migration of a future HTE change) is reported, not
+//!   never touching a previous-console table), each recorded in the same `migrations` table under its own name with the next batch
+//!   number, as Laravel records one. The CortenDesk image, should it ever come back, ignores names it has no file for;
+//! - a name recorded that is in neither list (a newer the previous console release, a migration of a future HTE change) is reported, not
 //!   an error.
 //! A future schema change is therefore a new entry in `OWN`, in this file, with a test: nothing else.
 //!
-//! The list of the PHP migrations is the directory `database/migrations` of the PHP console fork (`hte` branch,
+//! The list of the previous console's migrations is the directory `database/migrations` of the previous console's fork (`hte` branch,
 //! 1.15.0-hte.1); `scripts/check-migrations.sh <fork>` compares the two.
 
 use rusqlite::{params, Connection};
 
-/// The PHP console's migrations (file names without `.php`), 1.15.0-hte.1.
+/// The previous console's migrations (file names without their extension), 1.15.0-hte.1.
 pub const PHP_MIGRATIONS: [&str; 41] = [
     "0001_01_01_000000_create_users_table",
     "0001_01_01_000001_create_cache_table",
@@ -75,7 +75,7 @@ pub const OWN: &[Own] = &[Own { name: "2026_10_25_900001_create_hte_console_sess
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct Report {
-    /// PHP migrations the database does not record (an error when not empty)
+    /// The previous console migrations the database does not record (an error when not empty)
     pub php_missing: Vec<String>,
     /// recorded names that are in neither list
     pub unknown: Vec<String>,
@@ -89,7 +89,7 @@ fn recorded(c: &Connection) -> Result<Vec<String>, String> {
         .query_row(r#"select count(*) from sqlite_master where type = 'table' and name = 'migrations'"#, [], |r| r.get(0))
         .map_err(|e| format!("database: {e}"))?;
     if has == 0 {
-        return Err("the database has no migrations table: it was never set up by the PHP console. This image does not create the PHP tables; start the PHP image once on this data, or restore a backup (docs: phase9/NOTES.md).".into());
+        return Err("the database has no migrations table: it was never set up by the previous console. This image does not create the previous console's tables; start the previous console's image once on this data, or restore a backup.".into());
     }
     let mut st = c.prepare(r#"select "migration" from "migrations""#).map_err(|e| format!("database: {e}"))?;
     let rows = st.query_map([], |r| r.get::<_, String>(0)).map_err(|e| format!("database: {e}"))?;
@@ -106,12 +106,12 @@ pub fn check(c: &Connection) -> Result<Report, String> {
 }
 
 /// Check, then apply our pending migrations, each in its own transaction (DDL is transactional in SQLite): the schema
-/// SQL and the `migrations` row commit together or not at all. Refuses when a PHP migration is missing.
+/// SQL and the `migrations` row commit together or not at all. Refuses when a previous-console migration is missing.
 pub fn run(c: &Connection) -> Result<Report, String> {
     let r = check(c)?;
     if !r.php_missing.is_empty() {
         return Err(format!(
-            "the database is older than the PHP console 1.15.0-hte.1 this version ports: {} migration(s) are not recorded (first: {}). Start the PHP image once on this data, or restore a backup. Nothing was changed.",
+            "the database is older than the previous console 1.15.0-hte.1 this version ports: {} migration(s) are not recorded (first: {}). Start the previous console's image once on this data, or restore a backup. Nothing was changed.",
             r.php_missing.len(),
             r.php_missing[0]
         ));
@@ -172,7 +172,7 @@ mod tests {
         let after = run(&c).unwrap();
         assert!(after.own_pending.is_empty() && after.php_missing.is_empty() && after.unknown.is_empty());
         let batch: i64 = c.query_row(r#"select "batch" from "migrations" where "migration" = ?"#, params![OWN[0].name], |r| r.get(0)).unwrap();
-        assert_eq!(batch, 6, "PHP's last batch is 5 in this fixture (41 rows, 10 per batch), ours is the next");
+        assert_eq!(batch, 6, "the previous console's last batch is 5 in this fixture (41 rows, 10 per batch), ours is the next");
         let t: i64 = c.query_row(r#"select count(*) from sqlite_master where name = 'hte_console_sessions'"#, [], |r| r.get(0)).unwrap();
         assert_eq!(t, 1);
         // again: nothing to do, no second row

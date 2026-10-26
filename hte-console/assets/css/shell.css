@@ -836,7 +836,7 @@ textarea.form-control {
 
 /* =========================================================================
    4. SHELL
-   Markup (layouts/app.blade.php and its partials):
+   Markup (the previous console's view and its partials):
 
      .rd-app
        .rd-topbar > .rd-topbar-inner      sticky bar right of the sidebar
@@ -1386,7 +1386,7 @@ html[data-rd-sidebar="offcanvas"].rd-sidebar-open .rd-sidebar {
 
 /* =========================================================================
    5. AUTH
-   Signed-out pages (layouts/guest.blade.php): one centred column over the
+   Signed-out pages (the previous console's view): one centred column over the
    background image from hte-remote.css.
    ========================================================================= */
 

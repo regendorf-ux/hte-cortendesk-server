@@ -1,4 +1,4 @@
-//! Areas HTE does not use (client downloads, the setup wizard): HTE Remote has no port of them, and the page says so. Their data is untouched.
+//! Areas of the previous console HTE Remote does not carry (client downloads, the setup wizard): HTE Remote has no port of them, and the page says so. Their data is untouched.
 
 use super::{Ctx, Reply, Req};
 use crate::php::Fault;

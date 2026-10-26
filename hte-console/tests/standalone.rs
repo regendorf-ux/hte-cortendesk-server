@@ -1,7 +1,7 @@
-//! Phase 9 end to end: the console as the PHP-free image runs it. No upstream (nothing to forward to), PHP's session
-//! bridge and PHP session reading off, the schema checked by `migrate::run`, and everything the PHP container used to
+//! Phase 9 end to end: the console as the all-in-one image runs it. No upstream (nothing to forward to), the previous console's session
+//! bridge and the previous console session reading off, the schema checked by `migrate::run`, and everything the CortenDesk container used to
 //! answer by itself (static files, health, the web client's bundle) answered here. On a real socket, against a temporary
-//! database made from tests/schema_live.sql with the 41 PHP migrations recorded.
+//! database made from tests/schema_live.sql with the previous console's 41 migrations recorded.
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -22,7 +22,7 @@ struct H {
 fn live_db(path: &std::path::Path) {
     let c = Connection::open(path).unwrap();
     c.execute_batch(include_str!("schema_live.sql")).unwrap();
-    // the live file records the 41 migrations PHP ran; the fixture schema does not carry the rows
+    // the live file records the 41 migrations the previous console ran; the fixture schema does not carry the rows
     for m in hte_console::migrate::PHP_MIGRATIONS {
         c.execute(r#"insert into "migrations" ("migration", "batch") values (?, 1)"#, params![m]).unwrap();
     }
@@ -48,7 +48,7 @@ async fn harness() -> H {
         signin: hte_console::signin::State::new(Oidc::new(true, false), None, "HTE Remote".into()),
         clock: Box::new(|| 1_800_000_000),
     });
-    // as the PHP-free service: no upstream, the sign-in on, PHP's sessions neither read nor minted
+    // as the previous-console-free service: no upstream, the sign-in on, the previous console's sessions neither read nor minted
     let own = OwnConfig { signin: true, idle_s: 3600, absolute_s: 12 * 3600, bridge: false, laravel_read: false };
     let app = pages::routes_with(native.clone(), None, own).unwrap().merge(hte_console::api::router(native, None)).into_make_service_with_connect_info::<std::net::SocketAddr>();
     let l = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -67,7 +67,7 @@ impl H {
 }
 
 #[tokio::test]
-async fn the_files_nginx_served_are_served_here() {
+async fn the_static_files_are_served_here() {
     let h = harness().await;
     for (path, ctype) in [
         ("/assets/css/hte-remote.css", "text/css"),
@@ -84,7 +84,7 @@ async fn the_files_nginx_served_are_served_here() {
         let (s, hd, body) = h.req("GET", path).await;
         assert_eq!(s, 200, "{path}");
         assert!(hd["content-type"].to_str().unwrap().starts_with(ctype), "{path}: {:?}", hd["content-type"]);
-        assert_eq!(path == "/favicon.ico", body.is_empty(), "{path}: PHP's favicon.ico is empty, nothing else is");
+        assert_eq!(path == "/favicon.ico", body.is_empty(), "{path}: the previous console's favicon.ico is empty, nothing else is");
     }
     let (_, _, robots) = h.req("GET", "/robots.txt").await;
     assert_eq!(robots, b"User-agent: *\nDisallow:\n");
@@ -110,9 +110,9 @@ async fn health_and_the_sign_in_work_with_nothing_behind_them() {
     assert_eq!(s, 200, "{hd:?}");
     let (s, hd, _) = h.req("GET", "/login").await;
     assert_eq!(s, 200);
-    assert!(hd.get_all("set-cookie").iter().any(|c| c.to_str().unwrap().starts_with("hte-remote-console=")), "our cookie, none of PHP's");
+    assert!(hd.get_all("set-cookie").iter().any(|c| c.to_str().unwrap().starts_with("hte-remote-console=")), "our cookie, none of the previous console's");
     assert!(!hd.get_all("set-cookie").iter().any(|c| c.to_str().unwrap().contains("hte-remote-session") || c.to_str().unwrap().contains("XSRF")));
-    // a page without a session goes to the sign-in, not to a PHP that is not there
+    // a page without a session goes to the sign-in, not to a previous-console that is not there
     for path in ["/", "/devices", "/diagnostics", "/roles", "/settings", "/logs/alarms", "/webclient"] {
         let (s, hd, _) = h.req("GET", path).await;
         assert_eq!(s, 302, "{path}");
@@ -121,9 +121,9 @@ async fn health_and_the_sign_in_work_with_nothing_behind_them() {
 }
 
 #[tokio::test]
-async fn what_only_php_served_answers_404_and_never_hangs() {
+async fn what_the_previous_console_served_answers_404_and_never_hangs() {
     let h = harness().await;
-    // Livewire's endpoints, the downloads, PHP's storage: gone with PHP; /ws/* is Caddy's (to hbbs/hbbr), never this port
+    // The previous console's endpoints, the downloads, the previous console's storage: gone with the previous console; /ws/* is Caddy's (to hbbs/hbbr), never this port
     for path in ["/livewire-abc123/update", "/livewire/livewire.js", "/downloads", "/downloads/x.exe", "/storage/x", "/ws/id", "/ws/relay"] {
         let (s, _, _) = h.req("GET", path).await;
         assert_eq!(s, 404, "{path}");
@@ -144,11 +144,11 @@ async fn the_schema_check_is_what_start_up_runs() {
     let h = harness().await;
     let c = Connection::open(&h.db_path).unwrap();
     let n: i64 = c.query_row(r#"select count(*) from "migrations""#, [], |r| r.get(0)).unwrap();
-    assert_eq!(n, 42, "41 PHP rows and ours");
+    assert_eq!(n, 42, "the previous console's 41 rows and ours");
     let out = hte_console::maintenance::status(&c, "hte-remote-cache-", 1_800_000_000).unwrap();
     assert!(out.contains("migrations_php=41/41") && out.contains("migrations_own_pending=0") && out.contains("migrations_unknown=0"), "{out}");
     assert!(out.contains("devices=0") && out.contains("scheduler_heartbeat_age_s=?"), "{out}");
-    // the file is in WAL mode, as PHP and every earlier phase need it
+    // the file is in WAL mode, as the previous console and every earlier phase need it
     let mode: String = c.query_row("pragma journal_mode", [], |r| r.get(0)).unwrap();
     assert_eq!(mode, "wal");
 }

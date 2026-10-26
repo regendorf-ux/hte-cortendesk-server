@@ -1,6 +1,6 @@
-# HTE (2026-10-16): build the HTE image of CortenDesk Server for the server.
+# (2026-10-16) Build the plain hbbs/hbbr image of this fork (before HTE Remote's all-in-one image; kept for older deployments).
 # Upstream's release.yml stays as it is (it only runs on a GitHub release,
-# which this fork never publishes). amd64 only: the server is amd64.
+# which this fork never publishes). amd64 only.
 name: hte-image
 
 permissions:
@@ -84,6 +84,6 @@ jobs:
           tags: ${{ steps.tag.outputs.tags }}
           labels: |
             org.opencontainers.image.title=HTE CortenDesk Server
-            org.opencontainers.image.description=CortenDesk Server with HTE's per-person reach enforcement. AGPL-3.0.
+            org.opencontainers.image.description=CortenDesk Server with per-person reach enforcement (HTE Remote). AGPL-3.0.
             org.opencontainers.image.licenses=AGPL-3.0-only
-            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-cortendesk-server
+            org.opencontainers.image.source=https://github.com/regendorf-ux/hte-rd-server

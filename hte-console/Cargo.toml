@@ -1,9 +1,9 @@
 [package]
 name = "hte-console"
-version = "2.0.0"
+version = "2.0.1"
 edition = "2021"
 license = "AGPL-3.0-only"
-description = "HTE Remote console, step by step in Rust. Phase 0: a shadow proxy that records sanitised fixtures. Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively on the PHP console's database. Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC). Phase 3: the server link (the policy hbbs enforces, with HTE's per-person scope; local addresses; refusals) and the scheduled sweeps (reach, computer passwords, stale sessions, diagnostics heartbeat). Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config). Phase 6: local backups in the PHP archive format, restore, log pruning and the daily scheduler entries. Phase 7: the console pages, one group at a time, behind the Laravel session (minijinja templates, htmx). Phase 8: the console's own sign-in (Microsoft OIDC and the break-glass password) and session cookie. Phase 9: the PHP-free image (schema ownership, static files, the remaining scheduler entry); from 2.0.0 HTE Remote's own console, its version the version of the image hte-rd-server."
+description = "HTE Remote's console in Rust: web pages, the RustDesk client and admin APIs, the ID server link (device policy and per-person reach) and scheduled jobs, on the database of CortenDesk 1.15."
 publish = false
 
 [dependencies]
@@ -25,7 +25,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 rand = "0.8"
 # Phase 1 (device endpoints). Versions chosen to reuse what the workspace lockfile already holds:
 # rusqlite 0.27 links the same libsqlite3-sys 0.24 as hbbs's sqlx (two copies of `links = "sqlite3"` cannot coexist);
-# sodiumoxide is hbbs's libsodium binding (crypto_box_seal and ed25519 -> curve25519 exactly as PHP's sodium_*).
+# sodiumoxide is hbbs's libsodium binding (crypto_box_seal and ed25519 -> curve25519 exactly as the previous console's sodium_*).
 rusqlite = { version = "0.27", features = ["bundled"] }
 sodiumoxide = "0.2.7"
 aes = "0.8"
@@ -41,16 +41,16 @@ sha1 = "0.10"
 url = "2"
 # Phase 6 (backups): the .ndjson.gz members of the archive; flate2 and its pure-Rust miniz_oxide are already in the lockfile.
 flate2 = "1"
-# Phase 7b: the off-site copy. FTPS (explicit TLS, certificate not verified, as PHP) uses rustls 0.23 directly, the version reqwest already holds.
+# Phase 7b: the off-site copy. FTPS (explicit TLS, certificate not verified, as the previous console) uses rustls 0.23 directly, the version reqwest already holds.
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 # Phase 8 (two-factor, invitations, password reset, e-mailed codes): the public CA roots for the SMTP client's certificate
 # check (webpki-roots 0.26, already in the lockfile through reqwest) and the enrolment QR code (qrcodegen, pure Rust, no deps).
 webpki-roots = "0.26"
 qrcodegen = "1.8"
 
-# Phase 7 (console pages): runtime templates (minijinja; the Blade markup converts nearly one to one and a template edit
+# Phase 7 (console pages): runtime templates (minijinja; the previous console's markup converts nearly one to one and a template edit
 # needs no compile), the templates and assets embedded in the binary (include_dir), and tower's oneshot to hand a request
-# this crate does not serve to the PHP console unchanged.
+# this crate does not serve to CortenDesk's console unchanged.
 minijinja = { version = "2", default-features = false, features = ["builtins", "multi_template", "std_collections", "serde", "json"] }
 include_dir = "0.7"
 tower = { version = "0.5", default-features = false, features = ["util"] }

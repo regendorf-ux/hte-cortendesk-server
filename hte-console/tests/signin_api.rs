@@ -1,7 +1,7 @@
 //! Phase 2 end to end: the client sign-in routes on a real socket, against a temporary database made from
 //! tests/schema.sql and the replay's own seed (fixtures/signin/*.sql), with the fake identity provider of
-//! src/fake_idp.rs on another socket. Expectations come from the PHP source (v1.15.0-hte.1); each test names the
-//! PHP behaviour it pins, or the hardening rule it proves (crate README, "Phase 2: deliberate differences").
+//! src/fake_idp.rs on another socket. Expectations come from the previous console's source (v1.15.0-hte.1); each test names the
+//! The previous console behaviour it pins, or the hardening rule it proves (crate README, "Phase 2: deliberate differences").
 
 use hte_console::api::{router, Limiter, Native, Nonces};
 use hte_console::fake_idp::{Config as IdpConfig, FakeIdp};
@@ -218,7 +218,7 @@ async fn synthetic_signin_fixtures_replay_with_no_differences() {
     let r = hte_console::replay::run(&dir, &h.url, &s).await.unwrap();
     assert!(r.total > 140, "{} fixtures", r.total);
     assert!(r.differences.is_empty(), "{} differences:\n{}", r.differences.len(), r.differences.join("\n"));
-    // and what PHP would have written
+    // and what the previous console would have written
     assert_eq!(h.one::<String>("select status from devices where rustdesk_id = '990000201'"), "active");
     assert_eq!(h.one::<i64>("select user_id from devices where rustdesk_id = '990000201'"), 910002);
     let anna: i64 = h.one("select id from users where username = '990005001'");
@@ -246,7 +246,7 @@ async fn synthetic_signin_fixtures_replay_with_no_differences() {
 
 #[test]
 fn laravel_password_and_token_formats() {
-    // php.net's own password_verify example (a hash PHP made)
+    // the password_verify documentation's example (a hash the previous console made)
     assert!(laravel::hash_check(b"rasmuslerdorf", &Val::str("$2y$07$BCryptRequires22Chrcte/VlQH0piJtjXl.0t1XkA8pw9dMXTpOq")).unwrap());
     assert!(!laravel::hash_check(b"rasmuslerdorF", &Val::str("$2y$07$BCryptRequires22Chrcte/VlQH0piJtjXl.0t1XkA8pw9dMXTpOq")).unwrap());
     // Apache's htpasswd -B (also $2y$) for the seeded password
@@ -255,7 +255,7 @@ fn laravel_password_and_token_formats() {
     assert!(laravel::hash_check(PW.as_bytes(), &Val::str("$2b$12$3wIwkZeCjcZyF8sX1rS5feMamonmbx8BhEuI6ocFNk.2/XQn8QAe2")).is_err());
     assert!(laravel::hash_check(PW.as_bytes(), &Val::str("plain")).is_err());
     assert!(!laravel::hash_check(PW.as_bytes(), &Val::str("")).unwrap());
-    // PHP's crypt reads a C string: a NUL ends the password; 72 bytes are used
+    // The previous console's crypt reads a C string: a NUL ends the password; 72 bytes are used
     let h = laravel::hash_make(b"abc").unwrap();
     assert!(h.starts_with("$2y$12$") && h.len() == 60);
     assert!(laravel::hash_check(b"abc\0whatever", &Val::str(&h)).unwrap());
@@ -283,7 +283,7 @@ async fn token_issue_expiry_and_last_used() {
     let token = v["access_token"].as_str().unwrap().to_string();
     assert_eq!(token.len(), 48);
     assert_eq!(v["user"], json!({"name": "user-5eed0002", "display_name": "text-5eed0002", "email": "user-5eed000002@example.invalid", "note": "", "status": 1, "is_admin": true, "info": {}}));
-    // the body itself: slashes escaped and `info` an object, as PHP's json_encode writes it
+    // the body itself: slashes escaped and `info` an object, as the previous console's json_encode writes it
     assert!(r.body.contains(r#""info":{}"#), "{}", r.body);
     assert_eq!(h.one::<String>("select expires_at from client_tokens"), laravel::ts(T0 + 30 * 86_400));
     assert_eq!(h.one::<String>("select device_id from client_tokens"), "990000201");
@@ -326,7 +326,7 @@ async fn unknown_users_take_as_long_as_wrong_passwords() {
     let unknown = time("user-5eed00ff", PW).await;
     let inactive = time("user-5eed0003", PW).await;
     let empty = time("user-5eed0002", "").await;
-    // one bcrypt check each (PHP answers an unknown name without one); generous bounds for a debug build
+    // one bcrypt check each (the previous console answers an unknown name without one); generous bounds for a debug build
     for (what, d) in [("unknown", unknown), ("inactive", inactive), ("empty", empty)] {
         assert!(d * 3 > wrong, "{what} took {d:?}, a wrong password {wrong:?}");
     }
@@ -351,7 +351,7 @@ async fn login_rules_from_settings() {
     );
     h.sql("delete from settings where key = 'two_factor_required_admins'; insert into roles (id, name, permissions, require_two_factor) values (1, 'r', '{}', 1); update users set role_id = 1 where id = 910008");
     assert_eq!(h.login("user-5eed0008", PW, "990000201").await.json()["error"], "Two-factor authentication is required. Set it up in the web console, then sign in again.");
-    // emailed codes on: hte-console sends no mail, so it answers as PHP does when the mail cannot go
+    // emailed codes on: hte-console sends no mail, so it answers as the previous console does when the mail cannot go
     h.sql("insert into settings (key, value) values ('email_login_verification', '1'), ('smtp_enabled', '1'), ('smtp_host', 'host-5eed0001'), ('smtp_from_address', 'user-5eed00f001@example.invalid')");
     assert_eq!(
         h.login("user-5eed0002", PW, "990000201").await.json()["error"],
@@ -438,7 +438,7 @@ async fn sso_sign_in_approves_and_owns_the_pending_device() {
 #[tokio::test(flavor = "multi_thread")]
 async fn state_is_single_use_and_requests_expire() {
     let h = harness().await;
-    // HARDENED: a second use of a completed state is refused (PHP exchanged again and overwrote the result)
+    // HARDENED: a second use of a completed state is refused (the previous console exchanged again and overwrote the result)
     let (code, url) = h.oidc_start("990000220").await;
     let cb = h.authorize(&url, "ok", "anna").await;
     assert_eq!(h.callback(&cb).await.status, 200);
@@ -474,13 +474,13 @@ async fn id_token_rules_php_and_hardened() {
         assert_eq!(p.0.status, 403, "{}", p.0.body);
         p.1.json()["error"].as_str().unwrap().to_string()
     };
-    // as PHP
+    // as the previous console
     assert_eq!(error(h.sso("990000230", "alg-none", "anna").await), "The ID token was signed with an algorithm this provider does not advertise (none).");
     assert_eq!(error(h.sso("990000231", "expired", "anna").await), "The ID token failed verification: Expired token");
     assert!(error(h.sso("990000232", "nbf-future", "anna").await).starts_with("The ID token failed verification: Cannot handle token with nbf prior to 2027-01-15T08:10:00+00:00"));
-    // HARDENED: no exp at all is refused (php-jwt lets such a token through)
+    // HARDENED: no exp at all is refused (the previous console's JWT library lets such a token through)
     assert_eq!(error(h.sso("990000233", "no-exp", "anna").await), "The ID token failed verification: Expired token");
-    // HARDENED: several audiences need azp = this client (PHP accepted any list holding the client id)
+    // HARDENED: several audiences need azp = this client (the previous console accepted any list holding the client id)
     assert_eq!(error(h.sso("990000234", "multi-aud", "anna").await), "The ID token was not issued for this client.");
     let (page, poll) = h.sso("990000235", "multi-aud-azp", "anna").await;
     assert_eq!(page.status, 200);
@@ -499,7 +499,7 @@ async fn tokens_checked_directly() {
         async move { oidc.verify_id_token(s, d, &fake.id_token(mode, "anna", "n-1"), "n-1", now).await }
     };
     assert!(check("ok").await.is_ok());
-    // HARDENED: HS256 refused even when the provider advertises it (PHP would verify it with the client secret)
+    // HARDENED: HS256 refused even when the provider advertises it (the previous console would verify it with the client secret)
     let mut d_hs = d.clone();
     if let Val::Arr(a) = &mut d_hs {
         let mut l = php::Arr::new();

@@ -1,4 +1,4 @@
-//! HTE's per-computer passwords, the heartbeat half: a port of `App\Hte\Passwords::heartbeat`, `issue`,
+//! HTE Remote's per-computer passwords, the heartbeat half: a port of `App\Hte\Passwords::heartbeat`, `issue`,
 //! `sealFor`, `devicePublicKey` and `updateBookEntries` (v1.15.0-hte.1). The minute sweep and the books are phase 3's
 //! `passwords_sweep.rs`.
 //!
@@ -52,7 +52,7 @@ pub fn device_public_key(hbbs_db: &Path, rustdesk_id: &[u8]) -> Option<Vec<u8>> 
 }
 
 /// `Passwords::sealFor($device, $row)`: base64 of `{"v":..,"pw":..}` sealed to the computer's key.
-/// A key libsodium cannot convert is a Fault, as PHP's SodiumException is.
+/// A key libsodium cannot convert is a Fault, as the previous console's SodiumException is.
 pub fn seal_for(hbbs_db: &Path, crypt: &Encrypter, rustdesk_id: &[u8], row: &Row) -> Result<Option<String>, Fault> {
     let Some(pk) = device_public_key(hbbs_db, rustdesk_id) else { return Ok(None) };
     let enc = match row.val("current_enc") {
@@ -61,7 +61,7 @@ pub fn seal_for(hbbs_db: &Path, crypt: &Encrypter, rustdesk_id: &[u8], row: &Row
     };
     let pw = crypt.decrypt_string(&enc)?;
     let payload = php::json_encode(&php::assoc(vec![("v".to_string(), Val::Int(row.val("current_version").to_int())), ("pw".to_string(), Val::Str(pw))]))
-        .unwrap_or_default(); // json_encode false -> "" (PHP passes false on as an empty string)
+        .unwrap_or_default(); // json_encode false -> "" (the previous console passes false on as an empty string)
     let ed = sign::PublicKey::from_slice(&pk).ok_or_else(|| Fault::Other("public key size".into()))?;
     let curve = sign::to_curve25519_pk(&ed).map_err(|_| Fault::Other("sodium: ed25519 key conversion failed".into()))?;
     let sealed = sealedbox::seal(payload.as_bytes(), &curve);

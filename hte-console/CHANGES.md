@@ -2,6 +2,18 @@
 
 New HTE code (AGPL-3.0), not a change to upstream. The fork-level statement is `../HTE.md`.
 
+## 2.0.1 (2026-10-26): the repository's new name, public docs, nothing of the previous console's runtime
+- The repository is `regendorf-ux/hte-rd-server`: the release check, the About link and the image labels use it (GitHub redirects the old name,
+  so 2.0.0's check keeps working).
+- Screens and messages: the sign-in card and footer name the product only; the "not offered" page, a strategy hint, log and error texts say
+  "the previous console" where they explained behaviour by the PHP console.
+- Removed: the replay scripts that started the previous console's image, the fixture generators, the asset and migration sync scripts,
+  the separate hte-console image (`Dockerfile`, `.github/workflows/hte-console.yml`). The golden fixtures and every test stay.
+- Comments, templates, CSS/JS and SQL headers describe formats inherited from the previous console instead of PHP; the compatibility
+  modules (`php.rs`, `laravel.rs`) and the scheduler's lock-name format are unchanged.
+- `tests/naming.rs`: no company, person, private host, e-mail address or tenant id in the repository (private names checked by digest),
+  and no mention of the previous console's runtime outside the compatibility code. `tests/phpfree.rs` is `tests/standalone.rs`.
+
 ## 2.0.0 (2026-10-25): phase 9, HTE Remote's own console in the PHP-free image
 Version 2.0.0 is HTE Remote's version from now on: the version of the image `ghcr.io/regendorf-ux/hte-rd-server` (git tag `hte-rd-server-v2.0.0`).
 (0.9.0 was this release before the rename and was never tagged.) Includes 0.8.2/0.8.3 (two-factor, e-mailed codes, mail, invitations, password
@@ -18,7 +30,7 @@ reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing cod
   Settings' link and Apprise notes); Settings > About shows HTE Remote's version, the client API level and the "Based on CortenDesk and RustDesk
   Server" credit. `assets/css/hte-remote.css` and `assets/js/hte-remote.js` (were `cortendesk.*`), the web client window `hte-remote-webclient`,
   the diagnostics download `hte-remote-diagnostics.json`. New `NOTICE`.
-- `update_check.rs`: once a day, the newest `hte-rd-server-v<x.y.z>` tag of `regendorf-ux/hte-cortendesk-server` (public GitHub API, no token),
+- `update_check.rs`: once a day, the newest `hte-rd-server-v<x.y.z>` tag of `regendorf-ux/hte-rd-server` (public GitHub API, no token),
   cached as `hte_remote.latest_version`; the sidebar line is "HTE Remote console", plus "update available: x.y.z" when newer. PHP's
   `cortendesk.latest_version` is no longer read. `HTE_REMOTE_UPDATE_CHECK` (old: `CORTENDESK_UPDATE_CHECK`), `HTE_REMOTE_UPDATE_REPO`.
 - `envvar.rs`: every `CORTENDESK_<X>` setting is read as `HTE_REMOTE_<X>`, falling back to the old name (unset or empty new name) with one
@@ -52,7 +64,7 @@ reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing cod
 - The gate answers `RequireTwoFactor` / `RequireEmailAddress` / `RequireMailHealthy` itself (no forwarding to PHP).
 - hte-console's own `hte-*` CSS/JS are revalidated on every load (a cached older copy hid the row-action button styles).
 - Sign-in replay: the two-factor challenge (password step, page, wrong code, right code) is compared with PHP too.
-- Independent Fable review (medium): one high, fixed: the unauthenticated "Forgot password?" post sent its mail while holding the
+- Independent review: one high, fixed: the unauthenticated "Forgot password?" post sent its mail while holding the
   database lock (a dead relay could stall the device API); the reset mail now goes after the answer, outside the lock (which also
   hides whether the account exists by timing). Medium, fixed (hardened beyond PHP): "starttls" now requires TLS; a relay that does not
   offer it gets nothing ("none" stays opportunistic). Lows fixed: no username in the stored SMTP error, a 4 KiB bound on a relay reply
@@ -82,10 +94,10 @@ reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing cod
 - `hte_console_sessions` is skipped by backups and restores like `sessions`.
 - Replay: `replay/replay-signin-web.sh` and `hte-console web-signin-replay` / `web-signin-seed` (the scenario against PHP, rows
   compared, mutation check). Never run against PHP yet.
-- Independent Fable review (medium effort): no critical or high finding. Fixed: with `SESSION_SECURE_COOKIE=true` no sign-in completes
+- Independent review: no critical or high finding. Fixed: with `SESSION_SECURE_COOKIE=true` no sign-in completes
   over plain http (medium); guest rows only for GET, 600 a minute per address (was 60, a NAT could lock itself out); `?code[]=` is a
   refusal, not a 500; a first remember token no longer ends the account's other sessions. Left: unthrottled failed-callback log rows
-  (as PHP), `X-Forwarded-Proto: https` trusted from any peer (phase 2's `request_root`; HTE sets `HTE_CONSOLE_PUBLIC_URL`, which overrides it).
+  (as PHP), `X-Forwarded-Proto: https` trusted from any peer (phase 2's `request_root`; setting `HTE_CONSOLE_PUBLIC_URL` overrides it).
 - Tests: `tests/console_signin.rs` (20), `websession` unit tests (5).
 - The fake identity provider advertises an `end_session_endpoint` (logout through the provider).
 - CI: docker/setup-buildx-action v4, docker/login-action v4, docker/build-push-action v7 (Node 24; checked by the next tag's run only).
@@ -102,7 +114,7 @@ reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing cod
   same column the same way (`Ctx::allows`). The dialog's desktop radios and phone selects send only the set on screen.
 - **Health**: `/health/live`, `/health/ready` (database, ID server, every relay; 503 when not ready), `/up` (Laravel's page
   without its external font and script).
-- Not used at HTE and not ported: `/downloads`, `/downloads/{id}`, `/storage/*` answer 404; `/client-downloads` and `/setup`
+- Not ported: `/downloads`, `/downloads/{id}`, `/storage/*` answer 404; `/client-downloads` and `/setup`
   keep the "not available yet" page. PHP's own backup link `/settings/backups/{name}` leads to `/settings/backups/download?name=`.
 - Replay: Diagnostics, its JSON (clock and probe latency masked), Roles and the health JSON for every person; the New/Edit
   Role dialogs; writes: create a role, a taken name, edit, delete a role someone holds. The seed adds an ID and a relay
@@ -119,7 +131,7 @@ reset), with the authenticator issuer "HTE Remote" (was CortenDesk; existing cod
   pages and dialogs exactly as run A compares them (same code: `page-replay` with `HTE_PAGEREPLAY_PHP_FROM`). The local
   console runs on the captured clock (`HTE_CONSOLE_CLOCK_START`, and each page at the second PHP answered it, via a header
   honoured only while that clock is set), so "N minutes ago" and dates read alike. CSV exports, writes and databases still
-  need the server run.
+  need a live run.
 Three differences, two causes: "Stored in <directory>." was empty on the Settings tabs that are not Backups (PHP prints it always); and PHP's "Uploading…" line under the file field (a Livewire loading `<div>`) was compared (the replay now ignores loading `<div>`s as it ignores loading `<span>`s).
 
 ## 0.7.17 (2026-10-25): the rest of the 0.7.15 dialog list, and the Backups tab
@@ -156,17 +168,17 @@ From the first run that opened the dialogs (0.7.14): its report was dominated by
   hte-console lacks, what hte-console has extra, with context; 25 places per page and kind at most), so one run shows everything left on a page.
   No change to the console itself.
 
-## 0.7.12 (2026-10-25): the last two differences of the server replay of 0.7.11 (both on Settings -> Maintenance / Notifications)
+## 0.7.12 (2026-10-25): the last two differences of the live replay of 0.7.11 (both on Settings -> Maintenance / Notifications)
 - The option-group wrappers (Apprise scope pickers, snooze target) carry a `class` only when hidden, so the one in force has no empty `class=""`.
 - Removed the extra "Pruning also runs nightly..." note under Prune now (the confirm dialog already says it saves the retention first).
 - The replay leaves the About card out (PHP lists Laravel and PHP versions, hte-console its own) and lists it with the other by-design Settings item.
 
-## 0.7.11 (2026-10-25): the last two differences of the server replay of 0.7.10 (131 requests, 2 differences, B equal, C caught)
+## 0.7.11 (2026-10-25): the last two differences of the live replay of 0.7.10 (131 requests, 2 differences, B equal, C caught)
 - Both were Settings -> Notifications: hte-console ships both Apprise delivery-mode groups (the other one hidden with `d-none`, switched by a click handler,
   no server round trip) while PHP renders only the one in force. Kept as an improvement; the replay now leaves hidden `data-rd-group` blocks out of both sides
   and lists that as "by design". Strategy history: PHP's empty text and restore button.
 
-## 0.7.10 (2026-10-25): the ten differences left in the server replay of 0.7.9
+## 0.7.10 (2026-10-25): the ten differences left in the live replay of 0.7.9
 The 0.7.9 run (131 requests) went from 36 to 10 differences, section B was equal (214 lines: the API token step now matches), C caught the mutation. Fixed:
 - Every POST control that stands where PHP has a link (Disconnect on the Dashboard, tag remove on the device page and in address books, Approve/Reject/Restore/Destroy,
   address-book Remove, phone-list icon buttons) is a class-free inline form around a button with PHP's exact classes; no `d-inline`, `d-contents` or `btn btn-link`.
@@ -174,7 +186,7 @@ The 0.7.9 run (131 requests) went from 36 to 10 differences, section B was equal
 - User detail: the device platform icon carries `fs-18 align-middle` like PHP's component.
 - Settings: "Test Connection" and "Send test email" (not ported, disabled) now have PHP's markup and text; "not available" moved to the button's tooltip.
 
-## 0.7.9 (2026-10-25): the markup differences the server replay of 0.7.8 found (36), and the replay itself
+## 0.7.9 (2026-10-25): the markup differences the live replay of 0.7.8 found (36), and the replay itself
 Fixes (the replay compares what a person reads and the CSS class sequence of every page with PHP's):
 - Dashboard (`/`): no extra "Dashboard" breadcrumb item (PHP shows none on this page).
 - `/dashboard/stats` and `/dashboard/sessions` stay: they are the htmx refresh URLs of the two cards (PHP polls through Livewire, which has no URL); they
@@ -212,7 +224,7 @@ Replay:
   (0.7.8 adds Prune now, the Backups tab and the API tokens page.)
 - `page-seed` and `page-replay` cover the new pages' reads; the writes are covered by the integration tests (`tests/pages7b.rs`) only.
 - CI: actions/checkout v7, upload-artifact v7, download-artifact v8 (Node 24 majors; were v4). Verified only by the next tag's CI run.
-- Caddy: `phase7/caddy-pages-7b.sh` moves one page at a time.
+- The reverse proxy moved the pages one at a time.
 
 ## 0.7.6 (2026-10-25): the sidebar and top bar follow the theme (they were dark in both; PHP has the same fault), and the sidebar's HTE mark is no longer squashed (new css/hte-pages.css, which scripts/sync-assets.sh leaves alone)
 
@@ -228,7 +240,7 @@ Replay:
 
 ## 0.7.0 (2026-10-25): phase 7a, the page layer (sessions, CSRF, templates, htmx) and the first pages
 - Reads PHP's session: the `hte-remote-session` cookie decrypted with `/data/.app_key`, the `sessions` table (PHP must run
-  `SESSION_DRIVER=database`; `phase7/deploy.sh` flips it). A request without a valid session is forwarded to PHP, never served.
+  `SESSION_DRIVER=database`). A request without a valid session is forwarded to PHP, never served.
 - CSRF compatible with Livewire and plain forms (`_token`, `X-CSRF-TOKEN`, `X-XSRF-TOKEN`, `Sec-Fetch-Site`); flashes with
   Laravel's one-request lifetime; `console-can` redirect.
 - minijinja templates and the CSS/JS/images (HTE brand included) embedded in the binary; htmx 2.0.4 vendored, no CDN.
@@ -236,10 +248,10 @@ Replay:
   Alarms, Logins, Console (filters, paging, CSV). Dashboard NOT ported.
 - `page-seed` / `page-replay` (reads and writes against real PHP, databases compared), `replay/replay-pages.sh`,
   `examples/pages_demo.rs` (screenshots on synthetic data). `HTE_CONSOLE_PAGES=0` turns the pages off.
-- Not routed by default: Caddy lines are in `phase7/NOTES.md`.
+- Not routed by default: the reverse proxy sends a page here when it is switched over.
 
 ## 0.6.0 (2026-10-25): phase 6, local backups, restore, pruning and the daily scheduler entries
-  Review (Opus 5.5, read-only) fixes: the archive is created 0600 from the start; the schema version is read before the
+  Review (read-only) fixes: the archive is created 0600 from the start; the schema version is read before the
   restore's copy; staged server files are copied aside first and old `*.restore` files dropped, and a failure after the
   database commit says so ("The database WAS restored..."); a tar entry larger than the file is refused.
   Known, left on purpose: a stop during a running backup leaves the `cortendesk:backup` cache lock until its 3600 s expiry
@@ -262,7 +274,7 @@ Built on top of 0.4.1 (phase 5, the admin API, is built in parallel and is not i
 - Safer than PHP, invisible to its reader: the dump is one `VACUUM INTO` snapshot; a restore is built and checked
   (integrity, foreign keys, row counts against the manifest) in a temporary database and applied to the live one in a
   single transaction; a cut or incomplete archive is refused; `hte_device_passwords` is re-keyed with the others.
-- Not ported (HTE has them off): off-site copies (FTP, S3), Apprise notifications, the upload/download routes of
+- Not ported (yet): off-site copies (FTP, S3), Apprise notifications, the upload/download routes of
   Settings -> Backups (UI), `cortendesk:check-device-notifications`. A configured off-site target is reported as a
   failed copy where Settings shows it; the deploy stops if one is set.
 - New env: `HTE_CONSOLE_JOBS`, `HTE_CONSOLE_BACKUPS_DIR` (else `CORTENDESK_BACKUPS_PATH`, else `/data/backups`),
@@ -312,7 +324,7 @@ Built on top of 0.4.1 (phase 5, the admin API, is built in parallel and is not i
 
 ## 0.3.0 (2026-10-24): phase 3, the server link and the sweeps
 
-- Native: `GET /api/server/policy` (ServerLink::policy with HTE's `scope` block, ETag/304, the pull recorded in
+- Native: `GET /api/server/policy` (ServerLink::policy with HTE Remote's `scope` block, ETag/304, the pull recorded in
   Laravel's cache), `POST /api/server/local-addrs`, `POST /api/server/refusals` (alarm 102), behind PHP's shared
   secret and `throttle:600,1,server-link`; Laravel's validator for their bodies (`src/validate.rs`).
 - Scheduled jobs (`HTE_CONSOLE_SWEEPS`, none by default): the reach sweep (15 s, alarm 103), computer passwords
@@ -360,14 +372,14 @@ From a code review of 0.1.1 against PHP 1.15.0-hte.1, Laravel 13.35 and Symfony 
 - `TRUSTED_PROXIES` is read as `TrustConfiguredProxies` and Symfony read it: `*` alone trusts every peer,
   `REMOTE_ADDR` the request's own peer, `PRIVATE_SUBNETS`/`private_ranges` Symfony's list. 0.1.1 dropped such entries
   silently, so `*` would have recorded Caddy's address for every device. Entries that are no address are still
-  ignored, as in PHP, and now named in a warning at start. Not HTE's configuration (it uses the default).
+  ignored, as in PHP, and now named in a warning at start. Not the default configuration.
 - The uuid pin is compared in constant time (`hash_equals`, as PHP).
 - Rate-limit and nonce memory expire in two generations instead of scanning the whole map once full: a flood of
   new addresses or nonces costs nothing per request; memory stays bounded.
 - `json_encode` leaves DEL (0x7f) as it is, like PHP (reachable only through a strategy value containing it).
 - Checked and kept: 404/405/413 answers carry `Access-Control-Allow-Origin: *`, because Laravel renders those
   exceptions inside the middleware pipeline and HandleCors adds the header on the way out.
-- README: the known differences that depend on configuration HTE does not use (empty `TRUSTED_PROXIES`,
+- README: the known differences that depend on configuration this port does not cover (empty `TRUSTED_PROXIES`,
   `APP_PREVIOUS_KEYS`, the older Apprise offline marker).
 - `replay.sh`: the tamper check picks its fixture with a glob (under `pipefail`, `ls | grep -m1` with 900+ fixtures
   also ran the fallback and named two files). The replay itself is unchanged; the image does not contain it.
@@ -377,7 +389,7 @@ From a code review of 0.1.1 against PHP 1.15.0-hte.1, Laravel 13.35 and Symfony 
 
 ## 0.1.1 (2026-10-24): the replay paces itself
 
-The first server replay with 0.1.0 (725 fixtures) compared 429s: 700 captured heartbeats from a few devices, sent in one
+The first live replay with 0.1.0 (725 fixtures) compared 429s: 700 captured heartbeats from a few devices, sent in one
 burst, tripped the console's own limit of 120 a minute per address and device, on PHP and on hte-console alike (the
 databases came out identical, every other answer matched). `hte-console replay` now sends at most 110 a minute per
 address and device id (`HTE_CONSOLE_REPLAY_PER_MINUTE`), waiting when needed; `replay.sh`'s tamper check replays only
@@ -389,7 +401,7 @@ the changed fixture. No change to the endpoints. A racy test of the 413 path now
   `/api/audit/file`, `/api/audit/alarm` and `GET /api/version` itself, on the PHP console's SQLite file (WAL,
   busy timeout, foreign keys; no schema change). Ported from v1.15.0-hte.1: `SyncController`, the tokenless half of
   `AuditController`, `Strategy` (resolution and delivery), `DeviceEnrollment` (approval gate, default group,
-  approval by a signed-in client), the presence marker of `CheckDeviceNotifications::reportOnline`, and HTE's
+  approval by a signed-in client), the presence marker of `CheckDeviceNotifications::reportOnline`, and HTE Remote's
   password hook (`App\Hte\Passwords`: `hte_pw`, issue, confirm, book entries, the password sealed with
   `crypto_box_seal` to the device's ed25519 key from hbbs's `peer` table). Everything else is forwarded as in 0.0.x.
 - PHP and Laravel semantics as a library (`php.rs`, `laravel.rs`), so answers to bad input are PHP's own.

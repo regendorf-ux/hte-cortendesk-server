@@ -1,9 +1,9 @@
-/* The console pages served by hte-console: what Livewire did in the browser, with htmx and plain forms. */
+/* The console pages served by hte-console: what the previous console's page components did in the browser, with htmx and plain forms. */
 (function () {
     'use strict';
 
     // htmx: every request carries the page's CSRF token (the forms also carry `_token`); a 422 (validation errors) is
-    // swapped in like a page, as Livewire redrew the component with its messages.
+    // swapped in like a page, as the previous console's page components redrew the component with its messages.
     if (window.htmx) {
         window.htmx.config.responseHandling = [
             { code: '204', swap: false },

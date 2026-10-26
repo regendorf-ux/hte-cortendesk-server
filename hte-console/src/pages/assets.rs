@@ -1,4 +1,4 @@
-//! `/assets/*`: the console's CSS, JS, fonts and images, embedded (`assets/`: a copy of the PHP console's
+//! `/assets/*`: the console's CSS, JS, fonts and images, embedded (`assets/`: a copy of the previous console's
 //! `public/assets` from the `hte` fork, brand files included, plus the vendored htmx). `scripts/sync-assets.sh`
 //! refreshes the copy from the fork; `tests/pages.rs` pins the file list.
 
@@ -45,7 +45,7 @@ pub fn names() -> Vec<String> {
     v
 }
 
-/// `css/hte-pages.css`, `js/hte-pages.js`, `css/hte-webclient.css`, ...: written for hte-console, not copied from PHP.
+/// `css/hte-pages.css`, `js/hte-pages.js`, `css/hte-webclient.css`, ...: written for hte-console, not copied from the previous console.
 fn own_file(path: &str) -> bool {
     path.rsplit('/').next().map_or(false, |f| f.starts_with("hte-") && (f.ends_with(".css") || f.ends_with(".js")))
 }
@@ -55,7 +55,7 @@ pub fn respond(path: &str, head: bool) -> Response<Body> {
         Some(bytes) => Response::builder()
             .status(StatusCode::OK)
             .header(header::CONTENT_TYPE, content_type(path))
-            // hte-console's own files change between releases under the same `?v=` (PHP's version): always revalidated
+            // hte-console's own files change between releases under the same `?v=` (the previous console's version): always revalidated
             .header(header::CACHE_CONTROL, if own_file(path) { "no-cache" } else { "public, max-age=86400" })
             .header("x-content-type-options", "nosniff")
             .body(if head { Body::empty() } else { Body::from(bytes) })

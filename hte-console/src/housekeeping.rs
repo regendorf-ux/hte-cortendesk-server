@@ -1,21 +1,21 @@
-//! Phase 6: the daily scheduler entries hte-console takes over from PHP's `routes/console.php` (1.15.0-hte.1), the
+//! Phase 6: the daily scheduler entries hte-console takes over from the previous console's `routes/console` (1.15.0-hte.1), the
 //! commands behind them, and the command line (`backup`, `restore`, `prune-logs`, `prune-invitations`, `backups`).
 //!
 //!   cortendesk:backup --scheduled        dailyAt 03:30  withoutOverlapping(30)   backup_scheduled
 //!   cortendesk:prune-logs                dailyAt 04:10  (no mutex)               prune::prune_logs
 //!   cortendesk:prune-invitations         dailyAt 04:20  (no mutex)               prune::prune_invitations
 //!
-//! Left to PHP, on purpose: `cortendesk:check-device-notifications` (Apprise, off at HTE; deploy stops if it is on).
+//! Left to the previous console, on purpose: `cortendesk:check-device-notifications` (Apprise, off at HTE; deploy stops if it is on).
 //! Phase 3 already took reach, passwords, stale sessions and the diagnostics heartbeat.
 //!
 //! Which entries run here is `HTE_CONSOLE_JOBS` (`backup,prune-logs,prune-invitations` or `all`; none by default, so
 //! an upgrade alone changes nothing). Double running is avoided per entry:
-//! - **backup** has a PHP mutex, so phase 3's trick applies: this service holds PHP's lock for that entry (refreshed
-//!   every tick, 30 minutes' expiry) and PHP's `schedule:run` skips it. Two more guards behind that: the run itself
-//!   takes PHP's `cortendesk:backup` cache lock (Settings -> Backups' "Back up now" uses it too) and `--scheduled`
+//! - **backup** has a previous-console mutex, so phase 3's trick applies: this service holds the previous console's lock for that entry (refreshed
+//!   every tick, 30 minutes' expiry) and the previous console's `schedule:run` skips it. Two more guards behind that: the run itself
+//!   takes the previous console's `cortendesk:backup` cache lock (Settings -> Backups' "Back up now" uses it too) and `--scheduled`
 //!   runs once per calendar day (`backup_last_scheduled_at`), which both sides read and write.
-//! - **prune-logs** and **prune-invitations** have no mutex in PHP, so nothing can be held. The deploy removes the two
-//!   entries from the PHP container's schedule (a read-only bind mount of `routes/console.php` without them) and
+//! - **prune-logs** and **prune-invitations** have no mutex in the previous console, so nothing can be held. The deploy removes the two
+//!   entries from the CortenDesk container's schedule (a read-only bind mount of `routes/console` without them) and
 //!   only then lists them here. Running both would be harmless (idempotent deletes by the same cutoff) but is not done.
 //! The times are UTC, as the app's timezone is. A tick every 15 seconds sees every minute.
 
@@ -70,7 +70,7 @@ impl Job {
         let (h, m) = self.at();
         format!("{m} {h} * * *")
     }
-    /// `withoutOverlapping($expiresAt)` in minutes; only the backup has one in PHP.
+    /// `withoutOverlapping($expiresAt)` in minutes; only the backup has one in the previous console.
     pub fn mutex_minutes(self) -> Option<i64> {
         (self == Job::Backup).then_some(30)
     }
@@ -97,7 +97,7 @@ pub fn from_env() -> Result<Vec<Job>, String> {
 
 // ------------------------------------------------------------------------------------------------ environment ---
 
-/// What the commands need, read as the PHP image gets it. Returns the backup `Env` and the retention default.
+/// What the commands need, read as the CortenDesk image gets it. Returns the backup `Env` and the retention default.
 pub struct Setup {
     pub env: Env,
     /// `config('cortendesk.log_retention_days')` as a string (`HTE_REMOTE_LOG_RETENTION_DAYS`, else 365)
@@ -112,7 +112,7 @@ impl Setup {
     pub fn from_env() -> Result<Setup, String> {
         let cfg = crate::config::Config::from_env()?;
         let n = cfg.native.ok_or("HTE_CONSOLE_DATABASE is not set")?;
-        // the key as the PHP image reads it: APP_KEY, else /data/.app_key (the entrypoint's `$(cat ...)` drops the newline)
+        // the key as the CortenDesk image reads it: APP_KEY, else /data/.app_key (the entrypoint's `$(cat ...)` drops the newline)
         let app_key = match set("APP_KEY") {
             Some(k) => k,
             None => std::fs::read_to_string(&n.app_key_file).map_err(|e| format!("cannot read the app key ({}): {e}", n.app_key_file.display()))?.trim().to_string(),
@@ -288,10 +288,10 @@ impl Scheduler {
                 let _ = tokio::task::spawn_blocking(move || m.tick(chrono::Utc::now().timestamp())).await;
             }
         });
-        tracing::info!(jobs = ?self.jobs.iter().map(|j| j.name()).collect::<Vec<_>>(), "daily jobs run here (UTC); PHP's backup entry is skipped while hte-console holds its lock");
+        tracing::info!(jobs = ?self.jobs.iter().map(|j| j.name()).collect::<Vec<_>>(), "daily jobs run here (UTC); the previous console's backup entry is skipped while hte-console holds its lock");
     }
 
-    /// One tick: refresh the backup's PHP lock, and start every job whose minute it is (once per minute).
+    /// One tick: refresh the backup's the previous console lock, and start every job whose minute it is (once per minute).
     pub fn tick(self: &Arc<Self>, now: i64) {
         let minute = now.div_euclid(60);
         let (h, m) = (((now.rem_euclid(86_400)) / 3600) as u32, ((now.rem_euclid(3600)) / 60) as u32);
@@ -325,7 +325,7 @@ impl Scheduler {
         }
     }
 
-    /// Take or refresh PHP's lock for the entry; false when PHP holds it (it is mid-run), so this tick leaves it be.
+    /// Take or refresh the previous console's lock for the entry; false when the previous console holds it (it is mid-run), so this tick leaves it be.
     fn hold(&self, job: Job, now: i64) -> bool {
         let env = &self.setup.env;
         let r = env.open().and_then(|c| env.store.acquire(&c, &job.mutex_name(), job.mutex_minutes().unwrap_or(1) * 60, &self.owner, now).map_err(|f| format!("{f:?}")));
@@ -373,7 +373,7 @@ impl Scheduler {
         }
     }
 
-    /// On a clean stop: give the backup's lock back, so PHP's scheduler runs the entry again.
+    /// On a clean stop: give the backup's lock back, so the previous console's scheduler runs the entry again.
     pub fn release_all(&self) {
         self.stopped.store(true, Ordering::SeqCst);
         let env = &self.setup.env;
@@ -383,7 +383,7 @@ impl Scheduler {
             }
         }
         if !self.jobs.is_empty() {
-            tracing::info!("daily jobs: the backup's lock is released, PHP's scheduler takes the entry back");
+            tracing::info!("daily jobs: the backup's lock is released, the previous console's scheduler takes the entry back");
         }
     }
 }
@@ -402,7 +402,7 @@ fn opt(args: &[String], name: &str) -> Option<String> {
 pub fn cli(args: &[String]) -> i32 {
     let cmd = args.first().map(String::as_str).unwrap_or("");
     if cmd == "housekeeping-locks" {
-        // the deploy compares these with what PHP's own scheduler reports for the same entries (needs the prefix only)
+        // the deploy compares these with what the previous console's own scheduler reports for the same entries (needs the prefix only)
         return match Store::from_env() {
             Ok(store) => {
                 for j in ALL {

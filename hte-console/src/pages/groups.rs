@@ -1,4 +1,4 @@
-//! Groups (Livewire `GroupList`): device groups (folders of machines) and user groups (people), each with a name, a
+//! Groups (the previous console's `GroupList`): device groups (folders of machines) and user groups (people), each with a name, a
 //! note, the "accessed from" user groups, and, for a user group, the device groups its members get.
 //!
 //! State is the URL (`?tab=users`, `&create=1`, `&edit=<id>`); the dialog's save and the delete are form posts.

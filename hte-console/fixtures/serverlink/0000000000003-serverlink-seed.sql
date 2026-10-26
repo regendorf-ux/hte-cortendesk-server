@@ -1,5 +1,5 @@
 -- Phase 3 (server link and sweeps): the world of tests/Hte/ReachTest.php's hteFixture(), in placeholders only.
--- SYNTHETIC: nothing here was captured. 930001 is an administrator (owner in the Pest test), 930002 owns the front
+-- SYNTHETIC: nothing here was captured. 930001 is an administrator (the administrator in the Pest test), 930002 owns the front
 -- desk (María), 930003 is in user group 930201, which holds device group 930101 (Juan), 930004 has nothing (Luis).
 -- Devices: 990003001 the front desk (930002's, in 930101, incoming only), 990003002 the server (in 930101),
 -- 990003003 a pending laptop (in 930101), 990003004 the administrator's Mac. Every person holds a client token on

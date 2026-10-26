@@ -1,7 +1,7 @@
 //! Phase 4 end to end: the bearer-token client endpoints (address books, group tab, server-config, audit note and
 //! active session, the web client's bootstrap script) on a real socket, against a temporary database made from
 //! tests/schema.sql, tests/schema_p4.sql and the replay's synthetic seed (fixtures/clientapi/*.sql). Expectations come
-//! from the PHP source (v1.15.0-hte.1); each test names the PHP behaviour it pins.
+//! from the previous console's source (v1.15.0-hte.1); each test names the previous console behaviour it pins.
 
 use hte_console::api::{router, Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -142,7 +142,7 @@ async fn synthetic_clientapi_fixtures_replay_with_no_differences() {
     assert!(r.total > 100, "{} fixtures", r.total);
     assert!(r.differences.is_empty(), "{} differences:\n{}", r.differences.len(), r.differences.join("\n"));
 
-    // what PHP would have written
+    // what the previous console would have written
     assert_eq!(h.count("address_books where is_personal = 1 and owner_user_id = 940003"), 1, "firstOrCreate made one book for Ben");
     assert_eq!(h.count("address_books where is_personal = 1 and owner_user_id = 940001"), 1);
     assert_eq!(h.one::<String>("select name from address_books where owner_user_id = 940003 and is_personal = 1"), "My address book");

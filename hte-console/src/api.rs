@@ -1,13 +1,13 @@
-//! Phase 1: the device-facing endpoints served natively (no PHP), each a port of the PHP console's handler:
+//! Phase 1: the device-facing endpoints served natively (without the previous console), each a port of the previous console's handler:
 //!
 //!   POST /api/heartbeat, /api/sysinfo            SyncController       (sync.rs)
 //!   POST /api/audit/conn, /api/audit/file, /alarm AuditController      (audit.rs)
-//!   GET  /api/version                            routes/api.php
+//!   GET  /api/version                            routes/api
 //!
 //! This file is the HTTP side shared by all of them, written from Laravel's own behaviour: the global middleware
 //! (TrustProxies, HandleCors, ValidatePostSize, TrimStrings, ConvertEmptyStringsToNull), the `device-sync`
 //! rate limiter with its headers, and the JSON error bodies Laravel renders for `api/*` with APP_DEBUG off.
-//! Everything else is forwarded to PHP by the phase 0 proxy (or answered 404 when no upstream is configured).
+//! Everything else is forwarded to the previous console by the phase 0 proxy (or answered 404 when no upstream is configured).
 
 use crate::laravel::{self, Encrypter, Input, Trusted};
 use crate::php::Fault;
@@ -30,7 +30,7 @@ pub struct Native {
     /// hbbs's database (`/data/rustdesk/db_v2.sqlite3`), read only, for the device keys.
     pub hbbs_db: PathBuf,
     pub trusted: Trusted,
-    /// What `GET /api/version` answers (the PHP console's `VERSION`).
+    /// What `GET /api/version` answers (the previous console's `VERSION`).
     pub api_version: String,
     /// Largest request body accepted on these endpoints.
     pub max_body: usize,
@@ -55,7 +55,7 @@ impl Native {
     /// Open everything phase 1 needs, or say exactly what is missing. Nothing secret is logged.
     pub fn open(cfg: &crate::config::NativeConfig) -> Result<Native, String> {
         check_owner(&cfg.database)?;
-        // As the PHP image's entrypoint: APP_KEY from the environment when set, else the file in /data.
+        // As the CortenDesk image's entrypoint: APP_KEY from the environment when set, else the file in /data.
         let key = match crate::envvar::var("APP_KEY").ok().filter(|k| !k.trim().is_empty()) {
             Some(k) => k,
             None => std::fs::read_to_string(&cfg.app_key_file).map_err(|e| format!("cannot read the app key ({}): {e}", cfg.app_key_file.display()))?,
@@ -66,7 +66,7 @@ impl Native {
         sodiumoxide::init().map_err(|_| "libsodium did not initialise".to_string())?;
         let trusted = laravel::parse_trusted(&cfg.trusted_proxies);
         if !trusted.ignored.is_empty() {
-            // as PHP: such an entry trusts nothing (names only, never a secret)
+            // as the previous console: such an entry trusts nothing (names only, never a secret)
             tracing::warn!(entries = ?trusted.ignored, "trusted proxies: entries that are no address or range are ignored");
         }
         if trusted.is_empty() {
@@ -92,8 +92,8 @@ fn real_now() -> i64 {
 }
 
 /// The wall clock, or with `HTE_CONSOLE_CLOCK_START=<unix>` a clock that starts at that moment and runs on from there:
-/// for the local page comparison against PHP answers captured earlier (`replay/compare-local.sh`), so "5 minutes ago"
-/// and the dates read as they did when PHP answered. Never set in production.
+/// for the local page comparison against the previous console answers captured earlier (`replay/compare-local.sh`), so "5 minutes ago"
+/// and the dates read as they did when the previous console answered. Never set in production.
 fn clock_from_env() -> Box<dyn Fn() -> i64 + Send + Sync> {
     match crate::envvar::var("HTE_CONSOLE_CLOCK_START").ok().and_then(|v| v.trim().parse::<i64>().ok()) {
         Some(start) => {
@@ -107,7 +107,7 @@ fn clock_from_env() -> Box<dyn Fn() -> i64 + Send + Sync> {
 
 /// SQLite creates the -wal/-shm/-journal files with the database's mode but the creating process's owner
 /// (unless it runs as root, when it hands them to the database's owner). A different non-root user would leave
-/// files PHP cannot write, so refuse to start rather than break PHP.
+/// files the previous console cannot write, so refuse to start rather than break the previous console.
 fn check_owner(db: &std::path::Path) -> Result<(), String> {
     use std::os::unix::fs::MetadataExt;
     let meta = std::fs::metadata(db).map_err(|e| format!("cannot stat {}: {e}", db.display()))?;
@@ -133,12 +133,12 @@ fn warn_unported(c: &Connection) {
     }
     if let Ok(v) = crate::sqlite::setting(c, "oidc_enabled", "0") {
         if v == b"1" && crate::envvar::var("HTE_CONSOLE_PUBLIC_URL").map_or(true, |u| u.trim().is_empty()) {
-            tracing::warn!("SSO is on and HTE_CONSOLE_PUBLIC_URL is not set: the OIDC redirect URI is built from each request's Host header (as PHP does); set it to the console's https origin");
+            tracing::warn!("SSO is on and HTE_CONSOLE_PUBLIC_URL is not set: the OIDC redirect URI is built from each request's Host header (as the previous console does); set it to the console's https origin");
         }
     }
     if let Ok(v) = crate::sqlite::setting(c, "email_login_verification", "0") {
         if v == b"1" {
-            tracing::warn!("email_login_verification is 1: hte-console sends no mail, so a password sign-in that would get an emailed code is refused (PHP's own answer when mail fails)");
+            tracing::warn!("email_login_verification is 1: hte-console sends no mail, so a password sign-in that would get an emailed code is refused (the previous console's own answer when mail fails)");
         }
     }
 }
@@ -168,10 +168,10 @@ impl Reply {
     }
 }
 
-/// An uncaught exception in PHP: log it (never the request), answer like Laravel.
+/// An uncaught exception in the previous console: log it (never the request), answer like Laravel.
 pub fn fail(where_: &str, f: &Fault) -> Reply {
     tracing::error!("{where_}: {}", match f {
-        Fault::ArrayToString => "array where a string was expected (PHP: Array to string conversion)".to_string(),
+        Fault::ArrayToString => "array where a string was expected (the previous console: Array to string conversion)".to_string(),
         Fault::Other(m) => m.clone(),
     });
     Reply::server_error()
@@ -451,7 +451,7 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
         return respond(Reply::Text(200, n.api_version.as_bytes().to_vec()), vec![], head);
     }
 
-    // ValidatePostSize, bounded here far below PHP's limit: no device sends more than a few kilobytes, no sign-in
+    // ValidatePostSize, bounded here far below the previous console's limit: no device sends more than a few kilobytes, no sign-in
     // more than a few hundred bytes.
     let max = if ep.signin() { signin_max_body() } else { n.max_body };
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
@@ -510,7 +510,7 @@ fn page_response(status: u16, html: String, head: bool) -> Response<Body> {
 
 /// The console's origin for links and the OIDC redirect URI: `HTE_CONSOLE_PUBLIC_URL` when set (hardened: the
 /// Host header then decides nothing); else as Laravel builds it (scheme from X-Forwarded-Proto, also untrusted as
-/// the image's nginx passes `HTTPS=on`; Host and port; X-Forwarded-Port/-Prefix from a trusted proxy). None for a
+/// the previous console's web server passed `HTTPS=on`; Host and port; X-Forwarded-Port/-Prefix from a trusted proxy). None for a
 /// Host Symfony would refuse.
 pub(crate) fn request_root(n: &Native, h: &HeaderMap, peer: std::net::IpAddr) -> Option<String> {
     if let Some(u) = &n.signin.public_url {
@@ -549,7 +549,7 @@ fn throttle_key(prefix: &str, ip: &str) -> Vec<u8> {
     format!("{prefix}{}", hex::encode(sha1::Sha1::digest(format!("|{ip}").as_bytes()))).into_bytes()
 }
 
-/// The throttles of a sign-in route, outermost first (routes/api.php: the `client-auth` group, then the route's own).
+/// The throttles of a sign-in route, outermost first (routes/api: the `client-auth` group, then the route's own).
 fn signin_limits(ep: Endpoint, ip: &str) -> Vec<(Vec<u8>, u64)> {
     let mut l = vec![];
     if matches!(ep, Endpoint::LoginOptions | Endpoint::Login | Endpoint::OidcAuth | Endpoint::OidcAuthQuery) {

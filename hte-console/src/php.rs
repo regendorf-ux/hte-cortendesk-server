@@ -1,15 +1,15 @@
-//! PHP's value semantics, as far as the device endpoints need them (phase 1).
+//! The previous console's value semantics, as far as the device endpoints need them (phase 1).
 //!
-//! The PHP console is the specification, and its answers to odd input come from PHP itself: `json_decode`,
+//! The previous console is the specification, and its answers to odd input come from the previous console itself: `json_decode`,
 //! `(string)` / `(int)` / `(bool)` casts, `base64_decode($s, true)`, `json_encode`. This module reproduces those
-//! rules so the Rust handlers can be written line by line against the PHP source. Strings are byte strings,
-//! as in PHP: a query value may be any bytes.
+//! rules so the Rust handlers can be written line by line against the previous console's source. Strings are byte strings,
+//! as in the previous console: a query value may be any bytes.
 //!
-//! Nothing here panics on input; every limit (nesting depth, variable count) is PHP's own.
+//! Nothing here panics on input; every limit (nesting depth, variable count) is the previous console's own.
 
 use std::collections::HashMap;
 
-/// An array key after PHP's normalisation: canonical decimal integer strings become integers.
+/// An array key after the previous console's normalisation: canonical decimal integer strings become integers.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Key {
     Int(i64),
@@ -31,7 +31,7 @@ impl Key {
     }
 }
 
-/// `"123"`, `"-5"`, `"0"` (not `"05"`, `"-0"`, `"+1"`, out of range): PHP stores these as integer keys.
+/// `"123"`, `"-5"`, `"0"` (not `"05"`, `"-0"`, `"+1"`, out of range): the previous console stores these as integer keys.
 fn canonical_int(b: &[u8]) -> Option<i64> {
     let digits = b.strip_prefix(b"-").unwrap_or(b);
     if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) || (digits[0] == b'0' && digits.len() > 1) {
@@ -43,7 +43,7 @@ fn canonical_int(b: &[u8]) -> Option<i64> {
     std::str::from_utf8(b).ok()?.parse::<i64>().ok()
 }
 
-/// An ordered PHP array: insertion order, overwrite in place on a repeated key.
+/// An ordered the previous console array: insertion order, overwrite in place on a repeated key.
 #[derive(Clone, Debug, Default)]
 pub struct Arr {
     items: Vec<(Key, Val)>,
@@ -113,13 +113,13 @@ impl Arr {
 }
 
 impl PartialEq for Arr {
-    /// PHP's `===` on arrays: same pairs in the same order with identical values.
+    /// The previous console's `===` on arrays: same pairs in the same order with identical values.
     fn eq(&self, other: &Arr) -> bool {
         self.items.len() == other.items.len() && self.items.iter().zip(other.items.iter()).all(|(a, b)| a.0 == b.0 && a.1 == b.1)
     }
 }
 
-/// A PHP value.
+/// A previous-console value.
 #[derive(Clone, Debug)]
 pub enum Val {
     Null,
@@ -131,7 +131,7 @@ pub enum Val {
 }
 
 impl PartialEq for Val {
-    /// PHP's `===`.
+    /// The previous console's `===`.
     fn eq(&self, other: &Val) -> bool {
         match (self, other) {
             (Val::Null, Val::Null) => true,
@@ -145,12 +145,12 @@ impl PartialEq for Val {
     }
 }
 
-/// What PHP would throw. The handlers turn it into the answer PHP's exception handler gives.
+/// What the previous console would throw. The handlers turn it into the answer the previous console's exception handler gives.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Fault {
-    /// `(string) $array`: PHP warns "Array to string conversion"; Laravel turns every warning into an ErrorException.
+    /// `(string) $array`: the previous console warns "Array to string conversion"; Laravel turns every warning into an ErrorException.
     ArrayToString,
-    /// Anything else PHP would throw (a database error, an invalid MAC, a bad key). The text is for our log only.
+    /// Anything else the previous console would throw (a database error, an invalid MAC, a bad key). The text is for our log only.
     Other(String),
 }
 
@@ -225,7 +225,7 @@ impl Val {
 
 // ------------------------------------------------------------------------------------------------ numbers ---
 
-/// PHP 7+ `(int)` of a float: NaN and infinities are 0, out-of-range values wrap modulo 2^64.
+/// The previous console's runtime (7)+ `(int)` of a float: NaN and infinities are 0, out-of-range values wrap modulo 2^64.
 pub fn dval_to_lval(d: f64) -> i64 {
     if !d.is_finite() {
         return 0;
@@ -272,7 +272,7 @@ fn is_ws(c: u8) -> bool {
     matches!(c, b' ' | b'\t' | b'\n' | b'\r' | 0x0b | 0x0c)
 }
 
-/// The numeric prefix of a string as PHP's `_is_numeric_string_ex` reads it.
+/// The numeric prefix of a string as the previous console's `_is_numeric_string_ex` reads it.
 /// Returns (value, consumed-up-to, is_float); None when there is no number at the start.
 enum Num {
     Int(i64),
@@ -341,7 +341,7 @@ pub fn str_to_int(s: &[u8]) -> i64 {
     }
 }
 
-/// `is_numeric("...")`: the whole string is a number, leading and trailing whitespace allowed (PHP 8).
+/// `is_numeric("...")`: the whole string is a number, leading and trailing whitespace allowed (the previous console's runtime (8)).
 pub fn is_numeric_str(s: &[u8]) -> bool {
     match numeric_prefix(s) {
         None => false,
@@ -357,7 +357,7 @@ fn numeric_value(s: &[u8]) -> Option<f64> {
     }
 }
 
-/// PHP 8's comparison of two string array keys in `ksort` (SORT_REGULAR): numerically when both are numeric
+/// The previous console's runtime (8)'s comparison of two string array keys in `ksort` (SORT_REGULAR): numerically when both are numeric
 /// strings, byte-wise otherwise.
 pub fn smart_strcmp(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
     if let (Some(x), Some(y)) = (numeric_value(a), numeric_value(b)) {
@@ -368,7 +368,7 @@ pub fn smart_strcmp(a: &[u8], b: &[u8]) -> std::cmp::Ordering {
     a.cmp(b)
 }
 
-/// `ksort($a)` for an array whose keys are all strings or ints (PHP 8: stable).
+/// `ksort($a)` for an array whose keys are all strings or ints (the previous console's runtime (8): stable).
 pub fn ksort(items: &mut [(Key, Val)]) {
     items.sort_by(|(a, _), (b, _)| match (a, b) {
         (Key::Int(x), Key::Int(y)) => x.cmp(y),
@@ -385,7 +385,7 @@ fn int_str_cmp(i: i64, s: &[u8]) -> std::cmp::Ordering {
     }
 }
 
-/// `(string) $float` with PHP's default `precision` of 14 (zend_gcvt).
+/// `(string) $float` with the previous console's default `precision` of 14 (zend_gcvt).
 pub fn float_to_string(f: f64) -> String {
     if f.is_nan() {
         return "NAN".into();
@@ -487,7 +487,7 @@ fn round_digits(a: f64, n: usize) -> (String, i32) {
 pub struct JsonOpts {
     /// `JSON_BIGINT_AS_STRING`
     pub bigint_as_string: bool,
-    /// The `$depth` argument (PHP default 512).
+    /// The `$depth` argument (the previous console default 512).
     pub depth: usize,
 }
 
@@ -497,9 +497,9 @@ impl Default for JsonOpts {
     }
 }
 
-/// `json_decode($s, true)`: None where PHP returns null because of an error.
+/// `json_decode($s, true)`: None where the previous console returns null because of an error.
 pub fn json_decode(s: &[u8], opts: &JsonOpts) -> Option<Val> {
-    // PHP rejects invalid UTF-8 anywhere in the document.
+    // The previous console rejects invalid UTF-8 anywhere in the document.
     std::str::from_utf8(s).ok()?;
     let mut p = Parser { s, i: 0, opts, depth: 0 };
     p.ws();
@@ -721,7 +721,7 @@ impl Parser<'_> {
 
 // ------------------------------------------------------------------------------------------- json_encode ---
 
-/// `json_encode($v)` with PHP's default flags (slashes and non-ASCII escaped). None where PHP returns false
+/// `json_encode($v)` with the previous console's default flags (slashes and non-ASCII escaped). None where the previous console returns false
 /// (invalid UTF-8, a non-finite float).
 pub fn json_encode(v: &Val) -> Option<String> {
     let mut out = String::new();
@@ -771,7 +771,7 @@ fn enc(v: &Val, out: &mut String) -> Option<()> {
     Some(())
 }
 
-/// A JSON string as PHP writes it by default.
+/// A JSON string as the previous console writes it by default.
 pub fn enc_str(s: &[u8], out: &mut String) -> Option<()> {
     let s = std::str::from_utf8(s).ok()?;
     out.push('"');
@@ -785,7 +785,7 @@ pub fn enc_str(s: &[u8], out: &mut String) -> Option<()> {
             '\n' => out.push_str("\\n"),
             '\r' => out.push_str("\\r"),
             '\t' => out.push_str("\\t"),
-            // below 0x20 and beyond ASCII; DEL (0x7f) stays as it is in PHP
+            // below 0x20 and beyond ASCII; DEL (0x7f) stays as it is in the previous console
             c if (c as u32) < 0x20 || (c as u32) > 0x7f => {
                 let mut buf = [0u16; 2];
                 for u in c.encode_utf16(&mut buf) {
@@ -799,7 +799,7 @@ pub fn enc_str(s: &[u8], out: &mut String) -> Option<()> {
     Some(())
 }
 
-/// A PHP array with string keys built from pairs (for responses and JSON columns).
+/// A previous-console array with string keys built from pairs (for responses and JSON columns).
 pub fn assoc<I: IntoIterator<Item = (String, Val)>>(pairs: I) -> Val {
     let mut a = Arr::new();
     for (k, v) in pairs {
@@ -870,7 +870,7 @@ pub fn base64_decode_strict(s: &[u8]) -> Option<Vec<u8>> {
 
 // -------------------------------------------------------------------------------------------- parse_str ---
 
-/// `$_GET` / `$_POST` from a urlencoded string, as PHP fills them: `a.b` and `a b` become `a_b`, `a[]=` and
+/// `$_GET` / `$_POST` from a urlencoded string, as the previous console fills them: `a.b` and `a b` become `a_b`, `a[]=` and
 /// `a[k]=` build arrays (at most 64 levels), at most 1000 variables (`max_input_vars`).
 pub fn parse_str(s: &[u8]) -> Arr {
     let mut root = Arr::new();
@@ -995,7 +995,7 @@ fn register(root: &mut Arr, raw: &[u8], value: Vec<u8>) {
 
 // ------------------------------------------------------------------------------------------------- trim ---
 
-/// PHP's `trim($s)` with the default characters " \t\n\r\0\x0B".
+/// The previous console's `trim($s)` with the default characters " \t\n\r\0\x0B".
 pub fn trim(s: &[u8]) -> &[u8] {
     let set = |c: &u8| matches!(*c, b' ' | b'\t' | b'\n' | b'\r' | 0 | 0x0b);
     let start = s.iter().position(|c| !set(c)).unwrap_or(s.len());
@@ -1017,7 +1017,7 @@ fn laravel_ws(c: char) -> bool {
 }
 
 /// Laravel's `Str::trim` (the TrimStrings middleware): Unicode whitespace and invisible characters at both
-/// ends. A string that is not valid UTF-8 makes `preg_replace` fail, and Laravel falls back to PHP's `trim`.
+/// ends. A string that is not valid UTF-8 makes `preg_replace` fail, and Laravel falls back to the previous console's `trim`.
 pub fn laravel_trim(s: &[u8]) -> Vec<u8> {
     match std::str::from_utf8(s) {
         Ok(t) => t.trim_matches(laravel_ws).as_bytes().to_vec(),

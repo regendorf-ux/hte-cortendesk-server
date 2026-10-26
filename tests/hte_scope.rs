@@ -314,26 +314,26 @@ fn ticket(user: &str) -> String {
     format!("{signed}.{sig}")
 }
 
-/// HTE's set-up: approved devices only, nobody found by IP, two people.
+/// HTE Remote's set-up: approved devices only, nobody found by IP, two people.
 fn hte_policy(enforce: bool) -> serde_json::Value {
     serde_json::json!({
         "mode": "approved",
-        "allow": ["sc-maria", "sc-owner", "sc-front", "sc-server"],
+        "allow": ["sc-maria", "sc-jdoe", "sc-front", "sc-server"],
         "incoming_only": [],
         "tokens": {
             sha256_hex("token-maria"): "sc-maria",
-            sha256_hex("token-owner"): "sc-owner",
+            sha256_hex("token-jdoe"): "sc-jdoe",
         },
         "ip_match": false,
         "scope": {
             "enforce": enforce,
             "users": {
                 "7": {"name": "mperez", "all": false, "devices": ["sc-front"]},
-                "8": {"name": "owner", "all": true, "devices": []},
+                "8": {"name": "jdoe", "all": true, "devices": []},
             },
             "token_users": {
                 sha256_hex("token-maria"): "7",
-                sha256_hex("token-owner"): "8",
+                sha256_hex("token-jdoe"): "8",
             }
         }
     })
@@ -360,7 +360,7 @@ async fn a_person_reaches_only_their_scope() {
     assert!(server.forwarded(300).await.is_none(), "nothing reaches the server");
 
     // The administrator reaches everything.
-    let mut conn = punch(PORT_SCOPE, &key, &server.id, "token-owner").await;
+    let mut conn = punch(PORT_SCOPE, &key, &server.id, "token-jdoe").await;
     assert_forwarded(&mut conn, &server).await;
 
     // The console's web client is scoped the same way.

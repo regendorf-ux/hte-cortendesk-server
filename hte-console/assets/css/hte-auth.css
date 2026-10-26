@@ -1,6 +1,6 @@
 /* HTE Remote's sign-in pages in the suite's theme (common.css's welcome card and tokens; option B,
    2026-10-15): the card on HTE Remote's navy, light or dark with the system. Loaded last by
-   layouts/guest.blade.php (HTE's), after CortenDesk's own stylesheets. */
+   the previous console's view (HTE Remote's), after CortenDesk's own stylesheets. */
 .hte-auth {
   --accent: #0a66e8; --accent-hover: #0854c0; --accent-soft: rgba(10,102,232,.10);
   --elevated: #ffffff; --border: rgba(0,0,0,.12); --shadow-sm: 0 1px 2px rgba(0,0,0,.06);

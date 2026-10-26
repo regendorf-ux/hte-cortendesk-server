@@ -1,11 +1,11 @@
-{#- PHP's auth/login.blade.php of the hte fork: the programs' welcome card with Microsoft's own button, the console
+{#- the previous console's view of the hte fork: the programs' welcome card with Microsoft's own button, the console
     password behind a link. -#}
 {% extends "auth/guest.html" %}
 {% block content %}
     <div class="wcard">
         <img class="wicon" src="{{ root }}/assets/images/hte-remote.png?v={{ version }}" alt="">
         <h1>Welcome to HTE Remote</h1>
-        <p>Remote support for HTE's computers. Sign in with your {% if signin_domain %}<b>{{ '@' ~ signin_domain }}</b> account {% else %} work Microsoft account {% endif %} to see the office computers and connect.</p>
+        <p>Remote support for your organization's computers. Sign in with your {% if signin_domain %}<b>{{ '@' ~ signin_domain }}</b> account {% else %} work Microsoft account {% endif %} to see the office computers and connect.</p>
 
         {% if https_only %}
             <div class="alert alert-warning w-100 mb-0" role="alert">

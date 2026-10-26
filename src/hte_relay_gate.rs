@@ -1,4 +1,4 @@
-// Added by HTE on 2026-10-16 for HTE Remote. See HTE.md.
+// Added for HTE Remote on 2026-10-16. See HTE.md.
 // This file is part of a modified version of cortendesk-server, distributed
 // under the AGPL-3.0 like the original.
 

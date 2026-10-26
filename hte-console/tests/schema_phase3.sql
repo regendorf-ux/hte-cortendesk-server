@@ -1,4 +1,4 @@
--- Phase 3: the tables the server link and the sweeps touch beyond tests/schema.sql, as PHP's migrations create them
+-- Phase 3: the tables the server link and the sweeps touch beyond tests/schema.sql, as the previous console's migrations create them
 -- on SQLite (cortendesk v1.15.0-hte.1). `if not exists`: another phase may add the same tables to schema.sql.
 create table if not exists "device_group_user" ("user_id" integer not null, "device_group_id" integer not null, foreign key("user_id") references "users"("id") on delete cascade, foreign key("device_group_id") references "device_groups"("id") on delete cascade, primary key ("user_id", "device_group_id"));
 create table if not exists "device_group_user_group" ("device_group_id" integer not null, "user_group_id" integer not null, foreign key("device_group_id") references "device_groups"("id") on delete cascade, foreign key("user_group_id") references "user_groups"("id") on delete cascade, primary key ("device_group_id", "user_group_id"));

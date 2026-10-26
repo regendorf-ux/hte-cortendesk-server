@@ -1,7 +1,7 @@
-//! Strategies (Livewire `StrategyList`): named client-option policies, their editor with the impact review that
+//! Strategies (the previous console's `StrategyList`): named client-option policies, their editor with the impact review that
 //! precedes every write, assignments, the immutable revision history, and the fleet compliance view.
 //!
-//! State is the URL (`?create=1`, `?edit=`, `?delete=`, `?assign=`, `?history=`, `?compliance=`). Livewire kept the
+//! State is the URL (`?create=1`, `?edit=`, `?delete=`, `?assign=`, `?history=`, `?compliance=`). The previous console's page components kept the
 //! reviewed change on the server between the review and the Apply; here the review page carries the proposal as hidden
 //! fields together with a fingerprint of the proposal and of everything the impact depends on (every strategy, every
 //! assignment, every active device's owner, group and resolved strategy). Apply recomputes the fingerprint and refuses
@@ -59,7 +59,7 @@ const OPTS: &[O] = &[
     o("temporary-password-length", "security", K::Enum(&[("6", "6 characters"), ("8", "8 characters"), ("10", "10 characters")]), "One-time password length", "Applies the next time the password is regenerated, not immediately."),
     o("allow-numeric-one-time-password", "security", K::Bool, "Digits-only one-time password", "Applies at the next regeneration."),
     o("whitelist", "security", K::Text, "IP whitelist", "Comma-separated IPs or CIDRs that may connect; empty means allow all. Entries that do not parse simply never match, so a typo here can lock everyone out of the device."),
-    o("direct-server", "security", K::Bool, "Accept direct IP connections", "Off: every session goes through the ID server, where per-person reach is checked. HTE keeps this off on every device."),
+    o("direct-server", "security", K::Bool, "Accept direct IP connections", "Off: every session goes through the ID server, where per-person reach is checked. Keep it off on every device."),
     o("allow-only-conn-window-open", "security", K::Bool, "Only accept while the client window is open", "Desktop only."),
     o("enable-trusted-devices", "security", K::Bool, "Offer \"trust this device\" on 2FA", ""),
     o("allow-remote-config-modification", "security", K::Bool, "Enable remote configuration modification", "Lets the connecting side change this device's settings during a session."),
@@ -934,7 +934,7 @@ fn compliance(c: &Connection, now: i64, strategy: &Row, state: &str) -> Result<S
     detail.sort_by(|a, b| a.0.as_bytes().cmp(b.0.as_bytes()));
     let mut devices: Vec<Value> = detail.into_iter().map(|(_, v)| v).collect();
     if state == "all" {
-        // collect()->flatten(1)->sortBy('rustdesk_id'): a stable sort with PHP's own comparison
+        // collect()->flatten(1)->sortBy('rustdesk_id'): a stable sort with the previous console's own comparison
         devices.sort_by(|a, b| php::smart_strcmp(a["rustdesk_id"].as_str().unwrap_or("").as_bytes(), b["rustdesk_id"].as_str().unwrap_or("").as_bytes()));
     }
     Ok(Summary { counts, devices })

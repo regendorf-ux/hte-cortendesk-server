@@ -1,4 +1,4 @@
-//! The Overview (`DashboardController`, Livewire `LiveStats` and `ActiveSessions`): the stat tiles, the connections and
+//! The Overview (`DashboardController`, the previous console's `LiveStats` and `ActiveSessions`): the stat tiles, the connections and
 //! platform charts, the live sessions with their Disconnect, the client versions and the day's alarms. Every panel built
 //! from the audit logs needs the audit permission, and a person who does not see every device only sees theirs.
 //!
@@ -149,7 +149,7 @@ pub fn sessions(ctx: &Ctx, c: &Connection) -> Result<Value, Fault> {
     Ok(json!({"sessions": items, "active": items.len(), "can_disconnect": ctx.allows("device", "rw")}))
 }
 
-/// `crc32()` as PHP returns it (an unsigned 32-bit number).
+/// `crc32()` as the previous console returns it (an unsigned 32-bit number).
 fn crc32(b: &[u8]) -> u32 {
     let mut crc = 0xFFFF_FFFFu32;
     for &x in b {

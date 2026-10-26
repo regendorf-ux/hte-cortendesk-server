@@ -1,5 +1,5 @@
--- The live console's schema (sqlite_master of /data/cortendesk.sqlite on the server, 1.15.0-hte.1, 41 migrations), read on 2026-10-25.
--- Schema only, no data. Used by tests/housekeeping.rs for the test that restores a real PHP-made archive.
+-- The live console's schema (sqlite_master of a production database, 1.15.0-hte.1, 41 migrations), read on 2026-10-25.
+-- Schema only, no data. Used by tests/housekeeping.rs for the test that restores a real previous-console-made archive.
 CREATE TABLE "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
 CREATE TABLE "password_reset_tokens" ("email" varchar not null, "token" varchar not null, "created_at" datetime, primary key ("email"));
 CREATE TABLE "sessions" ("id" varchar not null, "user_id" integer, "ip_address" varchar, "user_agent" text, "payload" text not null, "last_activity" integer not null, primary key ("id"));

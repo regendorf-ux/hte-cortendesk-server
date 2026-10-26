@@ -1,6 +1,5 @@
 #!/bin/sh
-# HTE Remote server container bootstrap (phase 9): what the PHP image's entrypoint did that still matters without PHP and
-# nginx. Brings the data directory to a state hbbs, hbbr and hte-console can start from, checks the database schema, then
+# HTE Remote server container bootstrap: what the previous console's image did at start that still matters here. Brings the data directory to a state hbbs, hbbr and hte-console can start from, checks the database schema, then
 # hands off to supervisord. Runs as uid 82 (see Dockerfile.hte): nothing here needs root.
 set -e
 
@@ -26,18 +25,18 @@ if _is_uint "$FD_LIMIT" && [ "$FD_LIMIT" -lt 4096 ]; then
 fi
 
 # --- who we are and where the data is ---------------------------------------
-[ "$(id -u)" != 0 ] || die "refusing to run as root: the files would not be readable by the PHP image's uid 82 on a rollback. Run with user: \"82:82\"."
+[ "$(id -u)" != 0 ] || die "refusing to run as root: the files would not be readable by the CortenDesk image's uid 82 on a rollback. Run with user: \"82:82\"."
 RD_DIR=/data/rustdesk
 [ -d /data ] && [ -w /data ] || die "/data is missing or not writable by uid $(id -u) (the data directory must belong to 82:82)."
-[ -f /data/cortendesk.sqlite ] || die "/data/cortendesk.sqlite does not exist. This image does not set up a new console (the PHP tables came from the PHP image): mount the data of the PHP stack, or restore a backup. See phase9/NOTES.md."
+[ -f /data/cortendesk.sqlite ] || die "/data/cortendesk.sqlite does not exist. This image does not set up a new console (the tables came from the CortenDesk image): mount the data of the CortenDesk stack, or restore a backup (README: "Upgrading from the CortenDesk image")."
 if [ -z "${APP_KEY:-}" ] && [ ! -s /data/.app_key ]; then
-    die "no APP_KEY and no /data/.app_key: the console cannot read its encrypted settings. Mount the data of the PHP stack."
+    die "no APP_KEY and no /data/.app_key: the console cannot read its encrypted settings. Mount the data of the CortenDesk stack."
 fi
 mkdir -p "$RD_DIR" /data/backups
 [ -w "$RD_DIR" ] || die "$RD_DIR is not writable by uid $(id -u) (it must belong to 82:82)."
 
 # --- the environment's names --------------------------------------------------
-# HTE Remote's settings are HTE_REMOTE_<X>. The PHP image's names, CORTENDESK_<X>, are still read when the new one is unset or empty
+# HTE Remote's settings are HTE_REMOTE_<X>. The CortenDesk image's names, CORTENDESK_<X>, are still read when the new one is unset or empty
 # (an .env from before the rename), with a warning per old name; the old name is then removed from the environment, so hbbs, hbbr
 # and hte-console see only the new one. (`docker exec ... hte-console` does not go through here: hte-console has the same fallback.)
 for _old in $(env | sed -n 's/^\(CORTENDESK_[A-Za-z0-9_]*\)=.*/\1/p'); do
@@ -54,8 +53,8 @@ done
 unset _old _new _nv _ov
 
 # --- log levels --------------------------------------------------------------
-# HTE_REMOTE_LOG_LEVEL (CORTENDESK_LOG_LEVEL in the PHP image, its one knob) sets hbbs and hbbr; the console has its own, HTE_CONSOLE_LOG, because the
-# checklists read its info lines (sign-ins, jobs) while hbbs runs at warn on the server. hbbs and hbbr only know off, error,
+# HTE_REMOTE_LOG_LEVEL (CORTENDESK_LOG_LEVEL in the CortenDesk image, its one knob) sets hbbs and hbbr; the console has its own, HTE_CONSOLE_LOG, because the
+# checklists read its info lines (sign-ins, jobs) while hbbs may run at warn. hbbs and hbbr only know off, error,
 # warn, info, debug and trace, and an unknown word silences them, so map onto those.
 _rl=info
 if [ -n "${HTE_REMOTE_LOG_LEVEL:-}" ]; then
@@ -81,7 +80,7 @@ for _f in id_ed25519 id_ed25519.pub db_v2.sqlite3; do
         log "adopted restored $_f"
     fi
 done
-# Generate the key pair only if there is none (there always is on the server: clients hold its public half). Keys containing
+# Generate the key pair only if there is none (an existing server always has one: clients hold its public half). Keys containing
 # / or : are rejected: they end up in URLs, config strings and command lines, and hbbs skips them for the same reason.
 if [ ! -f "$RD_DIR/id_ed25519" ]; then
     _n=0
@@ -100,7 +99,7 @@ if [ ! -f "$RD_DIR/id_ed25519" ]; then
 fi
 
 # The link between hbbs and the console: hbbs pulls the device policy with this secret and the console signs web client
-# tickets with it. /data/.server_secret is the PHP image's file; kept, never rewritten when it exists.
+# tickets with it. /data/.server_secret is the CortenDesk image's file; kept, never rewritten when it exists.
 if [ -z "${HTE_REMOTE_SERVER_SECRET:-}" ]; then
     if [ ! -s /data/.server_secret ]; then
         od -An -tx1 -N32 /dev/urandom | tr -d ' \n' > /data/.server_secret
@@ -134,9 +133,9 @@ export HTE_CONSOLE_PUBLIC_KEY="${HTE_CONSOLE_PUBLIC_KEY:-$(cat "$RD_DIR/id_ed255
 export HTE_CONSOLE_PUBLIC_URL="${HTE_CONSOLE_PUBLIC_URL:-$APP_URL}"
 
 # --- the database -------------------------------------------------------------
-# Check that every migration PHP ran is recorded and apply our own additive ones (migrate.rs). A database that fails the
+# Check that every migration the previous console ran is recorded and apply our own additive ones (migrate.rs). A database that fails the
 # check stops the container here, with the reason in the log, rather than serving from a schema we do not know.
-hte-console migrate || die "the database check failed (above). Nothing was changed. The PHP stack's compose.yml.before-phpless brings the old stack back (phase9/rollback.sh)."
+hte-console migrate || die "the database check failed (above). Nothing was changed."
 
 log "ready: console on :8080 (sign-in $( [ "${HTE_CONSOLE_SIGNIN:-}" = 1 ] && echo on || echo OFF )), ID server on :21116, relay on :21117, ws on :21118/:21119; relay advertised as $RUSTDESK_RELAY_ADVERTISED"
 log "$(hte-console version), hbbs/hbbr log level '$HBBS_RUST_LOG', $FD_LIMIT open files"

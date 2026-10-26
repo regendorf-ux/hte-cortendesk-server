@@ -152,7 +152,7 @@ impl Pace {
         Pace { per_minute, window, sent: Default::default() }
     }
 
-    /// The limiter's key as PHP builds it: the client address (the fixture's X-Forwarded-For) and the device id.
+    /// The limiter's key as the previous console builds it: the client address (the fixture's X-Forwarded-For) and the device id.
     fn key(fx: &Value) -> String {
         let xff = fx["request"]["headers"]["x-forwarded-for"].as_str().unwrap_or("");
         let id = |v: &Value| match v {

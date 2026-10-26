@@ -1,16 +1,16 @@
 //! Phase 3: Laravel's `database` cache store and its locks (laravel/framework v13.35.0, `DatabaseStore`,
 //! `DatabaseLock`, `CacheEventMutex`), on the shared SQLite file's `cache` and `cache_locks` tables.
 //!
-//! Two things in PHP live in the cache and have to keep working once hte-console does the work behind them:
+//! Two things in the previous console live in the cache and have to keep working once hte-console does the work behind them:
 //! - the "ID server fetched the policy" marker (`ServerLink::recordPull`, read by Settings -> Server and Fleet
 //!   Diagnostics) and the scheduler's heartbeat (`cortendesk:diagnostics-heartbeat`, read by Fleet Diagnostics);
-//! - the scheduler's `withoutOverlapping` mutex. hte-console holds the very lock PHP's `schedule:run` would take for
-//!   a task it has taken over, so PHP's scheduler skips that task (exactly as it skips one still running) without a
-//!   change to PHP. Should hte-console stop, the lock expires and PHP runs the task again by itself.
+//! - the scheduler's `withoutOverlapping` mutex. hte-console holds the very lock the previous console's `schedule:run` would take for
+//!   a task it has taken over, so the previous console's scheduler skips that task (exactly as it skips one still running) without a
+//!   change to the previous console. Should hte-console stop, the lock expires and the previous console runs the task again by itself.
 //!
-//! Both need the PHP container on `CACHE_STORE=database` (its image defaults to `file`, inside the container, where
-//! nothing else can reach it). The prefix is PHP's `cache.prefix`; keys and values are written byte for byte as
-//! `DatabaseStore::putMany` writes them (PHP's `serialize`, base64 only when the text holds a NUL, which ours never do).
+//! Both need the CortenDesk container on `CACHE_STORE=database` (its image defaults to `file`, inside the container, where
+//! nothing else can reach it). The prefix is the previous console's `cache.prefix`; keys and values are written byte for byte as
+//! `DatabaseStore::putMany` writes them (the previous console's `serialize`, base64 only when the text holds a NUL, which ours never do).
 
 use crate::php::{Fault, Key, Val};
 use crate::sqlite::{self as db, P};
@@ -24,7 +24,7 @@ pub const PULL_KEY: &str = "cortendesk:server-link:last-pull";
 /// `DiagnosticsHeartbeat` / `FleetDiagnostics`
 pub const SCHEDULER_HEARTBEAT_KEY: &str = "cortendesk:diagnostics:scheduler-heartbeat";
 
-/// PHP's `serialize()` for the values the console caches (strings, ints, booleans, null and arrays of those).
+/// The previous console's `serialize()` for the values the console caches (strings, ints, booleans, null and arrays of those).
 pub fn serialize(v: &Val) -> Result<Vec<u8>, Fault> {
     let mut out = vec![];
     ser(v, &mut out)?;
@@ -57,16 +57,16 @@ fn ser(v: &Val, out: &mut Vec<u8>) -> Result<(), Fault> {
     Ok(())
 }
 
-/// The store: PHP's `cache.prefix` (`CACHE_PREFIX`, else `Str::slug(APP_NAME).'-cache-'`).
+/// The store: the previous console's `cache.prefix` (`CACHE_PREFIX`, else `Str::slug(APP_NAME).'-cache-'`).
 #[derive(Clone, Debug)]
 pub struct Store {
     pub prefix: String,
 }
 
 impl Store {
-    /// `HTE_CONSOLE_CACHE_PREFIX`, else `CACHE_PREFIX`, else Laravel's default from `APP_NAME` (as config/cache.php
+    /// `HTE_CONSOLE_CACHE_PREFIX`, else `CACHE_PREFIX`, else Laravel's default from `APP_NAME` (as config/cache
     /// builds it). Err for an `APP_NAME` whose slug this crate cannot reproduce (non-ASCII: Laravel transliterates);
-    /// the deploy passes PHP's own value, so that only matters by hand.
+    /// the deploy passes the previous console's own value, so that only matters by hand.
     pub fn from_env() -> Result<Store, String> {
         let set = |n: &str| crate::envvar::var(n).ok().filter(|v| !v.is_empty());
         if let Some(p) = set("HTE_CONSOLE_CACHE_PREFIX").or_else(|| set("CACHE_PREFIX")) {
@@ -74,7 +74,7 @@ impl Store {
         }
         let name = crate::envvar::var("APP_NAME").ok().unwrap_or_else(|| "laravel".into());
         if !name.is_ascii() {
-            return Err("APP_NAME is not ASCII: set HTE_CONSOLE_CACHE_PREFIX to PHP's cache.prefix".into());
+            return Err("APP_NAME is not ASCII: set HTE_CONSOLE_CACHE_PREFIX to the previous console's cache.prefix".into());
         }
         Ok(Store { prefix: format!("{}-cache-", slug(&name)) })
     }
@@ -168,7 +168,7 @@ pub fn slug(title: &str) -> String {
 }
 
 /// `Event::mutexName()` for `Schedule::command(...)`: `framework/schedule-` and sha1 of the cron expression and the
-/// command as `normalizeCommand` writes it (`php artisan <name>`).
+/// command as `normalizeCommand` writes it (`the previous console's command <name>`).
 pub fn schedule_mutex_name(expression: &str, command: &str) -> String {
     use sha1::Digest;
     format!("framework/schedule-{}", hex::encode(sha1::Sha1::digest(format!("{expression}php artisan {command}").as_bytes())))
@@ -196,7 +196,7 @@ mod tests {
 
     #[test]
     fn mutex_names() {
-        // sha1("* * * * *php artisan hte:reach-sweep")
+        // sha1("* * * * *the previous console's command hte:reach-sweep")
         let n = schedule_mutex_name("* * * * *", "hte:reach-sweep");
         assert!(n.starts_with("framework/schedule-") && n.len() == "framework/schedule-".len() + 40);
     }
@@ -206,11 +206,11 @@ mod tests {
         let c = Connection::open_in_memory().unwrap();
         c.execute_batch(r#"create table "cache_locks" ("key" varchar not null, "owner" varchar not null, "expiration" integer not null, primary key ("key"))"#).unwrap();
         let s = Store { prefix: "p-".into() };
-        assert!(s.acquire(&c, "m", 60, "php", 100).unwrap());
+        assert!(s.acquire(&c, "m", 60, "other", 100).unwrap());
         assert!(!s.acquire(&c, "m", 60, "hte", 110).unwrap(), "held by another owner");
-        assert!(s.acquire(&c, "m", 60, "php", 120).unwrap(), "the owner refreshes it");
+        assert!(s.acquire(&c, "m", 60, "other", 120).unwrap(), "the owner refreshes it");
         assert!(s.acquire(&c, "m", 60, "hte", 180).unwrap(), "expired: taken over");
-        assert!(!s.release(&c, "m", "php").unwrap());
+        assert!(!s.release(&c, "m", "other").unwrap());
         assert!(s.release(&c, "m", "hte").unwrap());
         let k: String = c.query_row("select count(*) || '' from cache_locks", [], |r| r.get(0)).unwrap();
         assert_eq!(k, "0");

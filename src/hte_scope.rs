@@ -1,4 +1,4 @@
-// Added by HTE on 2026-10-16 for HTE Remote. See HTE.md.
+// Added for HTE Remote on 2026-10-16. See HTE.md.
 // This file is part of a modified version of cortendesk-server, distributed
 // under the AGPL-3.0 like the original.
 
@@ -253,7 +253,7 @@ mod tests {
             "7".to_owned(),
             ScopeUser { name: "mperez".into(), all: false, devices: ["t1".to_owned()].into() },
         );
-        users.insert("8".to_owned(), ScopeUser { name: "owner".into(), all: true, devices: Default::default() });
+        users.insert("8".to_owned(), ScopeUser { name: "jdoe".into(), all: true, devices: Default::default() });
         let mut token_users = HashMap::new();
         token_users.insert("hash-7".to_owned(), "7".to_owned());
         Scope { enforce: true, users, token_users }

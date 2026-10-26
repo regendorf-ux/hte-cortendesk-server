@@ -1,4 +1,4 @@
-//! The in-browser RustDesk client: the page (`WebClientPageController@show`, `resources/views/webclient.blade.php`), its
+//! The in-browser RustDesk client: the page (`WebClientPageController@show`, the previous console's view `resources/views/webclient`), its
 //! prebuilt bundle (`public/rdclient/`: app.js, app.css, session.worker.js, logo.png), branded HTE Remote, and the
 //! per-person credential the page asks for so a signed-in person connects without typing a password.
 //!
@@ -113,12 +113,12 @@ fn files() -> &'static Files {
     })
 }
 
-/// The cache-bust value the page puts after `?v=` (PHP: the bundle's mtime): the served script's own hash.
+/// The cache-bust value the page puts after `?v=` (the previous console: the bundle's mtime): the served script's own hash.
 pub fn version() -> String {
     files().app_js.etag.trim_matches('"')[..10].to_string()
 }
 
-/// `/rdclient/<name>`: public static files, as nginx served them. `?v=` makes them cacheable for a year; without it they revalidate.
+/// `/rdclient/<name>`: public static files, as the previous console's web server served them. `?v=` makes them cacheable for a year; without it they revalidate.
 pub fn respond(name: &str, query: Option<&str>, headers: &HeaderMap, head: bool) -> Response<Body> {
     let f = files();
     let s = match name {
@@ -151,7 +151,7 @@ fn env(name: &str) -> String {
     crate::envvar::var(name).unwrap_or_default().trim().to_string()
 }
 
-/// `WebClientPageController::wsBase`: `ws(s)://host[:port]` from APP_URL (PHP's default `http://localhost`), the request's own address when APP_URL has no host.
+/// `WebClientPageController::wsBase`: `ws(s)://host[:port]` from APP_URL (the previous console's default `http://localhost`), the request's own address when APP_URL has no host.
 fn ws_base(headers: &HeaderMap) -> String {
     let app_url = crate::envvar::var("APP_URL").unwrap_or_else(|_| "http://localhost".into());
     let host_of = |u: &str| -> Option<(bool, String, Option<u16>)> {

@@ -1,4 +1,4 @@
-//! The proxy end to end: a fake PHP console, the shadow in front of it, a client in front of that.
+//! The proxy end to end: a fake previous console, the shadow in front of it, a client in front of that.
 
 use axum::body::Bytes;
 use axum::http::{HeaderMap, StatusCode};
@@ -11,7 +11,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::Arc;
 use std::time::Duration;
 
-async fn fake_php() -> String {
+async fn fake_upstream() -> String {
     let app = Router::new()
         .route(
             "/api/heartbeat",
@@ -60,11 +60,11 @@ async fn shadow(upstream: String, dir: Option<std::path::PathBuf>, timeout: u64)
 #[tokio::test]
 async fn answer_is_php_answer_and_fixture_is_clean() {
     let dir = tempfile::tempdir().unwrap();
-    let php = fake_php().await;
-    let base = shadow(php.clone(), Some(dir.path().to_path_buf()), 5).await;
+    let upstream = fake_upstream().await;
+    let base = shadow(upstream.clone(), Some(dir.path().to_path_buf()), 5).await;
     let c = reqwest::Client::new();
     let body = r#"{"id":"123456789","uuid":"AAAAAAAAAAAAAAAAAAAAAA=="}"#;
-    let direct = c.post(format!("{php}/api/heartbeat")).header("x-forwarded-for", "203.0.113.9").header("content-type", "application/json").body(body).send().await.unwrap();
+    let direct = c.post(format!("{upstream}/api/heartbeat")).header("x-forwarded-for", "203.0.113.9").header("content-type", "application/json").body(body).send().await.unwrap();
     let via = c.post(format!("{base}/api/heartbeat")).header("x-forwarded-for", "203.0.113.9").header("content-type", "application/json").body(body).send().await.unwrap();
     assert_eq!(direct.status(), via.status());
     assert_eq!(via.headers()["x-odd"], "kept");
@@ -90,8 +90,8 @@ async fn answer_is_php_answer_and_fixture_is_clean() {
 
 #[tokio::test]
 async fn recording_off_still_forwards_and_upstream_trouble_is_a_502_or_504() {
-    let php = fake_php().await;
-    let base = shadow(php, None, 1).await;
+    let upstream = fake_upstream().await;
+    let base = shadow(upstream, None, 1).await;
     let c = reqwest::Client::new();
     let r = c.post(format!("{base}/api/heartbeat")).body("{}").send().await.unwrap();
     assert_eq!(r.status(), 201);
@@ -105,13 +105,13 @@ async fn recording_off_still_forwards_and_upstream_trouble_is_a_502_or_504() {
 #[tokio::test]
 async fn replay_finds_no_difference_against_the_same_answers_and_one_against_changed_ones() {
     let dir = tempfile::tempdir().unwrap();
-    let php = fake_php().await;
-    let base = shadow(php.clone(), Some(dir.path().to_path_buf()), 5).await;
+    let upstream = fake_upstream().await;
+    let base = shadow(upstream.clone(), Some(dir.path().to_path_buf()), 5).await;
     let c = reqwest::Client::new();
     c.post(format!("{base}/api/heartbeat")).header("content-type", "application/json").body(r#"{"id":"123456789"}"#).send().await.unwrap();
     tokio::time::sleep(Duration::from_millis(300)).await;
     let s = Sanitiser::new(Some("salt"), &[]);
-    let same = hte_console::replay::run(dir.path(), &php, &s).await.unwrap();
+    let same = hte_console::replay::run(dir.path(), &upstream, &s).await.unwrap();
     assert_eq!((same.total, same.differences.len()), (1, 0), "{:?}", same.differences);
 
     // an answer that is not the recorded one

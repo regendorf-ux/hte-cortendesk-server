@@ -12,8 +12,8 @@
 //! code step), `devices` (DeviceEnrollment::signedIn: a pending device is approved and owned on sign-in).
 //!
 //! Not ported: the emailed sign-in code (it needs the console's mail relay): with `email_login_verification` on and
-//! mail configured, a password sign-in gets PHP's own fail-closed answer, and `serve` warns at start. Apprise
-//! notifications (failed sign-in, device pending) are not sent (HTE has Apprise off). Differences from PHP that a
+//! mail configured, a password sign-in gets the previous console's own fail-closed answer, and `serve` warns at start. Apprise
+//! notifications (failed sign-in, device pending) are not sent (Apprise is not ported). Differences from the previous console that a
 //! valid client cannot see are listed in the crate's README ("Phase 2: deliberate differences").
 
 use crate::api::{fail, Native, Reply};
@@ -38,7 +38,7 @@ pub const TYP_BRUTE_FORCE: i64 = 100;
 /// The client keeps polling while it reads exactly this.
 pub const PENDING: &str = "No authed oidc is found";
 
-/// A code prompt between the password step and the code step (PHP keeps it in its cache, keyed by sha256(secret)).
+/// A code prompt between the password step and the code step (the previous console keeps it in its cache, keyed by sha256(secret)).
 #[derive(Clone, Debug)]
 pub struct Challenge {
     pub user_id: i64,
@@ -60,7 +60,7 @@ pub struct State {
     /// `HTE_CONSOLE_PUBLIC_URL`: the console's own origin as browsers and the identity provider know it. When set,
     /// the OIDC redirect URI and the page's links come from it, never from the request's Host header.
     pub public_url: Option<String>,
-    /// `APP_NAME` (page titles), as the PHP image has it.
+    /// `APP_NAME` (page titles), as the CortenDesk image has it.
     pub app_name: String,
 }
 
@@ -341,7 +341,7 @@ fn challenge(n: &Native, input: &Input, user: &Row, now: i64) -> Result<Reply, F
 }
 
 /// `challenge($request, $user, 'email')` (phase 8, 0.8.2): a 6-digit code mailed through the console's relay, its bcrypt
-/// hash kept with the prompt; when it cannot be sent the client gets PHP's fail-closed answer (it cannot repair a relay).
+/// hash kept with the prompt; when it cannot be sent the client gets the previous console's fail-closed answer (it cannot repair a relay).
 fn email_challenge(n: &Native, c: &Connection, input: &Input, user: &Row, ip: &str, now: i64) -> Result<Reply, Fault> {
     use rand::Rng;
     static VIEW: once_cell::sync::Lazy<Option<crate::pages::view::View>> = once_cell::sync::Lazy::new(|| crate::pages::view::View::embedded().ok());
@@ -690,7 +690,7 @@ pub fn callback_start(n: &Native, c: &Connection, input: &Input, now: i64) -> Re
     if expired_row(&row, now)? || !php::hash_equals(&row.val("state").to_php_string()?, &state) {
         return Ok(expired);
     }
-    // Hardened: a state completes once. PHP would exchange again and overwrite the result (a reload after success
+    // Hardened: a state completes once. The previous console would exchange again and overwrite the result (a reload after success
     // turned it into a failure; a second code could replace the token the client is about to collect).
     if !row.is_null("authorized_at") || row.val("failure").to_bool() {
         return Ok(expired);
@@ -771,7 +771,7 @@ pub fn callback_finish(c: &Connection, row: &Row, claims: Result<Val, OidcError>
     Ok(Page { status: 200, ok: true, message: format!("You are signed in as {display}. You can close this tab and return to HTE Remote.") })
 }
 
-/// `resources/views/auth/oidc-client-result.blade.php` in HTE's guest layout. `root` is the console's origin.
+/// the previous console's view `resources/views/auth/oidc-client-result` in HTE Remote's guest layout. `root` is the console's origin.
 pub fn render_page(p: &Page, root: &str, app_name: &str, version: &str) -> String {
     let e = laravel::e;
     let asset = |path: &str| e(&format!("{root}/{path}?v={version}"));
@@ -823,7 +823,7 @@ pub fn render_page(p: &Page, root: &str, app_name: &str, version: &str) -> Strin
             <p class="rd-auth-sub mb-0">{message}</p>
 {foot}        </div>
     </div>
-        <p class="hte-auth-note">HTE Remote &mdash; remote support for HTE</p>
+        <p class="hte-auth-note">HTE Remote &mdash; self-hosted remote support</p>
     </div>
 
     <script src="{bundle}"></script>

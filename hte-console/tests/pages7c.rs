@@ -1,7 +1,7 @@
 //! Phase 7c end to end: Fleet diagnostics, Roles and the health routes on a real
 //! socket, against a temporary database made from tests/schema_live.sql (the live schema) and a synthetic seed.
-//! The session rows are minted here with the crate's own Encrypter, the way PHP's `SESSION_DRIVER=database` writes
-//! them. Expectations come from the PHP source (v1.15.0-hte.1) read for this phase: `phase7/NOTES.md`.
+//! The session rows are minted here with the crate's own Encrypter, the way the previous console's `SESSION_DRIVER=database` writes
+//! them. Expectations come from the previous console's source (v1.15.0-hte.1).
 
 use hte_console::api::{Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -76,7 +76,7 @@ async fn harness() -> H {
     c.execute_batch(SEED).unwrap();
     let hash = laravel::hash_make(b"oldpass123").unwrap();
     for (id, username, name, email, admin, active, role) in [
-        (1, "owner", "owner D", "o@example.test", 1, 1, None),
+        (1, "jdoe", "Jane D", "o@example.test", 1, 1, None),
         (2, "dana", "", "dana@example.test", 0, 1, None),
         (3, "erin", "Erin", "erin@example.test", 0, 1, Some(1)),
         (4, "gone", "Gone", "gone@example.test", 0, 0, None),
@@ -122,7 +122,7 @@ impl H {
         self.db().query_row(q, [], |r| r.get::<_, Option<String>>(0)).unwrap().unwrap_or_default()
     }
 
-    /// A signed-in session row for `uid` (what PHP's database driver writes) and its cookie.
+    /// A signed-in session row for `uid` (what the previous console's database driver writes) and its cookie.
     fn login(&self, id: &str, uid: i64, extra: Value) -> String {
         let mut data = json!({"_token": TOKEN, session::LOGIN_KEY: uid, "_flash": {"old": [], "new": []}});
         if let Value::Object(m) = extra {
@@ -293,7 +293,7 @@ async fn fleet_diagnostics() {
     let r = h.get("/diagnostics", &admin).await;
     assert!(card(&r.body, "Scheduler").contains("text-danger\">Failed</span>") && card(&r.body, "Scheduler").contains("No fresh scheduler heartbeat."));
 
-    // the download: sanitised, PHP's pretty print, no host names
+    // the download: sanitised, the previous console's pretty print, no host names
     let r = h.get("/diagnostics/export", &admin).await;
     assert_eq!(r.status, 200);
     assert_eq!(r.headers["content-type"], "application/json");
@@ -331,7 +331,7 @@ async fn health_routes() {
     h.sql(&format!("insert into settings (key, value, created_at, updated_at) values ('relay_servers', '[{{\"address\":\"127.0.0.1:{closed}\",\"geo\":\"\"}}]', '2025-01-01 00:00:00', '2025-01-01 00:00:00');"));
     let r = h.go("GET", "/health/ready", None, None, "", &[]).await;
     assert_eq!((r.status, r.body.as_str()), (503, r#"{"ready":false,"database":true,"id_server":true,"relay_server":false}"#));
-    // PHP's global limit: 30 readiness probes a minute (3 used above), then 429 with Retry-After
+    // The previous console's global limit: 30 readiness probes a minute (3 used above), then 429 with Retry-After
     let mut last = 0;
     for _ in 0..30 {
         last = h.go("GET", "/health/ready", None, None, "", &[]).await.status;
@@ -371,7 +371,7 @@ async fn the_roles_page() {
     assert!(s.contains("Delete this role? 1 user(s) will revert to standard user access."));
     assert!(s.contains(r#"<span class="badge bg-secondary-subtle text-secondary flex-shrink-0"> 1 user </span>"#));
 
-    // super-admin only: the page redirects with PHP's flash, the writes are 403
+    // super-admin only: the page redirects with the previous console's flash, the writes are 403
     assert_eq!(h.get("/roles", &dana).await.status, 302);
     assert_eq!(h.payload(&sid("d"))["denied"], "That section is restricted to administrators.");
     for c in [&dana, &erin] {
@@ -408,11 +408,11 @@ async fn the_roles_page() {
     assert_eq!(h.text("select coalesce(description, 'NULL') || '|' || require_two_factor || '|' || created_at || '|' || updated_at from roles where name = 'Helpdesk'"), "NULL|1|2025-10-25 03:20:00|2025-10-25 03:20:00");
     assert_eq!(
         h.text("select action || '|' || target_type || '|' || target_id || '|' || summary || '|' || username from console_audits order by id desc limit 1"),
-        "role.create|role|Helpdesk|Created role Helpdesk [device:r, setting:rw]|owner"
+        "role.create|role|Helpdesk|Created role Helpdesk [device:r, setting:rw]|jdoe"
     );
     let helpdesk: i64 = h.text("select cast(id as text) from roles where name = 'Helpdesk'").parse().unwrap();
 
-    // a role that requires 2FA: its holder is sent to enrolment (RequireTwoFactor, answered by PHP) before any page
+    // a role that requires 2FA: its holder is sent to enrolment (RequireTwoFactor, answered by the previous console) before any page
     h.sql(&format!("update users set role_id = {helpdesk} where id = 2;"));
     assert_ne!(h.get("/diagnostics", &dana).await.status, 200);
 
@@ -427,7 +427,7 @@ async fn the_roles_page() {
     assert_eq!(h.post_form("/roles/save", &admin, &edit).await.status, 302);
     assert_eq!(h.text("select description || '|' || updated_at from roles where name = 'Helpdesk'"), "Front line|2025-10-25 03:20:00");
     assert!(h.text("select summary from console_audits order by id desc limit 1").starts_with("Updated role Helpdesk [device:r, setting:rw]"));
-    // an unchanged save writes no new updated_at (Eloquent's dirty check), but still an audit row (PHP records every save)
+    // an unchanged save writes no new updated_at (Eloquent's dirty check), but still an audit row (the previous console records every save)
     h.sql("update roles set updated_at = '2025-10-01 00:00:00' where name = 'Helpdesk';");
     let audits = h.count("console_audits");
     assert_eq!(h.post_form("/roles/save", &admin, &edit).await.status, 302);

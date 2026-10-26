@@ -1,4 +1,4 @@
-//! One device (Livewire `DeviceDetail`): identity and hardware, HTE's "Who can reach this device" card with the
+//! One device (the previous console's `DeviceDetail`): identity and hardware, HTE Remote's "Who can reach this device" card with the
 //! password row, the note, the address books that carry it, possible duplicates and the recent activity.
 //!
 //! The component's flags became the URL: `?edit=1` (the editor), `?delete=<id>` (the confirm step, for this device

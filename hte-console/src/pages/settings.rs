@@ -1,4 +1,4 @@
-//! Settings (Livewire `SettingsPage` and HTE's `ScopeSettings`): one form, eight tabs, and the same rows in `settings`.
+//! Settings (the previous console's `SettingsPage` and HTE Remote's `ScopeSettings`): one form, eight tabs, and the same rows in `settings`.
 //!
 //! Every tab is rendered into the one form (a tab link only shows its pane), so Save writes what every tab holds, as
 //! `SettingsPage::save()` does, and an edit on one tab survives a visit to another. A secret (the SSO client secret, the
@@ -391,7 +391,7 @@ pub(crate) struct Link {
     pub at: Option<i64>,
     /// the marker's `at` as stored (Fleet Diagnostics' download shows it)
     pub at_raw: Option<String>,
-    /// a pull marker exists (PHP's `is_array($pull)`)
+    /// a pull marker exists (the previous console's `is_array($pull)`)
     pub has_pull: bool,
     pub agent: String,
     pub fresh: bool,

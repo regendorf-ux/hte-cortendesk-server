@@ -1,9 +1,9 @@
-//! Templates: minijinja, runtime, embedded in the binary (`templates/`), the Blade views' markup converted nearly one
+//! Templates: minijinja, runtime, embedded in the binary (`templates/`), the previous console's template views' markup converted nearly one
 //! to one. `HTE_CONSOLE_TEMPLATES=<dir>` reads the templates from disk on every render instead, so a template edit
 //! needs no compile (and no restart).
 //!
-//! Escaping is Blade's `e()` (htmlspecialchars with ENT_QUOTES: `&#039;` for a quote), applied to everything printed
-//! unless it went through `|safe`; null and undefined print nothing, `true` prints `1` and `false` nothing, as PHP
+//! Escaping is the previous console's template engine's `e()` (htmlspecialchars with ENT_QUOTES: `&#039;` for a quote), applied to everything printed
+//! unless it went through `|safe`; null and undefined print nothing, `true` prints `1` and `false` nothing, as the previous console
 //! echoes them. Undefined variables are errors, so a typo cannot render silently; `tests/pages.rs` renders every page.
 
 use include_dir::{include_dir, Dir};
@@ -42,7 +42,7 @@ fn read_dir(root: &std::path::Path, dir: &std::path::Path, out: &mut Vec<(String
     Ok(())
 }
 
-/// Blade's `{{ }}`: what PHP would echo, escaped as `e()` does unless the value is marked safe.
+/// the previous console's template engine's `{{ }}`: what the previous console would echo, escaped as `e()` does unless the value is marked safe.
 fn format_value(out: &mut minijinja::Output, _state: &minijinja::State, value: &Value) -> Result<(), Error> {
     if value.is_undefined() || value.is_none() {
         return Ok(());
@@ -75,7 +75,7 @@ impl BoolLike for Value {
 fn build(templates: Vec<(String, String)>) -> Result<Environment<'static>, String> {
     let mut env = Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
-    // escaping is done by the formatter (PHP's way), so the engine's own is off
+    // escaping is done by the formatter (the previous console's way), so the engine's own is off
     env.set_auto_escape_callback(|_| minijinja::AutoEscape::None);
     env.set_formatter(format_value);
     env.set_keep_trailing_newline(true);

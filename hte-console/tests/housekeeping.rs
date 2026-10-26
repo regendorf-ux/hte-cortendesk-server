@@ -1,8 +1,8 @@
-//! Phase 6: local backups (PHP's archive format, both directions), restore (including interrupted ones), the
+//! Phase 6: local backups (the previous console's archive format, both directions), restore (including interrupted ones), the
 //! retention tiers, log and invitation pruning, and the daily scheduler entries. Everything runs on temporary
-//! databases made from tests/schema*.sql; nothing here needs PHP, Docker or the network.
+//! databases made from tests/schema*.sql; nothing here needs the previous console, Docker or the network.
 //!
-//! The one test that needs a real PHP-made archive (`HTE_TEST_PHP_ARCHIVE=/path/to/cortendesk-backup-....tar`) is
+//! The one test that needs a real previous-console-made archive (`HTE_TEST_PHP_ARCHIVE=/path/to/cortendesk-backup-....tar`) is
 //! skipped when the variable is unset; such an archive holds the install's secrets and is never committed.
 
 use hte_console::backup::{self, Env, Stage};
@@ -39,7 +39,7 @@ fn dec(key: &str, payload: &str) -> String {
     String::from_utf8(Encrypter::from_app_key(key).unwrap().decrypt_string(payload.as_bytes()).unwrap()).unwrap()
 }
 
-/// A "PHP console" install: a database with some of everything, the app key, hbbs's files.
+/// A "previous console" install: a database with some of everything, the app key, hbbs's files.
 fn world(key: &str) -> World {
     let dir = tempfile::tempdir().unwrap();
     let db = dir.path().join("cortendesk.sqlite");
@@ -165,7 +165,7 @@ fn archive_has_php_layout() {
     let made = backup::create(&w.env, "manual", NOW).unwrap();
     assert_eq!(made.name, "hte-remote-backup-20261024-041030.tar");
     assert!(backup::is_backup_name(&made.name));
-    // modes, as PHP: archive and sidecar 0600
+    // modes, as the previous console: archive and sidecar 0600
     use std::os::unix::fs::PermissionsExt;
     assert_eq!(std::fs::metadata(&made.path).unwrap().permissions().mode() & 0o777, 0o600);
     let sidecar = PathBuf::from(format!("{}.json", made.path.display()));
@@ -187,7 +187,7 @@ fn archive_has_php_layout() {
         ["files/app_key", "files/server_secret", "files/rustdesk/id_ed25519", "files/rustdesk/id_ed25519.pub", "files/rustdesk/db_v2.sqlite3"]
     );
 
-    // the manifest: PHP's keys, in PHP's order, pretty printed with four spaces
+    // the manifest: the previous console's keys, in the previous console's order, pretty printed with four spaces
     let text = std::fs::read_to_string(w.dir.path().join("x/manifest.json")).unwrap();
     assert!(text.starts_with("{\n    \"format\": 1,\n    \"app\": \"cortendesk\",\n    \"app_version\": \"1.15.0-hte.1\",\n    \"created_at\": \"2026-10-24T04:10:30+00:00\",\n    \"trigger\": \"manual\",\n    \"app_url\": \"https://rustdesk.example.test\",\n    \"db_driver\": \"sqlite\",\n    \"tables\": {\n"), "{text}");
     let m: serde_json::Value = serde_json::from_str(&text).unwrap();
@@ -197,7 +197,7 @@ fn archive_has_php_layout() {
     assert_eq!(std::fs::read_to_string(&sidecar).unwrap(), text, "the sidecar is the manifest");
     assert_eq!(made.manifest, m);
 
-    // rows: one JSON object per line, columns in table order, PHP's types
+    // rows: one JSON object per line, columns in table order, the previous console's types
     let users = gunzip(&w.dir.path().join("x/db__users.ndjson.gz"));
     let first: serde_json::Value = serde_json::from_str(users.lines().next().unwrap()).unwrap();
     assert_eq!(first["id"], 1);
@@ -222,7 +222,7 @@ fn archive_has_php_layout() {
 
 #[test]
 fn system_tar_and_gzip_read_our_archive() {
-    // an independent reader (not PHP, but not this crate either): the headers and members are valid
+    // an independent reader (not the previous console, but not this crate either): the headers and members are valid
     let w = world(KEY_A);
     let made = backup::create(&w.env, "manual", NOW).unwrap();
     let out = std::process::Command::new("tar").arg("-tf").arg(&made.path).output().unwrap();
@@ -272,7 +272,7 @@ fn round_trip_rust_to_rust() {
     assert!(!rd.join("id_ed25519.restore.part").exists());
     // the live files themselves are not touched
     assert_eq!(std::fs::read_to_string(rd.join("id_ed25519")).unwrap(), "PRIVATE-KEY-BYTES");
-    // PHP can still use the database it shares (the write lock is free, the file is not in a half state)
+    // The previous console can still use the database it shares (the write lock is free, the file is not in a half state)
     let c = w.env.open().unwrap();
     c.execute_batch("begin immediate; rollback").unwrap();
     assert_eq!(c.query_row::<String, _, _>("pragma integrity_check", [], |r| r.get(0)).unwrap(), "ok");
@@ -302,7 +302,7 @@ fn restore_into_another_install_rekeys_the_encrypted_values() {
     assert!(Encrypter::from_app_key(KEY_A).unwrap().decrypt_string(get("select value from settings where key = 'oidc_client_secret'").as_bytes()).is_err());
 }
 
-/// An archive written the way PHP writes one (system tar and gzip, hand-made PHP-style JSON), not by this crate.
+/// An archive written the way the previous console writes one (system tar and gzip, hand-made previous-console-style JSON), not by this crate.
 fn php_style_archive(dir: &Path, app_key: &str, with_dirs: bool, extra_column: bool) -> PathBuf {
     let pkg = dir.join("pkg");
     std::fs::create_dir_all(pkg.join("db")).unwrap();
@@ -316,17 +316,17 @@ fn php_style_archive(dir: &Path, app_key: &str, with_dirs: bool, extra_column: b
     write_gz(
         "settings.ndjson", // gzip -f turns it into settings.ndjson.gz
         &[
-            &format!("{{\"key\":\"oidc_client_secret\",\"value\":\"{}\",\"created_at\":\"2026-10-01 10:00:00\",\"updated_at\":null{extra}}}", enc(app_key, "from-php")),
+            &format!("{{\"key\":\"oidc_client_secret\",\"value\":\"{}\",\"created_at\":\"2026-10-01 10:00:00\",\"updated_at\":null{extra}}}", enc(app_key, "from-old")),
             "{\"key\":\"oidc_enabled\",\"value\":\"1\",\"created_at\":null,\"updated_at\":null}",
             "{\"key\":\"note\",\"value\":\"caf\u{e9} \u{65e5}\u{672c} \\\"q\\\" \\/ \\u00e9\",\"created_at\":null,\"updated_at\":null}",
             "{\"key\":\"ratio\",\"value\":1.5,\"created_at\":null,\"updated_at\":null}",
         ],
     );
-    write_gz("users.ndjson", &["{\"id\":7,\"username\":\"php-user\",\"name\":null,\"email\":null,\"password\":\"x\",\"is_admin\":true,\"is_active\":1,\"created_at\":\"2026-10-01 10:00:00\",\"updated_at\":\"2026-10-01 10:00:00\"}"]);
+    write_gz("users.ndjson", &["{\"id\":7,\"username\":\"old-user\",\"name\":null,\"email\":null,\"password\":\"x\",\"is_admin\":true,\"is_active\":1,\"created_at\":\"2026-10-01 10:00:00\",\"updated_at\":\"2026-10-01 10:00:00\"}"]);
     write_gz("devices.ndjson", &[]);
     std::fs::write(pkg.join("files/app_key"), app_key).unwrap();
-    std::fs::write(pkg.join("files/rustdesk/id_ed25519"), "PHP-PRIVATE").unwrap();
-    std::fs::write(pkg.join("files/rustdesk/id_ed25519.pub"), "PHP-PUBLIC").unwrap();
+    std::fs::write(pkg.join("files/rustdesk/id_ed25519"), "OLD-PRIVATE").unwrap();
+    std::fs::write(pkg.join("files/rustdesk/id_ed25519.pub"), "OLD-PUBLIC").unwrap();
     let manifest = "{\n    \"format\": 1,\n    \"app\": \"cortendesk\",\n    \"app_version\": \"1.14.0-hte.6\",\n    \"created_at\": \"2026-10-24T03:30:00+00:00\",\n    \"trigger\": \"scheduled\",\n    \"app_url\": \"https:\\/\\/rustdesk.example.test\",\n    \"db_driver\": \"sqlite\",\n    \"tables\": {\n        \"devices\": 0,\n        \"migrations\": 99,\n        \"settings\": 4,\n        \"users\": 1\n    },\n    \"files\": [\n        \"app_key\",\n        \"rustdesk\\/id_ed25519\",\n        \"rustdesk\\/id_ed25519.pub\"\n    ]\n}";
     std::fs::write(pkg.join("manifest.json"), manifest).unwrap();
     let tar = dir.join("cortendesk-backup-20261024-033000.tar");
@@ -356,15 +356,15 @@ fn a_php_style_archive_restores() {
         assert_eq!(r.dropped_columns["settings"], ["dropped_by_this_version"]);
         let c = w.env.open().unwrap();
         let get = |sql: &str| c.query_row::<String, _, _>(sql, [], |r| r.get(0)).unwrap();
-        assert_eq!(dec(KEY_B, &get("select value from settings where key = 'oidc_client_secret'")), "from-php");
+        assert_eq!(dec(KEY_B, &get("select value from settings where key = 'oidc_client_secret'")), "from-old");
         assert_eq!(get("select value from settings where key = 'note'"), "café 日本 \"q\" / é");
-        assert_eq!(get("select typeof(value) || ':' || value from settings where key = 'ratio'"), "text:1.5", "a float binds as PHP binds it (text; the column has no numeric affinity)");
-        assert_eq!(get("select username from users"), "php-user");
+        assert_eq!(get("select typeof(value) || ':' || value from settings where key = 'ratio'"), "text:1.5", "a float binds as the previous console binds it (text; the column has no numeric affinity)");
+        assert_eq!(get("select username from users"), "old-user");
         assert_eq!(c.query_row::<i64, _, _>("select is_admin from users", [], |r| r.get(0)).unwrap(), 1, "true -> 1");
         assert_eq!(c.query_row::<i64, _, _>("select count(*) from devices", [], |r| r.get(0)).unwrap(), 0, "a table the archive has empty is emptied");
-        assert_eq!(c.query_row::<i64, _, _>("select count(*) from address_books", [], |r| r.get(0)).unwrap(), 0, "and one it does not have at all is emptied too (PHP deletes every live table)");
+        assert_eq!(c.query_row::<i64, _, _>("select count(*) from address_books", [], |r| r.get(0)).unwrap(), 0, "and one it does not have at all is emptied too (the previous console deletes every live table)");
         assert_eq!(c.query_row::<i64, _, _>("select count(*) from migrations", [], |r| r.get(0)).unwrap(), 2, "migrations: the live ones");
-        assert_eq!(std::fs::read_to_string(w.env.rustdesk_dir.clone().unwrap().join("id_ed25519.restore")).unwrap(), "PHP-PRIVATE");
+        assert_eq!(std::fs::read_to_string(w.env.rustdesk_dir.clone().unwrap().join("id_ed25519.restore")).unwrap(), "OLD-PRIVATE");
         assert!(!w.env.rustdesk_dir.clone().unwrap().join("db_v2.sqlite3.restore").exists(), "an archive without it stages nothing");
         // and it can be listed like one of ours
         let b = backup::list(&w.env).unwrap();
@@ -382,7 +382,7 @@ fn a_real_php_archive_restores_and_round_trips() {
     let m = backup::read_manifest(&path).unwrap();
     // The live console's real schema (tests/schema_live.sql, no data), an install with another app key.
     let w = bare_world(KEY_B);
-    let x = w.dir.path().join("php");
+    let x = w.dir.path().join("old");
     std::fs::create_dir(&x).unwrap();
     tarfile::extract(&path, |n| n.strip_prefix("db/").map(|t| x.join(t))).unwrap();
     let mut counts = BTreeMap::new();
@@ -393,8 +393,8 @@ fn a_real_php_archive_restores_and_round_trips() {
     let total: i64 = counts.iter().filter(|(t, _)| *t != "migrations").map(|(_, n)| n).sum();
     assert_eq!(r.rows, total);
     // the app key in the archive is the one this install's secrets were made with: rekey tells us whether it is ours
-    eprintln!("real PHP archive: {} tables, {} rows restored, rekeyed={}, files staged={:?}", r.tables, r.rows, r.rekeyed, r.files);
-    // Laravel's Crypt as the real PHP container wrote it: every encrypted value opens with the archive's own key, and the
+    eprintln!("real archive of the previous console: {} tables, {} rows restored, rekeyed={}, files staged={:?}", r.tables, r.rows, r.rekeyed, r.files);
+    // Laravel's Crypt as the real the previous console container wrote it: every encrypted value opens with the archive's own key, and the
     // re-keyed copy opens with this install's to the same text (nothing is printed)
     let their_key = tarfile::read_entry(&path, "files/app_key", 4096).unwrap().map(|b| String::from_utf8(b).unwrap().trim().to_string());
     if let Some(their_key) = their_key.filter(|_| r.rekeyed) {
@@ -411,10 +411,10 @@ fn a_real_php_archive_restores_and_round_trips() {
             assert_eq!(dec(KEY_B, &mine), original, "setting {k}");
             checked += 1;
         }
-        eprintln!("PHP-made ciphertexts opened and re-keyed: {checked} settings");
+        eprintln!("ciphertexts made by the previous console opened and re-keyed: {checked} settings");
         assert!(checked >= 1);
     }
-    // and back: an archive of ours from the restored data has the same table counts as the PHP one
+    // and back: an archive of ours from the restored data has the same table counts as the previous console one
     let again = backup::create(&w.env, "manual", NOW).unwrap();
     for (t, n) in &counts {
         if t == "migrations" {
@@ -422,7 +422,7 @@ fn a_real_php_archive_restores_and_round_trips() {
         }
         assert_eq!(again.manifest["tables"][t], *n, "table {t}");
     }
-    // row for row: the PHP dump of a table equals ours, line by line, as JSON values
+    // row for row: the previous console dump of a table equals ours, line by line, as JSON values
     let y = w.dir.path().join("ours");
     std::fs::create_dir(&y).unwrap();
     tarfile::extract(&again.path, |n| n.strip_prefix("db/").map(|t| y.join(t))).unwrap();
@@ -531,7 +531,7 @@ fn a_schema_change_during_the_restore_stops_it() {
     let db = w.env.database.clone();
     let err = backup::restore(&w.env, &made.path, NOW, &move |s| {
         if s == Stage::Checked {
-            // a PHP migration lands between the check and the swap
+            // a previous-console migration lands between the check and the swap
             Connection::open(&db).unwrap().execute_batch("alter table settings add column extra text").unwrap();
         }
         Ok(())
@@ -562,13 +562,13 @@ fn a_killed_run_leaves_no_trace_the_next_run_trips_on() {
 #[test]
 fn backup_and_restore_exclude_each_other_through_phps_lock() {
     let w = world(KEY_A);
-    // PHP's Settings -> Backups holds `cortendesk:backup` (3600 s)
-    w.env.open().unwrap().execute("insert into cache_locks (key, owner, expiration) values ('p-cortendesk:backup', 'php-owner', ?)", [NOW + 3000]).unwrap();
+    // The previous console's Settings -> Backups holds `cortendesk:backup` (3600 s)
+    w.env.open().unwrap().execute("insert into cache_locks (key, owner, expiration) values ('p-cortendesk:backup', 'old-owner', ?)", [NOW + 3000]).unwrap();
     assert_eq!(backup::create(&w.env, "manual", NOW).unwrap_err(), "Another backup or restore is still running.");
     let tar = php_style_archive(w.dir.path(), KEY_A, false, false);
     assert_eq!(backup::restore(&w.env, &tar, NOW, &no_hook).unwrap_err(), "Another backup or restore is still running.");
-    // PHP's lock is still there, untouched
-    assert_eq!(w.env.open().unwrap().query_row::<String, _, _>("select owner from cache_locks where key = 'p-cortendesk:backup'", [], |r| r.get(0)).unwrap(), "php-owner");
+    // The previous console's lock is still there, untouched
+    assert_eq!(w.env.open().unwrap().query_row::<String, _, _>("select owner from cache_locks where key = 'p-cortendesk:backup'", [], |r| r.get(0)).unwrap(), "old-owner");
 }
 
 #[test]
@@ -801,10 +801,10 @@ fn the_backup_entry_is_held_against_php_and_fires_once_at_0330() {
     let s = setup_for(&w, &[Job::Backup]);
     let c = w.env.open().unwrap();
     let mutex = format!("p-{}", Job::Backup.mutex_name());
-    // 03:29: nothing to run, but the lock PHP's scheduler would take is held already
+    // 03:29: nothing to run, but the lock the previous console's scheduler would take is held already
     s.tick(at_utc(3, 29, 50));
     assert_eq!(c.query_row::<String, _, _>("select owner from cache_locks where key = ?", [&mutex], |r| r.get(0)).unwrap().starts_with("hte-console-svc-"), true);
-    assert_eq!(c.query_row::<i64, _, _>("select expiration from cache_locks where key = ?", [&mutex], |r| r.get(0)).unwrap(), at_utc(3, 29, 50) + 30 * 60, "PHP's withoutOverlapping(30)");
+    assert_eq!(c.query_row::<i64, _, _>("select expiration from cache_locks where key = ?", [&mutex], |r| r.get(0)).unwrap(), at_utc(3, 29, 50) + 30 * 60, "the scheduler's withoutOverlapping(30)");
     assert!(backup::list(&w.env).unwrap().is_empty());
     // 03:30: runs; a second tick in the same minute does not run it again
     s.tick(at_utc(3, 30, 5));
@@ -819,7 +819,7 @@ fn the_backup_entry_is_held_against_php_and_fires_once_at_0330() {
     s.tick(at_utc(4, 10, 0));
     std::thread::sleep(Duration::from_millis(200));
     assert_eq!(backup::list(&w.env).unwrap().len(), 1);
-    // a clean stop gives the lock back (PHP's entry runs again), and the service stops ticking
+    // a clean stop gives the lock back (the previous console's entry runs again), and the service stops ticking
     s.release_all();
     assert_eq!(c.query_row::<i64, _, _>("select count(*) from cache_locks where key = ?", [&mutex], |r| r.get(0)).unwrap(), 0);
     s.tick(at_utc(3, 30, 0) + 86_400);
@@ -832,14 +832,14 @@ fn php_holding_the_entry_keeps_this_tick_away_and_a_dead_service_lock_is_taken_b
     let w = world(KEY_A);
     let c = w.env.open().unwrap();
     let mutex = format!("p-{}", Job::Backup.mutex_name());
-    // PHP is mid-run on its own entry (its random owner): this service leaves the backup alone
+    // The previous console is mid-run on its own entry (its random owner): this service leaves the backup alone
     c.execute("insert into cache_locks (key, owner, expiration) values (?, 'phpRANDOMowner', ?)", rusqlite::params![mutex, at_utc(3, 31, 0)]).unwrap();
     let s = setup_for(&w, &[Job::Backup]);
     s.tick(at_utc(3, 30, 5));
     std::thread::sleep(Duration::from_millis(200));
     assert!(backup::list(&w.env).unwrap().is_empty());
     assert_eq!(c.query_row::<String, _, _>("select owner from cache_locks where key = ?", [&mutex], |r| r.get(0)).unwrap(), "phpRANDOMowner");
-    // a previous service left its lock (killed): the new one takes it over at once, PHP's is not touched
+    // a previous service left its lock (killed): the new one takes it over at once, the previous console's is not touched
     c.execute("update cache_locks set owner = 'hte-console-svc-OLDOLDOLD' where key = ?", [&mutex]).unwrap();
     let s2 = setup_for(&w, &[Job::Backup]);
     // start() needs a runtime; take_back runs from it, so go through a one-thread runtime
@@ -874,7 +874,7 @@ fn the_prune_entries_fire_at_their_minute_and_only_when_listed() {
     assert_eq!(count(&c, "invitations"), 1, "04:20 is later");
     s.tick(at_utc(4, 20, 3));
     wait_until("prune-invitations", || count(&c, "invitations") == 0);
-    // the prune entries take no PHP lock (PHP has none for them)
+    // the prune entries take no previous console lock (the previous console has none for them)
     let locks: Vec<String> = c.prepare("select key from cache_locks").unwrap().query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
     assert!(locks.iter().all(|k| !k.contains("prune")) && locks.len() == 2, "{locks:?}"); // the seeded one and the backup's
 }
@@ -894,7 +894,7 @@ fn jobs_env_parsing() {
 
 #[test]
 fn mutex_names_are_phps_for_the_backup_entry() {
-    // sha1("30 3 * * *php artisan cortendesk:backup --scheduled"), as Event::mutexName() builds it
+    // sha1("30 3 * * *the previous console's command cortendesk:backup --scheduled"), as Event::mutexName() builds it
     use sha1::Digest;
     let want = format!("framework/schedule-{}", hex::encode(sha1::Sha1::digest(b"30 3 * * *php artisan cortendesk:backup --scheduled")));
     assert_eq!(Job::Backup.mutex_name(), want);

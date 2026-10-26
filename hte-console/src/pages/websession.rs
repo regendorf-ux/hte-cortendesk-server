@@ -1,10 +1,10 @@
-//! Phase 8: hte-console's OWN console session, so that signing in needs no PHP (design: `phase8/NOTES.md`).
+//! Phase 8: hte-console's OWN console session, so that signing in needs no previous console.
 //!
 //! - Cookie `__Host-hte-remote` over https (`hte-remote-console` over plain http, where the `__Host-` prefix is not
 //!   allowed): 40 random letters and digits (`Str::random`, the OS CSPRNG), `HttpOnly`, `SameSite=Lax`, `Path=/`, no
 //!   `Domain`, `Secure` over https. Nothing else is in it: it is not encrypted because there is nothing to hide, and
 //!   a value this server did not mint never matches a row (`load` never adopts an id a browser offers).
-//! - Row in `hte_console_sessions` (created here with `create table if not exists`: additive, PHP never reads or
+//! - Row in `hte_console_sessions` (created here with `create table if not exists`: additive, the previous console never reads or
 //!   migrates it, its backups skip it as hte-console's do). The row's key is sha256(cookie), so the database (or a
 //!   backup, or a copy of the file) holds nothing a browser could present. The payload is Laravel's shape (base64 of
 //!   JSON: `_token`, the guard's `login_web_...` key, `_flash`, `oidc.authenticated`), so the page layer reads both
@@ -13,11 +13,11 @@
 //!   (default 12) from the moment of sign-in; a rotation (sign-in) restarts both, a regeneration (password change)
 //!   keeps the absolute one. "Remember me" only makes the cookie outlive the browser (Max-Age = what is left of the
 //!   absolute lifetime); there is no long-lived remember-me cookie.
-//! - Revocation: the payload keeps sha256 of the user's `remember_token` at sign-in. Every revoke PHP or hte-console
+//! - Revocation: the payload keeps sha256 of the user's `remember_token` at sign-in. Every revoke the previous console or hte-console
 //!   does (`User::revokeAllAccess`: force logout, disable, API) rotates that column, so the session dies at its next
 //!   request, whoever revoked it. A disabled account (`is_active` false) also ends it.
 //! - The bridge (`HTE_CONSOLE_PHP_SESSION_BRIDGE`, on until phase 9): at sign-in a Laravel session row for the same
-//!   person is minted in `sessions` (the row PHP writes at its own sign-in) and PHP's cookie is set, so the pages PHP
+//!   person is minted in `sessions` (the row the previous console writes at its own sign-in) and the previous console's cookie is set, so the pages the previous console
 //!   still serves keep working. It is tied to this session: touched with it, re-sent with it, deleted with it (logout,
 //!   expiry sweep), and marked `hte.bridged` so the page gate never accepts it as a sign-in of its own.
 
@@ -33,7 +33,7 @@ use sha2::{Digest, Sha256};
 pub const TABLE: &str = "hte_console_sessions";
 pub const COOKIE_SECURE: &str = "__Host-hte-remote";
 pub const COOKIE_PLAIN: &str = "hte-remote-console";
-/// Payload keys of our own (never PHP's).
+/// Payload keys of our own (never the previous console's).
 pub const REMEMBER: &str = "hte.remember";
 pub const FINGERPRINT: &str = "hte.fp";
 pub const BRIDGED: &str = "hte.bridged";
@@ -56,13 +56,13 @@ create index if not exists "hte_console_sessions_last_activity_index" on "hte_co
 #[derive(Clone, Debug)]
 pub struct OwnConfig {
     /// `HTE_CONSOLE_SIGNIN=1`: hte-console answers `/login`, `/login/oidc*`, `/logout` and sends a request without a
-    /// session to its own sign-in page. Off (the default): those paths and such requests go to PHP, as before.
+    /// session to its own sign-in page. Off (the default): those paths and such requests go to the previous console, as before.
     pub signin: bool,
     pub idle_s: i64,
     pub absolute_s: i64,
-    /// Mint PHP's session too at sign-in (default on).
+    /// Mint the previous console's session too at sign-in (default on).
     pub bridge: bool,
-    /// Accept a session PHP signed in (default on; phase 9 turns it off).
+    /// Accept a session the previous console signed in (default on; phase 9 turns it off).
     pub laravel_read: bool,
 }
 
@@ -192,7 +192,7 @@ pub fn guest_data() -> Map<String, Value> {
     m
 }
 
-/// Compare-and-swap the payload, as `session::save` does for PHP's rows.
+/// Compare-and-swap the payload, as `session::save` does for the previous console's rows.
 pub fn save(c: &Connection, s: &Session, data: &Map<String, Value>, now: i64) -> Result<bool, Fault> {
     let n = db::exec(
         c,
@@ -202,7 +202,7 @@ pub fn save(c: &Connection, s: &Session, data: &Map<String, Value>, now: i64) ->
     Ok(n == 1)
 }
 
-/// Slide the idle expiry (at most once a minute), the bridged PHP row with it.
+/// Slide the idle expiry (at most once a minute), the bridged the previous console row with it.
 pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
     if now - s.last_activity < 60 {
         return Ok(());
@@ -217,7 +217,7 @@ pub fn touch(c: &Connection, s: &Session, now: i64) -> Result<(), Fault> {
     Ok(())
 }
 
-/// The bridged PHP session id of a session, if any.
+/// The bridged the previous console session id of a session, if any.
 pub fn bridged_id(c: &Connection, s: &Session) -> Result<Option<String>, Fault> {
     let row = db::first(c, r#"select "laravel_session_id" from "hte_console_sessions" where "id_hash" = ? limit 1"#, &[P(Val::str(&hash(&s.id)))])?;
     Ok(row.and_then(|r| match r.val("laravel_session_id") {
@@ -247,7 +247,7 @@ fn destroy_row(c: &Connection, row: &Row) -> Result<(), Fault> {
     Ok(())
 }
 
-/// End a session: its row and the PHP session bridged to it.
+/// End a session: its row and the previous console session bridged to it.
 pub fn destroy(c: &Connection, s: &Session) -> Result<(), Fault> {
     if let Some(row) = db::first(c, r#"select * from "hte_console_sessions" where "id_hash" = ? limit 1"#, &[P(Val::str(&hash(&s.id)))])? {
         destroy_row(c, &row)?;
@@ -255,7 +255,7 @@ pub fn destroy(c: &Connection, s: &Session) -> Result<(), Fault> {
     Ok(())
 }
 
-/// Delete expired rows (and their bridged PHP rows). Called at most once a minute by the sign-in pages and the gate.
+/// Delete expired rows (and their bridged the previous console rows). Called at most once a minute by the sign-in pages and the gate.
 pub fn sweep(c: &Connection, cfg: &OwnConfig, now: i64) -> Result<usize, Fault> {
     static LAST: std::sync::atomic::AtomicI64 = std::sync::atomic::AtomicI64::new(0);
     let last = LAST.load(std::sync::atomic::Ordering::Relaxed);
@@ -294,7 +294,7 @@ pub fn clear_cookie(name: &str, secure: bool) -> String {
     c
 }
 
-/// The cookie a response re-sends for a session (ours or PHP's).
+/// The cookie a response re-sends for a session (ours or the previous console's).
 pub fn cookie_for(scfg: &SessionConfig, own: &OwnConfig, crypt: &Encrypter, s: &Session, id: &str, secure: bool, now: i64) -> String {
     if s.own {
         let remember = s.data.get(REMEMBER).map_or(false, |v| v.as_bool() == Some(true));
@@ -319,7 +319,7 @@ pub fn signed_in_data(user: &Row, via_oidc: bool, remember: bool) -> Map<String,
     m
 }
 
-/// Mint PHP's session for the same person (the row `Auth::login` + `regenerate()` leaves). Returns its id.
+/// Mint the previous console's session for the same person (the row `Auth::login` + `regenerate()` leaves). Returns its id.
 pub fn mint_laravel(c: &Connection, user: &Row, via_oidc: bool, root: &str, ip: &str, ua: &str, now: i64) -> Result<String, Fault> {
     let id = laravel::str_random(40);
     let mut m = Map::new();
@@ -340,13 +340,13 @@ pub fn mint_laravel(c: &Connection, user: &Row, via_oidc: bool, root: &str, ip: 
     Ok(id)
 }
 
-/// Point a session at a (new) bridged PHP row.
+/// Point a session at a (new) bridged the previous console row.
 pub fn set_bridge(c: &Connection, id: &str, laravel_id: &str) -> Result<(), Fault> {
     db::exec(c, r#"update "hte_console_sessions" set "laravel_session_id" = ? where "id_hash" = ?"#, &[P(Val::str(laravel_id)), P(Val::str(&hash(id)))])?;
     Ok(())
 }
 
-/// Does PHP's bridged row still exist?
+/// Does the previous console's bridged row still exist?
 pub fn laravel_row_exists(c: &Connection, laravel_id: &str) -> Result<bool, Fault> {
     Ok(db::first(c, r#"select "id" from "sessions" where "id" = ? limit 1"#, &[P(Val::str(laravel_id))])?.is_some())
 }
@@ -427,7 +427,7 @@ mod tests {
         let id = create(&c, &signed_in_data(&u, false, false), "ip", "ua", 1000, 1000, Some(&lid)).unwrap();
         let s = load_id(&c, &cfg, 1001, &id).unwrap().unwrap();
         assert!(still_valid(&c, &s, &user(&c)).unwrap());
-        // revokeAllAccess (PHP or Rust) rotates remember_token
+        // revokeAllAccess (the previous console or Rust) rotates remember_token
         c.execute("update users set remember_token = 'r2'", []).unwrap();
         assert!(!still_valid(&c, &s, &user(&c)).unwrap());
         assert!(load_id(&c, &cfg, 1002, &id).unwrap().is_none());

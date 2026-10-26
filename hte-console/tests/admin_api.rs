@@ -1,6 +1,6 @@
 //! Phase 5 end to end: the admin automation API (/api/v1/*) and `--assign` (/api/devices/cli) on a real socket, against a
 //! temporary database made from tests/schema.sql, schema_p4.sql, schema_p5.sql and the synthetic seed
-//! (fixtures/adminapi/*.sql). Expectations come from the PHP source (v1.15.0-hte.1).
+//! (fixtures/adminapi/*.sql). Expectations come from the previous console's source (v1.15.0-hte.1).
 
 use hte_console::api::{router, Limiter, Native, Nonces};
 use hte_console::laravel::{self, Encrypter};
@@ -139,7 +139,7 @@ async fn synthetic_adminapi_fixtures_replay_with_no_differences() {
     assert!(r.total > 150, "{} fixtures", r.total);
     assert!(r.differences.is_empty(), "{} differences:\n{}", r.differences.len(), r.differences.join("\n"));
 
-    // what PHP would have written
+    // what the previous console would have written
     assert_eq!(h.count("users where username = 'user-5eed0510' and is_active = 0 and is_admin = 0 and role_id is null"), 1, "store never takes admin or role");
     assert!(h.one::<String>("select password from users where username = 'user-5eed0510'").starts_with("$2y$"), "the hashed cast");
     assert_eq!(h.count("users where id = 950006"), 0, "deleted");

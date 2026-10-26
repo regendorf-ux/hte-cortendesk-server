@@ -1,7 +1,7 @@
 //! `App\Services\DuplicateDevices` (issue #91) and `Device::platform()`, for the admin API's `possible_duplicates`.
 //!
-//! The same two grouped queries and one fetch as PHP; the pairing, the dismissals and the ordering of the twins are
-//! PHP's, rule for rule. Only rows in the scope take part (the admin API passes the approved, not trashed devices).
+//! The same two grouped queries and one fetch as the previous console; the pairing, the dismissals and the ordering of the twins are
+//! The previous console's, rule for rule. Only rows in the scope take part (the admin API passes the approved, not trashed devices).
 
 use crate::laravel;
 use crate::php::{self, Fault, Val};
@@ -86,9 +86,9 @@ fn ts_of(d: &Row) -> Result<i64, Fault> {
 }
 
 pub struct Duplicates {
-    /// device id -> [(twin id, reason)] in the order PHP's array holds them
+    /// device id -> [(twin id, reason)] in the order the previous console's array holds them
     pairs: HashMap<i64, Vec<(i64, &'static str)>>,
-    /// the keys of `pairs` in PHP's array order (first pairing first)
+    /// the keys of `pairs` in the previous console's array order (first pairing first)
     order: Vec<i64>,
     devices: HashMap<i64, Row>,
 }
@@ -277,7 +277,7 @@ impl Duplicates {
         self.pairs.contains_key(&id)
     }
 
-    /// Every flagged device id, in PHP's array order.
+    /// Every flagged device id, in the previous console's array order.
     pub fn ids(&self) -> Vec<i64> {
         self.order.clone()
     }

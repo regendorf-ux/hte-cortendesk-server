@@ -1,6 +1,6 @@
 //! The parts of Laravel 13 (and Symfony underneath) that decide what a device endpoint sees and stores:
 //! the request input bag, the client address behind trusted proxies, `Crypt::encryptString`, timestamps.
-//! Written from the framework source the PHP console runs (laravel/framework v13.35.0).
+//! Written from the framework source the previous console runs (laravel/framework v13.35.0).
 
 use crate::php::{self, Arr, Fault, Key, Val};
 use aes::cipher::{block_padding::Pkcs7, BlockDecryptMut, BlockEncryptMut, KeyIvInit};
@@ -164,7 +164,7 @@ impl Cidr {
     }
 }
 
-/// The PHP console's default `TRUSTED_PROXIES` (config/trustedproxy.php).
+/// The previous console's default `TRUSTED_PROXIES` (config/trustedproxy).
 pub const DEFAULT_TRUSTED: &str = "127.0.0.1,::1,10.0.0.0/8,172.16.0.0/12,192.168.0.0/16";
 
 /// Symfony's `IpUtils::PRIVATE_SUBNETS` (http-foundation 8.1), what `PRIVATE_SUBNETS`/`private_ranges` stand for.
@@ -181,12 +181,12 @@ pub struct Trusted {
     cidrs: Vec<Cidr>,
     /// `REMOTE_ADDR`: the peer of each request.
     peer: bool,
-    /// Entries that match no address (PHP ignores them the same way).
+    /// Entries that match no address (the previous console ignores them the same way).
     pub ignored: Vec<String>,
 }
 
 impl Trusted {
-    /// config/trustedproxy.php (split on commas, trimmed, empty entries dropped), then `TrustProxies`: the list
+    /// config/trustedproxy (split on commas, trimmed, empty entries dropped), then `TrustProxies`: the list
     /// `*` alone trusts every peer; `REMOTE_ADDR` is the request's own peer; Symfony expands `PRIVATE_SUBNETS`
     /// (or `private_ranges`). Anything else that is not an address or range trusts nothing.
     pub fn parse(list: &str) -> Trusted {
@@ -245,7 +245,7 @@ pub fn client_ip(peer: IpAddr, xff: &[&str], trusted: &Trusted) -> String {
         } else if ip.starts_with('[') {
             ip = match ip[1..].find(']') {
                 Some(i) => ip[1..1 + i].to_string(),
-                // substr($ip, 1, false - 1): PHP takes everything but the last character
+                // substr($ip, 1, false - 1): the previous console takes everything but the last character
                 None => ip.get(1..ip.len().saturating_sub(1)).unwrap_or("").to_string(),
             };
         }
@@ -285,7 +285,7 @@ fn b64() -> base64::engine::GeneralPurpose {
     base64::engine::general_purpose::STANDARD
 }
 
-/// PHP's non-strict `base64_decode`: foreign bytes skipped, data after padding still read.
+/// The previous console's non-strict `base64_decode`: foreign bytes skipped, data after padding still read.
 pub fn base64_decode_lenient(s: &[u8]) -> Vec<u8> {
     let filtered: Vec<u8> = s.iter().copied().filter(|c| c.is_ascii_alphanumeric() || *c == b'+' || *c == b'/').collect();
     let mut out = vec![];
@@ -448,18 +448,18 @@ pub fn hash_make(value: &[u8]) -> Result<String, Fault> {
         .map_err(|_| Fault::Other("bcrypt hashing failed".into()))
 }
 
-/// PHP hands the password to crypt_blowfish as a C string: it ends at the first NUL byte.
+/// The previous console hands the password to crypt_blowfish as a C string: it ends at the first NUL byte.
 fn c_string(v: &[u8]) -> &[u8] {
     v.iter().position(|&b| b == 0).map_or(v, |p| &v[..p])
 }
 
-/// `password_get_info($hash)['algoName'] === 'bcrypt'`: PHP knows a bcrypt hash only as `$2y$` and 60 bytes.
+/// `password_get_info($hash)['algoName'] === 'bcrypt'`: the previous console knows a bcrypt hash only as `$2y$` and 60 bytes.
 pub fn is_php_bcrypt(hash: &[u8]) -> bool {
     hash.len() == 60 && hash.starts_with(b"$2y$")
 }
 
 /// `Hash::check($value, $hashed)` with Laravel's bcrypt driver (`verify` on, its default): an empty hash is false,
-/// a hash PHP does not see as bcrypt is a RuntimeException (500), anything crypt cannot use is false.
+/// a hash the previous console does not see as bcrypt is a RuntimeException (500), anything crypt cannot use is false.
 pub fn hash_check(value: &[u8], hashed: &Val) -> Result<bool, Fault> {
     let hashed = hashed.to_php_string()?;
     if hashed.is_empty() {
@@ -473,7 +473,7 @@ pub fn hash_check(value: &[u8], hashed: &Val) -> Result<bool, Fault> {
 }
 
 /// A bcrypt hash of nothing anyone knows, at Laravel's cost: checked against when there is no account to check,
-/// so an unknown name takes as long as a wrong password (PHP answers those at once; see the crate's notes).
+/// so an unknown name takes as long as a wrong password (the previous console answers those at once; see the crate's notes).
 pub static DUMMY_HASH: once_cell::sync::Lazy<String> =
     once_cell::sync::Lazy::new(|| hash_make(str_random(40).as_bytes()).unwrap_or_else(|_| String::new()));
 
@@ -498,7 +498,7 @@ pub fn bearer_token(authorization: Option<&[u8]>) -> Option<Vec<u8>> {
     })
 }
 
-/// Blade's `{{ }}`: `htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true)`.
+/// the previous console's template engine's `{{ }}`: `htmlspecialchars($v, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8', true)`.
 pub fn e(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for c in s.chars() {
@@ -514,7 +514,7 @@ pub fn e(s: &str) -> String {
     out
 }
 
-/// PHP's `urlencode` (what `http_build_query` uses by default): letters, digits and `-_.` stay, a space is `+`.
+/// The previous console's `urlencode` (what `http_build_query` uses by default): letters, digits and `-_.` stay, a space is `+`.
 pub fn urlencode(s: &[u8]) -> String {
     let mut out = String::with_capacity(s.len() * 3);
     for &c in s {
@@ -580,7 +580,7 @@ pub fn from_json(v: &Val) -> Val {
     }
 }
 
-/// The key of an `array`-cast map, as PHP holds it after `json_decode`.
+/// The key of an `array`-cast map, as the previous console holds it after `json_decode`.
 pub fn key_str(k: &Key) -> Option<&[u8]> {
     match k {
         Key::Str(s) => Some(s),
@@ -669,9 +669,9 @@ mod tests {
 
     #[test]
     fn decrypts_the_laravel_payload_layout() {
-        // Built here by hand in Laravel's layout (no PHP on this machine to make one): base64(json{iv,value,mac,tag}),
+        // Built here by hand in Laravel's layout (no previous console on this machine to make one): base64(json{iv,value,mac,tag}),
         // value = base64(AES-256-CBC/PKCS7), mac = hmac_sha256_hex(iv_b64 . value_b64), with a fixed zero IV.
-        // The replay against PHP is what proves the two sides read each other's payloads.
+        // The replay against the previous console is what proves the two sides read each other's payloads.
         let e = Encrypter::from_app_key("base64:AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=").unwrap();
         let iv_b64 = "AAAAAAAAAAAAAAAAAAAAAA==";
         let ct = Aes256CbcEnc::new(&e.key.into(), &[0u8; 16].into()).encrypt_padded_vec_mut::<Pkcs7>(b"hello");

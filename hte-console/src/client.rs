@@ -1,4 +1,4 @@
-//! Phase 4: the bearer-token client endpoints, answered natively. Each handler is a port of the PHP console's
+//! Phase 4: the bearer-token client endpoints, answered natively. Each handler is a port of the previous console's
 //! (v1.15.0-hte.1), statement by statement:
 //!
 //!   GET /api/ab, POST /api/ab/get, POST /api/ab            legacy address book      AddressBookController
@@ -11,14 +11,14 @@
 //!   GET /webclient-config/index.js                         web client pre-login     WebClientController
 //!
 //! All but the last sit behind `auth:client`: the bearer token and its user are checked by phase 2's guard
-//! (`signin::authenticate`), and every list is scoped to that person exactly as PHP scopes it (`Device::visibleTo`,
-//! `User::accessibleDeviceGroupIds`, `AddressBook::permissionFor`, HTE's one `reject` of other people's automatic
+//! (`signin::authenticate`), and every list is scoped to that person exactly as the previous console scopes it (`Device::visibleTo`,
+//! `User::accessibleDeviceGroupIds`, `AddressBook::permissionFor`, HTE Remote's one `reject` of other people's automatic
 //! books). Same tables, same rows, no schema change. Laravel's routing is reproduced where a client could see it:
 //! trailing slashes and percent-decoding before matching, 404 and 405 texts, HEAD for GET, OPTIONS and CORS.
 //!
-//! PHP writes without a transaction (the legacy push deletes, then inserts); so does this, statement for statement,
-//! and a failure part way leaves what PHP would leave. Not ported: `/webclient` (a page behind the console's session)
-//! and `/rdclient/*` (static files): they stay PHP's.
+//! The previous console writes without a transaction (the legacy push deletes, then inserts); so does this, statement for statement,
+//! and a failure part way leaves what the previous console would leave. Not ported: `/webclient` (a page behind the console's session)
+//! and `/rdclient/*` (static files): they stay the previous console's.
 
 use crate::api::{blocking, fail, header_str, json_message, request_root, respond, Native, Reply};
 use crate::laravel::{self, Cast, Input};
@@ -64,7 +64,7 @@ enum R {
     ConfigJs,
 }
 
-/// routes/api.php (the `auth:client` group) and routes/web.php, in file order. `{}` is a `{guid}` segment.
+/// routes/api (the `auth:client` group) and routes/web, in file order. `{}` is a `{guid}` segment.
 const ROUTES: &[(&str, &str, R)] = &[
     ("PUT", "/api/audit", R::AuditNote),
     ("GET", "/api/audit/conn/active", R::AuditActive),
@@ -164,7 +164,7 @@ fn lookup(method: &str, raw_path: &[u8]) -> Lookup {
 }
 
 /// Registers the paths; the handler decides the rest from `lookup`. A path that is not canonical (a trailing slash,
-/// a different case) matches no route here and goes to the fallback (PHP), which answers it as it always did.
+/// a different case) matches no route here and goes to the fallback (the previous console), which answers it as it always did.
 pub fn mount(r: Router<Arc<Native>>) -> Router<Arc<Native>> {
     let mut r = r;
     let mut seen: Vec<&str> = Vec::new();
@@ -253,7 +253,7 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
         return config_js(&n, &parts.headers, peer.ip(), head);
     }
 
-    // ValidatePostSize, bounded here far below PHP's limit
+    // ValidatePostSize, bounded here far below the previous console's limit
     let max = max_body();
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
     if declared.map_or(false, |l| l > max as u64) {
@@ -271,7 +271,7 @@ async fn handle(State(n): State<Arc<Native>>, ConnectInfo(peer): ConnectInfo<Soc
 }
 
 /// GET /webclient-config/index.js: the web client's pre-login bootstrap, pointing its API calls back at this console.
-/// PHP builds the origin with `getSchemeAndHttpHost()`; here `HTE_CONSOLE_PUBLIC_URL` when set (the Host header then
+/// The previous console builds the origin with `getSchemeAndHttpHost()`; here `HTE_CONSOLE_PUBLIC_URL` when set (the Host header then
 /// decides nothing), else the same request-derived origin as the sign-in pages.
 fn config_js(n: &Native, h: &HeaderMap, peer: std::net::IpAddr, head: bool) -> Response<Body> {
     let Some(root) = request_root(n, h, peer) else { return page(404, crate::signin::error_page(404, "Not Found"), head) };
@@ -373,7 +373,7 @@ fn marks(n: usize) -> String {
     vec!["?"; n].join(", ")
 }
 
-/// PHP's loose `==` of a tag id against an element of a stored `tag_ids` array (`Collection::whereIn`, not strict).
+/// The previous console's loose `==` of a tag id against an element of a stored `tag_ids` array (`Collection::whereIn`, not strict).
 fn loose_eq(id: i64, v: &Val) -> bool {
     match v {
         Val::Int(i) => *i == id,
@@ -399,13 +399,13 @@ fn tag_ids_of(r: &Row) -> Result<Arr, Fault> {
     }
 }
 
-/// An array key as PHP derives it from a value used as an offset.
+/// An array key as the previous console derives it from a value used as an offset.
 fn key_of(v: &Val) -> Result<Key, Fault> {
     Ok(match v {
         Val::Null => Key::Str(vec![]),
         Val::Bool(b) => Key::Int(*b as i64),
         Val::Int(i) => Key::Int(*i),
-        // PHP 8.1+: a fractional float offset is truncated (E_DEPRECATED only, which Laravel logs and does not throw)
+        // The previous console's runtime (8).1+: a fractional float offset is truncated (E_DEPRECATED only, which Laravel logs and does not throw)
         Val::Float(f) if f.is_finite() => Key::Int(f.trunc() as i64),
         Val::Float(_) => return Err(Fault::Other("non-finite float offset".into())),
         Val::Str(s) => Key::from_bytes(s),
@@ -683,7 +683,7 @@ impl Cx<'_> {
             }
             out.push((b, rule));
         }
-        // sortBy(name): PHP 8's stable asort with SORT_REGULAR
+        // sortBy(name): the previous console's runtime (8) stable asort with SORT_REGULAR
         let mut keyed: Vec<(Vec<u8>, (Row, i64))> = vec![];
         for x in out {
             keyed.push((x.0.val("name").to_php_string()?, x));
@@ -1092,7 +1092,7 @@ impl Cx<'_> {
     fn server_config(&self) -> Result<Reply, Fault> {
         let book = self.personal_for()?;
         let entries = db::rows(self.c, r#"select * from "address_book_entries" where "address_book_entries"."address_book_id" = ? and "address_book_entries"."address_book_id" is not null limit 100"#, &[P(book.val("id"))])?;
-        // `now()->subDay()->getPreciseTimestamp(0)` is whole seconds here; the microseconds PHP rounds with are not known
+        // `now()->subDay()->getPreciseTimestamp(0)` is whole seconds here; the microseconds the previous console rounds with are not known
         let tm = (self.now - 86_400).saturating_mul(1_000_000_000);
         let mut peers = String::from("{");
         for (i, e) in entries.iter().enumerate() {

@@ -6,7 +6,7 @@
 //!   GET|POST /login/email, POST /login/email/resend   the same for an e-mailed code (`email_verify`, 10 minutes)
 //!   GET|POST /forgot-password, /reset-password/{token}   only while mail is on and password sign-in is allowed
 //!
-//! Same rows as PHP: `two_factor_recovery_codes.used_at`, `users.totp_last_timestep`, `trusted_devices`,
+//! Same rows as the previous console: `two_factor_recovery_codes.used_at`, `users.totp_last_timestep`, `trusted_devices`,
 //! `password_resets`, `login_logs` (`note`), `alarm_logs` (100 per account+address per cooldown). Same throttles
 //! (5 a minute per account+address on both code steps, 3 resends, the routes' 6 and 20 a minute per address).
 //! The guest session holds the markers; nothing is signed in until a step is cleared, and then `login::complete`
@@ -105,7 +105,7 @@ fn local_domain(root: &str) -> String {
     url::Url::parse(root).ok().and_then(|u| u.host_str().map(str::to_string)).unwrap_or_default()
 }
 
-/// Render a mail template and send it through the configured relay. False when not sent (recorded as PHP does).
+/// Render a mail template and send it through the configured relay. False when not sent (recorded as the previous console does).
 fn send_mail(p: &Pages, c: &Connection, w: &Web, to: &str, subject: &str, template: &str, mut vars: Value) -> Result<bool, Fault> {
     if let Value::Object(m) = &mut vars {
         m.insert("app_name".into(), json!(p.n.signin.app_name));
@@ -339,7 +339,7 @@ fn remember_device(c: &Connection, w: &Web, user: &Row) -> Result<String, Fault>
 }
 
 /// `startEmailVerification()`: a fresh 6-digit code mailed, its bcrypt hash in the marker. Err(()) when not sent
-/// (the `login_logs` row PHP writes for it is written here too).
+/// (the `login_logs` row the previous console writes for it is written here too).
 pub(super) fn start_email(p: &Pages, c: &Connection, w: &Web, s: &Session, user: &Row, remember: bool) -> Result<Result<Out, ()>, Fault> {
     use rand::Rng;
     let code = format!("{:06}", rand::rngs::OsRng.gen_range(0..1_000_000u32));

@@ -1,7 +1,7 @@
-//! Devices (Livewire `DeviceList`, with the `EditsDevices` and `DeletesDevices` concerns): the list with its chips,
+//! Devices (the previous console's `DeviceList`, with the `EditsDevices` and `DeletesDevices` concerns): the list with its chips,
 //! filters, sort, column picker, recycle bin, pending-approval queue, bulk actions and CSV.
 //!
-//! Livewire kept the component's state in the browser's memory; here the state is the URL (filters, `?edit=`,
+//! The previous console's page components kept the component's state in the browser's memory; here the state is the URL (filters, `?edit=`,
 //! `?create=1`, `?delete=`, `?columns=1`, `?pending=1`) and the person's own row (the column choice and the sort are
 //! saved on the user, as the component saved them). Every action is a form post that redirects back with a one-request
 //! flash (`bulk_result`, the line the component kept in `$bulkResult`); a step that needs a choice (the address-book and
@@ -49,7 +49,7 @@ const SORTABLE: [(&str, &str); 10] = [
 ];
 const PER_PAGE: i64 = 20;
 
-/// The list's state: the Livewire properties that lived in the URL.
+/// The list's state: the previous console's page components properties that lived in the URL.
 #[derive(Clone, Default)]
 pub struct St {
     pub search: String,
@@ -1050,7 +1050,7 @@ pub fn save(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         for (k, v) in [("rustdesk_id", json!(rid)), ("alias", json!(alias)), ("note", json!(note)), ("group", json!(group)), ("user", json!(owner)), ("strategy", json!(strategy)), ("can_initiate", json!(can_initiate))] {
             values.insert(k.into(), v);
         }
-        // the messages are keyed by the Livewire property; the dialog reads them by its field names
+        // the messages are keyed by the previous console's page components property; the dialog reads them by its field names
         let mut by_field = Map::new();
         for (k, v) in &errors {
             let f = match k.as_str() {

@@ -1,4 +1,4 @@
-//! Phase 8: the console's sign-in pages without PHP, ported from v1.15.0-hte.1:
+//! Phase 8: the console's sign-in pages without the previous console, ported from v1.15.0-hte.1:
 //!
 //!   GET|POST /login               AuthController::showLogin / login (the HTE Remote welcome card, the break-glass password)
 //!   GET      /login/oidc          OidcController::redirect (Microsoft sign-in: authorization code + PKCE S256 + nonce)
@@ -8,9 +8,9 @@
 //! Since 0.8.2 the second steps (`/login/2fa`, `/login/email`: `challenge.rs`), password reset and invitations
 //! (`invitations.rs`) are served here too. The "Download the client" link is never shown: HTE Remote has no downloads page.
 //!
-//! The session is hte-console's own (`websession`); the rows written are PHP's (`login_logs`, `alarm_logs`, `users`
+//! The session is hte-console's own (`websession`); the rows written are the previous console's (`login_logs`, `alarm_logs`, `users`
 //! when single sign-on links or provisions, `sessions` for the bridge). With `HTE_CONSOLE_SIGNIN` off every path here
-//! is handed to PHP unchanged.
+//! is handed to the previous console unchanged.
 
 use super::session::{self, Session};
 use super::websession as ws;
@@ -337,8 +337,8 @@ pub(super) fn flag(c: &Connection, key: &str, default: &str) -> Result<bool, Fau
     Ok(db::setting(c, key, default)? == b"1")
 }
 
-/// `RedirectIfAuthenticated` for a signed-in person, plus the bridge's repair: a person whose PHP session is gone
-/// (PHP sent them here from one of its pages) gets a new one, and goes back where PHP wanted them.
+/// `RedirectIfAuthenticated` for a signed-in person, plus the bridge's repair: a person whose the previous console session is gone
+/// (the previous console sent them here from one of its pages) gets a new one, and goes back where the previous console wanted them.
 pub(super) fn already_signed_in(p: &Pages, c: &Connection, w: &Web, s: &Session) -> Result<Out, Fault> {
     let mut target = "/".to_string();
     let mut out_cookies = vec![];
@@ -352,7 +352,7 @@ pub(super) fn already_signed_in(p: &Pages, c: &Connection, w: &Web, s: &Session)
                 let lid = ws::mint_laravel(c, &u, s.via_oidc(), &w.root, &w.ip, &w.ua, w.now)?;
                 ws::set_bridge(c, &s.id, &lid)?;
                 out_cookies.push(session::set_cookie(&p.session, &p.n.crypt, &lid, w.secure, w.now));
-                // where PHP's own guest session (the one it opened to send them here) wanted them
+                // where the previous console's own guest session (the one it opened to send them here) wanted them
                 if let Some(php) = session::load(c, &p.session, &p.n.crypt, w.now, &w.cookie)? {
                     if php.user_id().is_none() {
                         if let Some(t) = php.data.get(ws::INTENDED).and_then(|v| v.as_str()).and_then(|t| ws::safe_target(t, &w.root)) {
@@ -382,7 +382,7 @@ fn show_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     let error = flashed.get("errors").and_then(|e| e.as_object()).and_then(|m| m.values().next()).and_then(|v| v.get(0)).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let old = flashed.get("_old_input").and_then(|o| o.get("username")).and_then(|v| v.as_str()).unwrap_or("").to_string();
     let sso = settings.is_enabled(env_off);
-    // PHP showed "Download the client" (setting `downloads_on_login`, a published row in `client_downloads`); HTE Remote has no
+    // The previous console showed "Download the client" (setting `downloads_on_login`, a published row in `client_downloads`); HTE Remote has no
     // downloads page (`/downloads` answers 404), so the link would be dead: never shown.
     let show_downloads = false;
     let domain = crate::envvar::var("HTE_SIGNIN_DOMAIN").unwrap_or_default().trim_matches(|ch| " \t@".contains(ch)).to_string();
@@ -457,7 +457,7 @@ pub(super) fn login_log(c: &Connection, user_id: Val, username: Val, client: &st
     login_log_note(c, user_id, username, client, ip, ok, None, now)
 }
 
-/// A `login_logs` row with PHP's `note` (`'invitation'`, `'password reset'`, `'email-verification send failed'`).
+/// A `login_logs` row with the previous console's `note` (`'invitation'`, `'password reset'`, `'email-verification send failed'`).
 pub(super) fn login_log_note(c: &Connection, user_id: Val, username: Val, client: &str, ip: &str, ok: bool, note: Option<&str>, now: i64) -> Result<(), Fault> {
     let mut cols = vec![("user_id", user_id), ("username", username), ("client", Val::str(client)), ("ip", Val::str(ip)), ("successful", Val::Bool(ok))];
     if let Some(n) = note {
@@ -490,7 +490,7 @@ fn boolean(v: Option<&Val>) -> bool {
     }
 }
 
-/// `SESSION_SECURE_COOKIE=true` and a plain-http request: PHP's cookie would be dropped by the browser and the post fail
+/// `SESSION_SECURE_COOKIE=true` and a plain-http request: the previous console's cookie would be dropped by the browser and the post fail
 /// (419, then `/login` with the https note). No sign-in is completed over plain http then.
 fn https_only(p: &Pages, w: &Web) -> bool {
     p.session.secure == Some(true) && !w.secure
@@ -553,7 +553,7 @@ fn password_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
     }
     let remember = boolean(w.input.get("remember"));
     // Auth::validate($credentials + ['is_active' => true]): the account must exist AND be active; otherwise no hash is
-    // checked in PHP (hardened here: as long as a wrong password, so the timing does not tell which names exist)
+    // checked in the previous console (hardened here: as long as a wrong password, so the timing does not tell which names exist)
     let user = db::first(c, r#"select * from "users" where "username" = ? and "is_active" = ? limit 1"#, &[P(Val::Str(username.clone())), P(Val::Bool(true))])?;
     let ok = match &user {
         Some(u) => laravel::hash_check(&password, &u.val("password"))?,
@@ -606,7 +606,7 @@ fn password_login(p: &Pages, c: &Connection, w: &Web) -> Result<Out, Fault> {
 }
 
 /// `Auth::login($user)` + `$request->session()->regenerate()` + `redirect()->intended(route('overview'))`: a NEW
-/// session id and CSRF token (the guest row is deleted: fixation-proof), PHP's session minted beside it (the bridge).
+/// session id and CSRF token (the guest row is deleted: fixation-proof), the previous console's session minted beside it (the bridge).
 pub(super) fn complete(p: &Pages, c: &Connection, w: &Web, guest: &Session, user: &Row, via_oidc: bool, remember: bool) -> Result<Out, Fault> {
     complete_with(p, c, w, guest, user, via_oidc, remember, vec![], vec![])
 }
@@ -827,7 +827,7 @@ async fn logout(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
     let (p2, w2) = (p.clone(), w.clone());
     let first = tokio::task::spawn_blocking(move || -> Result<Result<(bool, Settings, bool, Out), Out>, Fault> {
         let c = p2.n.db.lock().unwrap_or_else(|e| e.into_inner());
-        // the web group's CSRF check runs before the route's `auth` middleware (PHP: no session and no token = 419)
+        // the web group's CSRF check runs before the route's `auth` middleware (the previous console: no session and no token = 419)
         let found = session::load_any(&c, &p2.session, &p2.own, &p2.n.crypt, w2.now, &w2.cookie, w2.secure)?;
         let none = Session { id: String::new(), stored: String::new(), data: Map::new(), last_activity: 0, own: true, created: 0 };
         if !csrf(&p2, found.as_ref().unwrap_or(&none), &w2) {
@@ -852,7 +852,7 @@ async fn logout(p: &Arc<Pages>, w: &Arc<Web>) -> Result<Out, Fault> {
         } else {
             db::exec(&c, r#"delete from "sessions" where "id" = ?"#, &[P(Val::str(&s.id))])?;
         }
-        // PHP's cookie goes too (bridged or PHP's own sign-in): this browser is signed out of both
+        // The previous console's cookie goes too (bridged or the previous console's own sign-in): this browser is signed out of both
         out.cookies.push(ws::clear_cookie(&p2.session.cookie, w2.secure));
         let settings = Settings::load(&c, &p2.n.crypt)?;
         let provider_logout = was_sso && settings.is_enabled(p2.n.signin.oidc.env_disabled) && flag(&c, "oidc_logout_enabled", "")?;

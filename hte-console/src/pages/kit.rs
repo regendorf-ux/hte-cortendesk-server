@@ -1,5 +1,5 @@
 //! What the phase 7b pages (devices, users, groups, address books, strategies, dashboard, settings) share: reading a
-//! row as PHP would echo it, the audit line every write leaves, the device scope, form input as Livewire's properties
+//! row as the previous console would echo it, the audit line every write leaves, the device scope, form input as the previous console's properties
 //! held it, and a where-clause builder.
 
 use super::{time, Ctx, Req};
@@ -13,7 +13,7 @@ pub fn lossy(b: &[u8]) -> String {
     String::from_utf8_lossy(b).into_owned()
 }
 
-/// A cell as PHP echoes it: null is empty.
+/// A cell as the previous console echoes it: null is empty.
 pub fn s(r: &Row, col: &str) -> String {
     lossy(&r.val(col).to_php_string().unwrap_or_default())
 }
@@ -26,7 +26,7 @@ pub fn opt(r: &Row, col: &str) -> Option<String> {
     }
 }
 
-/// PHP truthiness of a string (`$x ?: '—'`).
+/// The previous console truthiness of a string (`$x ?: '—'`).
 pub fn truthy(v: &str) -> bool {
     !v.is_empty() && v != "0"
 }
@@ -70,7 +70,7 @@ pub fn plural(word: &str, n: i64) -> String {
     }
 }
 
-/// A form field exactly as typed: no trimming, no empty-to-null (Livewire's properties).
+/// A form field exactly as typed: no trimming, no empty-to-null (the previous console's properties).
 pub struct Body {
     pub a: Arr,
 }
@@ -715,7 +715,7 @@ pub fn display_name(u: &Row) -> String {
     if n.is_empty() || n == "0" { s(u, "username") } else { n }
 }
 
-/// A user-supplied id list to a validator array value (Livewire sends integers).
+/// A user-supplied id list to a validator array value (the previous console's page components sends integers).
 pub fn int_array(ids: &[i64]) -> Val {
     let mut a = Arr::new();
     for i in ids {

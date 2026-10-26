@@ -1,9 +1,9 @@
-//! Phase 3 end to end: the server link (policy with HTE's scope, local addresses, refusals) on a real socket, and
+//! Phase 3 end to end: the server link (policy with HTE Remote's scope, local addresses, refusals) on a real socket, and
 //! the scheduled jobs (reach sweep, computer passwords and their books, stale sessions, the diagnostics heartbeat),
 //! against a temporary database made from tests/schema.sql, tests/schema_phase3.sql and the replay's own seed
-//! (fixtures/serverlink/*.sql: the world of tests/Hte/ReachTest.php's hteFixture()). Tests named like a Pest test in
-//! tests/Hte/{ReachTest,PasswordsTest}.php carry its assertions (the console-page parts are phase 7's); the others pin
-//! PHP behaviour read from the source (v1.15.0-hte.1, Laravel 13.35), each named for what it pins.
+//! (fixtures/serverlink/*.sql: the world of tests/Hte/ReachTest's hteFixture()). Tests named like a Pest test in
+//! tests/Hte/{ReachTest,PasswordsTest} carry its assertions (the console-page parts are phase 7's); the others pin
+//! The previous console behaviour read from the source (v1.15.0-hte.1, Laravel 13.35), each named for what it pins.
 
 use base64::Engine;
 use hte_console::api::{router, Limiter, Native, Nonces};
@@ -197,7 +197,7 @@ fn open_box(b64: &str, seed: u8) -> Value {
     serde_json::from_slice(&sealedbox::open(&sealed, &sign::to_curve25519_pk(&pk).unwrap(), &sign::to_curve25519_sk(&sk).unwrap()).unwrap()).unwrap()
 }
 
-// ------------------------------------------------------------------------------------ ReachTest.php: policy ---
+// ------------------------------------------------------------------------------------ ReachTest: policy ---
 
 #[tokio::test]
 async fn the_policy_carries_no_scope_while_the_setting_is_off() {
@@ -223,7 +223,7 @@ async fn the_policy_maps_every_active_person_to_the_devices_they_see() {
     assert_eq!(users["930004"]["devices"], json!([]));
     assert_eq!(p["scope"]["token_users"][sha256("tok-5eed00000003a002")], json!("930002"));
     assert_eq!(p["scope"]["token_users"][sha256("tok-5eed00000003a001")], json!("930001"));
-    // the whole answer, as PHP encodes it: approved devices by id, tokens by hash (ksort), each live once
+    // the whole answer, as the previous console encodes it: approved devices by id, tokens by hash (ksort), each live once
     let mut tokens: Vec<(String, &str)> = ["a001", "a002", "a003", "a004"].iter().map(|t| (sha256(&format!("tok-5eed00000003{t}")), "990003004")).collect();
     tokens.sort();
     let tok_json: Vec<String> = tokens.iter().map(|(k, v)| format!(r#""{k}":"{v}""#)).collect();
@@ -310,7 +310,7 @@ async fn a_regular_person_does_not_get_the_card_and_cannot_post_refusals() {
     assert_eq!(h.count("alarm_logs"), 0);
 }
 
-// ------------------------------------------------------------------------------------- ReachTest.php: sweep ---
+// ------------------------------------------------------------------------------------- ReachTest: sweep ---
 
 #[tokio::test]
 async fn the_sweep_does_nothing_while_enforcement_is_off() {
@@ -386,7 +386,7 @@ async fn a_disabled_or_signed_out_person_loses_the_session_the_web_client_is_lef
 
 #[tokio::test]
 async fn the_sweep_is_scheduled() {
-    // every 15 s under PHP's own lock: PHP's scheduler skips the task while hte-console holds it
+    // every 15 s under the previous console's own lock: the previous console's scheduler skips the task while hte-console holds it
     let h = harness().await;
     std::env::set_var("HTE_CONSOLE_SWEEPS", "reach, stale");
     assert_eq!(sweeps::from_env().unwrap(), vec![Job::Reach, Job::Stale]);
@@ -397,25 +397,25 @@ async fn the_sweep_is_scheduled() {
     std::env::remove_var("HTE_CONSOLE_SWEEPS");
     assert!(sweeps::from_env().unwrap().is_empty(), "none unless asked");
 
-    // the lock name PHP's scheduler uses for `Schedule::command(ReachSweep::class)->everyFifteenSeconds()`
+    // the lock name the previous console's scheduler uses for `Schedule::command(ReachSweep::class)->everyFifteenSeconds()`
     let key = format!("{PREFIX}framework/schedule-{}", hex::encode(<sha1::Sha1 as sha1::Digest>::digest(b"* * * * *php artisan hte:reach-sweep")));
     assert_eq!(format!("{PREFIX}{}", Job::Reach.mutex_name()), key);
 
     h.sql("delete from client_tokens where user_id <> 930004");
     h.session("990003004", "990003002", 1);
-    // PHP's scheduler is mid-run: hte-console skips this tick
+    // The previous console's scheduler is mid-run: hte-console skips this tick
     h.sql(&format!("insert into cache_locks (key, owner, expiration) values ('{key}', 'PhPsCheDuLeR0001', {})", h.now() + 60));
     let s = Scheduler::new(h.native.clone(), h.store.clone(), vec![Job::Reach]);
     s.tick(Job::Reach);
     assert!(!h.disconnect_requested(1));
-    // PHP finished (forceRelease): the next tick takes the lock, runs, and keeps it
+    // The previous console finished (forceRelease): the next tick takes the lock, runs, and keeps it
     h.sql("delete from cache_locks");
     s.tick(Job::Reach);
     assert!(h.disconnect_requested(1));
     let (owner, exp): (String, i64) = h.db().query_row("select owner, expiration from cache_locks where key = ?", [&key], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
     assert!(owner.starts_with("hte-console-"));
-    assert_eq!(exp, h.now() + 60, "PHP's withoutOverlapping(1)");
-    // what PHP's scheduler would try now: the insert fails, the take-over matches nothing (not its owner, not expired)
+    assert_eq!(exp, h.now() + 60, "the scheduler's withoutOverlapping(1)");
+    // what the previous console's scheduler would try now: the insert fails, the take-over matches nothing (not its owner, not expired)
     let taken = h.db().execute("update cache_locks set owner = 'x', expiration = 0 where key = ?1 and (owner = 'x' or expiration <= ?2)", params![key, h.now()]).unwrap();
     assert_eq!(taken, 0);
     // a clean stop gives it back
@@ -423,7 +423,7 @@ async fn the_sweep_is_scheduled() {
     assert_eq!(h.count("cache_locks"), 0);
 }
 
-// ---------------------------------------------------------------------------------------- PasswordsTest.php ---
+// ---------------------------------------------------------------------------------------- PasswordsTest ---
 
 fn confirmed(h: &H, id: &str, pw: &str) {
     let e = h.enc(pw);
@@ -449,7 +449,7 @@ async fn each_person_gets_one_hte_remote_book_with_exactly_the_computers_they_ma
     assert_eq!(h.dec(&front), "tok-5eed00000003f001");
     // the Mac never checked in as able: listed, without a password
     assert!(h.one::<Option<String>>(&format!("select password_enc from address_book_entries where address_book_id = {} and rustdesk_id = '990003004'", h.book_of(930001))).is_none());
-    // one book per person, named and owned as PHP makes it, readable by that person alone
+    // one book per person, named and owned as the previous console makes it, readable by that person alone
     let (name, owner, personal, note): (String, i64, i64, String) =
         h.db().query_row(&format!("select name, owner_user_id, is_personal, note from address_books where id = {}", h.book_of(930003)), [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).unwrap();
     assert_eq!((name.as_str(), owner, personal), ("HTE Remote", 930001, 0));
@@ -629,7 +629,7 @@ async fn local_addresses_are_kept_newest_first_and_never_rolled_back() {
     let r = h.post("/api/server/local-addrs", json!({"addrs": [{"id": "990003001", "ip": "198.18.3.21", "seen_at": 1_700_000_000}]})).await;
     assert_eq!(r.body, r#"{"updated":1}"#, "counted all the same");
     assert_eq!(h.one::<String>("select updated_at from devices where rustdesk_id = '990003001'"), before);
-    // an entry that escapes the wildcard rules (a key with a dot) reaches the controller: PHP's warning, a 500
+    // an entry that escapes the wildcard rules (a key with a dot) reaches the controller: the previous console's warning, a 500
     let r = h.post("/api/server/local-addrs", json!({"addrs": {"a.b": {"ip": "198.18.3.1"}}})).await;
     assert_eq!((r.status, r.json()), (500, json!({"message": "Server Error"})));
 }
@@ -762,8 +762,8 @@ fn every_phase_3_fixture_and_seed_passes_the_leftover_scan() {
     }
 }
 
-/// The sweeps scenario of the replay (fixtures/sweeps/sweeps.plan), on hte-console's side, with PHP's expected end
-/// state written out (on the server the replay compares it with PHP's own run).
+/// The sweeps scenario of the replay (fixtures/sweeps/sweeps.plan), on hte-console's side, with the previous console's expected end
+/// state written out (on the server the replay compares it with the previous console's own run).
 #[tokio::test]
 async fn the_sweeps_scenario_ends_as_the_php_source_says() {
     let h = harness().await;
@@ -881,7 +881,7 @@ async fn a_restarted_service_takes_back_its_own_locks_at_once() {
     let owner = |j: Job| h.one::<String>(&format!("select owner from cache_locks where key = '{}'", key(j)));
     assert!(owner(Job::Reach).starts_with("hte-console-svc-") && owner(Job::Reach) != "hte-console-svc-killed00000");
     assert_eq!(owner(Job::Stale), "hte-console-cli-running0000", "a sweep run's lock is not taken");
-    assert_eq!(owner(Job::Diagnostics), "PhPsCheDuLeR0001", "nor PHP's");
+    assert_eq!(owner(Job::Diagnostics), "PhPsCheDuLeR0001", "nor the previous console's");
     s.release_all();
 }
 

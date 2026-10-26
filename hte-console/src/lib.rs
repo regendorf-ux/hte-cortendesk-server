@@ -1,11 +1,11 @@
 //! hte-console (HTE Remote console, in Rust, step by step). Phase 0: shadow proxy, sanitiser, replay.
 //! Phase 1: the device endpoints (heartbeat, sysinfo, audit, version) answered natively.
 //! Phase 2: the RustDesk client's sign-in (password, TOTP, OIDC) answered natively.
-//! Phase 3: the server link (policy with HTE's scope, local addresses, refusals) and the scheduled sweeps.
+//! Phase 3: the server link (policy with HTE Remote's scope, local addresses, refusals) and the scheduled sweeps.
 //! Phase 4: the bearer-token client endpoints (address books, group tab, audit note, server-config) answered natively.
 //! Phase 5: the admin automation API (`/api/v1/*`, token-guarded) and the client's `--assign` answered natively.
 //! Phase 7: the console pages (Laravel session, CSRF, templates, htmx), one group of pages at a time.
-//! Phase 6: local backups (PHP's archive format), restore, log and invitation pruning, and their daily scheduler entries.
+//! Phase 6: local backups (the previous console's archive format), restore, log and invitation pruning, and their daily scheduler entries.
 /// HTE Remote's version: the console's crate version is the version of the whole server image (`hte-rd-server:<this>`).
 pub const REMOTE_VERSION: &str = env!("CARGO_PKG_VERSION");
 

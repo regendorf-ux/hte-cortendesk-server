@@ -2,8 +2,8 @@
 //! `required`, `nullable`, `array`, `string`, `integer`, `ip`, `max:n`, `min:n`, on keys with `*` wildcards.
 //! Ported from `Validator::passes`/`validateAttribute`/`isValidatable`/`shouldStopValidating`/`validated`,
 //! `ValidationRuleParser::explodeWildcardRules`, `ValidationData::initializeAndGatherData`, `data_set`, `Arr::dot`,
-//! `Arr::get`/`has`, `ValidatesAttributes`, `FormatsMessages` and the English `validation.php` lines, so a bad body
-//! gets PHP's 422 (`{"message": ..., "errors": {...}}`, rendered as JSON on `api/*`), keys in PHP's order.
+//! `Arr::get`/`has`, `ValidatesAttributes`, `FormatsMessages` and the English `validation` lines, so a bad body
+//! gets the previous console's 422 (`{"message": ..., "errors": {...}}`, rendered as JSON on `api/*`), keys in the previous console's order.
 //!
 //! Also `Str::limit` (with `mb_strwidth`) and `mb_strlen`, which the sweeps and the validator share.
 
@@ -49,7 +49,7 @@ fn key_text(k: &Key) -> String {
     String::from_utf8_lossy(&k.as_bytes()).into_owned()
 }
 
-/// `Arr::exists($array, $key)` for a string key (PHP normalises "0" to 0).
+/// `Arr::exists($array, $key)` for a string key (the previous console normalises "0" to 0).
 fn exists<'a>(a: &'a Arr, seg: &str) -> Option<&'a Val> {
     a.get(&Key::from_bytes(seg.as_bytes()))
 }
@@ -242,7 +242,7 @@ pub fn filter_int(v: &Val) -> bool {
     std::str::from_utf8(t).ok().and_then(|x| x.trim_start_matches('+').parse::<i64>().ok()).is_some()
 }
 
-/// PHP's IPv4 rule: four decimal parts 0-255, no leading zeros.
+/// The previous console's IPv4 rule: four decimal parts 0-255, no leading zeros.
 fn ipv4(s: &str) -> bool {
     let parts: Vec<&str> = s.split('.').collect();
     parts.len() == 4

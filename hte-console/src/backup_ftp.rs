@@ -1,6 +1,6 @@
-//! PHP's `FtpTarget`: plain FTP or explicit FTPS (AUTH TLS) in passive mode, or active mode when the server refuses
+//! The previous console's `FtpTarget`: plain FTP or explicit FTPS (AUTH TLS) in passive mode, or active mode when the server refuses
 //! passive. SFTP and implicit FTPS (port 990) are not supported, and the server's certificate is not verified (the
-//! TLS handshake's signatures are, the chain is not), exactly as with PHP's ftp extension.
+//! TLS handshake's signatures are, the chain is not), exactly as with the previous console's ftp extension.
 //!
 //! Every public method uses its own connection with at most one transfer after a listing: ProFTPD, which requires
 //! data connections to resume the control connection's TLS session, refuses a second one after an upload. The data
@@ -227,7 +227,7 @@ impl Reply {
     fn last(&self) -> &str {
         self.lines.last().map(String::as_str).unwrap_or("")
     }
-    /// The server's words without the code, as PHP's warnings carry them.
+    /// The server's words without the code, as the previous console's warnings carry them.
     fn text(&self) -> String {
         let l = self.last();
         if l.len() > 4 && l.as_bytes()[..3].iter().all(u8::is_ascii_digit) {
@@ -321,7 +321,7 @@ impl Control {
 enum Xfer {
     /// the server answered the command with an error reply
     Refused(Reply),
-    /// anything else; the text is what PHP's warning would have said
+    /// anything else; the text is what the previous console's warning would have said
     Fail(String),
 }
 
@@ -479,7 +479,7 @@ impl Conn {
         Ok(String::from_utf8_lossy(&buf).lines().map(|l| l.trim_end_matches('\r').to_string()).filter(|l| !l.is_empty()).collect())
     }
 
-    /// STOR. Err is the text PHP's warnings would carry.
+    /// STOR. Err is the text the previous console's warnings would carry.
     fn store(&mut self, host: &str, local: &Path, name: &str, timeout: u64) -> Result<(), String> {
         let mut file = std::fs::File::open(local).map_err(|e| format!("cannot read {}: {}", local.display(), io_text(&e)))?;
         self.ctl()?.set_timeout(timeout);

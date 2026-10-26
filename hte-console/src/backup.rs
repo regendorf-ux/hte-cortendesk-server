@@ -1,8 +1,8 @@
 //! Phase 6: local backups, ported from `App\Services\Backups\BackupService` (1.15.0-hte.1) and
 //! `cortendesk:backup` / `cortendesk:restore`. Not ported: the off-site copies (FTP, S3: `syncRemote`, `FtpTarget`,
-//! `S3Target`; HTE has them off), the upload/download routes of Settings -> Backups (UI, a later phase), Apprise.
+//! `S3Target`; ported later), the upload/download routes of Settings -> Backups (UI, a later phase), Apprise.
 //!
-//! The archive is PHP's, byte layout and all, so one made by PHP restores here and one made here restores in PHP:
+//! The archive is the previous console's, byte layout and all, so one made by the previous console restores here and one made here restores in the previous console:
 //!
 //! ```text
 //!   hte-remote-backup-YYYYMMDD-HHMMSS[-tag].tar      plain tar (tarfile.rs), no directory entries
@@ -15,12 +15,12 @@
 //!   hte-remote-backup-....tar.json   the manifest again (the Settings page lists from it)
 //! ```
 //!
-//! Differences from PHP, all invisible to its reader: the rows are dumped from one `VACUUM INTO` snapshot of the
-//! database (PHP reads table after table while devices keep writing), a restore is built and checked in a temporary
-//! database before the live one is touched and then applied in a single transaction (PHP deletes and inserts in
-//! the live database), an archive that is cut short or whose row counts disagree with its manifest is refused (PHP
+//! Differences from the previous console, all invisible to its reader: the rows are dumped from one `VACUUM INTO` snapshot of the
+//! database (the previous console reads table after table while devices keep writing), a restore is built and checked in a temporary
+//! database before the live one is touched and then applied in a single transaction (the previous console deletes and inserts in
+//! the live database), an archive that is cut short or whose row counts disagree with its manifest is refused (the previous console
 //! would restore a truncated table silently), and `hte_device_passwords` is re-keyed too when the app key differs
-//! (PHP lists only settings, users.totp_secret and address_book_entries.password_enc, which leaves HTE's
+//! (the previous console lists only settings, users.totp_secret and address_book_entries.password_enc, which leaves HTE Remote's
 //! sealed-at-rest passwords unreadable after a restore into an install with another key).
 
 use crate::cache::Store;
@@ -41,8 +41,8 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub const FORMAT: i64 = 1;
-/// New archives (phase 9). The content is unchanged (PHP's format, manifest `"app": "cortendesk"`), so an archive restores into the
-/// PHP image too once renamed to `OLD_PREFIX...`; restore and the lists here accept both names.
+/// New archives (phase 9). The content is unchanged (the previous console's format, manifest `"app": "cortendesk"`), so an archive restores into the
+/// The previous console image too once renamed to `OLD_PREFIX...`; restore and the lists here accept both names.
 pub const PREFIX: &str = "hte-remote-backup-";
 pub const OLD_PREFIX: &str = "cortendesk-backup-";
 /// Per-process or per-request state, not data: neither backed up nor touched on restore.
@@ -60,7 +60,7 @@ pub const ENCRYPTED_COLUMNS: [(&str, &[&str]); 4] = [
 pub const RUSTDESK_FILES: [&str; 3] = ["id_ed25519", "id_ed25519.pub", "db_v2.sqlite3"];
 pub const DEFAULT_KEEP: Keep = Keep { daily: 7, weekly: 8, monthly: 6 };
 pub const MAX_KEEP: i64 = 365;
-/// `Cache::lock('cortendesk:backup', 3600)`: shared with PHP's Settings -> Backups, so a click there and a run here exclude each other.
+/// `Cache::lock('cortendesk:backup', 3600)`: shared with the previous console's Settings -> Backups, so a click there and a run here exclude each other.
 pub const LOCK_NAME: &str = "cortendesk:backup";
 const LOCK_SECONDS: i64 = 3600;
 /// `readRows`: longest line accepted.
@@ -213,7 +213,7 @@ pub fn prunable(entries: &[(String, DateTime<FixedOffset>)], keep: Keep) -> Vec<
             continue;
         }
         // Newest first, so the last write per period is the oldest backup in it; keys keep the order of their first
-        // appearance, newest period first (a PHP array does the same).
+        // appearance, newest period first (a previous-console array does the same).
         let mut periods: Vec<(String, &str)> = vec![];
         for e in &sorted {
             let key = if week {
@@ -285,7 +285,7 @@ pub fn list(env: &Env) -> Result<Vec<Listed>, String> {
             continue;
         }
         let path = ent.path();
-        // A sidecar another user wrote (artisan run as root) is skipped, not fatal.
+        // A sidecar another user wrote (a command run as root) is skipped, not fatal.
         let manifest: Option<serde_json::Value> = fs::read(format!("{}.json", path.display())).ok().and_then(|b| serde_json::from_slice(&b).ok()).filter(|v: &serde_json::Value| v.is_object());
         let created = manifest.as_ref().and_then(|m| m.get("created_at")).and_then(|v| v.as_str()).and_then(parse_when);
         let mtime = ent.metadata().ok().and_then(|m| m.modified().ok()).and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok()).map(|d| d.as_secs() as i64).unwrap_or(0);
@@ -340,7 +340,7 @@ impl Drop for Guard<'_> {
     }
 }
 
-/// `lock()`: PHP's own cache lock, so Settings -> Backups and this exclude each other.
+/// `lock()`: the previous console's own cache lock, so Settings -> Backups and this exclude each other.
 fn lock(env: &Env, now: i64) -> Result<Guard<'_>, String> {
     let c = env.open()?;
     let owner = format!("hte-console-backup-{}", crate::laravel::str_random(10));
@@ -397,7 +397,7 @@ fn json_value(v: ValueRef<'_>) -> serde_json::Value {
         ValueRef::Null => Value::Null,
         ValueRef::Integer(i) => Value::from(i),
         ValueRef::Real(f) => serde_json::Number::from_f64(f).map(Value::Number).unwrap_or(Value::Null),
-        // PHP substitutes U+FFFD for invalid UTF-8 (JSON_INVALID_UTF8_SUBSTITUTE)
+        // The previous console substitutes U+FFFD for invalid UTF-8 (JSON_INVALID_UTF8_SUBSTITUTE)
         ValueRef::Text(t) | ValueRef::Blob(t) => Value::String(String::from_utf8_lossy(t).into_owned()),
     }
 }
@@ -629,7 +629,7 @@ pub struct Restored {
     pub files: Vec<String>,
     pub restart_needed: bool,
     pub dropped_columns: BTreeMap<String, Vec<String>>,
-    /// rows whose foreign key points nowhere in the archive (reported, as PHP restores them without a check)
+    /// rows whose foreign key points nowhere in the archive (reported, as the previous console restores them without a check)
     pub orphans: BTreeMap<String, i64>,
     pub app_version: String,
 }
@@ -698,7 +698,7 @@ fn to_sql(v: &serde_json::Value) -> Result<rusqlite::types::Value, String> {
         serde_json::Value::Bool(b) => S::Integer(*b as i64),
         serde_json::Value::Number(n) => match n.as_i64() {
             Some(i) => S::Integer(i),
-            // PHP binds a float as a string (PARAM_STR) and the column's affinity converts it
+            // The previous console binds a float as a string (PARAM_STR) and the column's affinity converts it
             None => S::Text(crate::php::float_to_string(n.as_f64().unwrap_or(0.0))),
         },
         serde_json::Value::String(s) => S::Text(s.clone()),
@@ -770,7 +770,7 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
     for (t, expected) in &restore_tables {
         let file = work.join("db").join(format!("{t}.ndjson.gz"));
         if !file.is_file() {
-            // PHP writes an (empty) file for every table of the manifest; a missing one with rows is a cut archive
+            // The previous console writes an (empty) file for every table of the manifest; a missing one with rows is a cut archive
             if *expected > 0 {
                 return Err(format!("The backup is incomplete: {t} has no data in the archive, its manifest says {expected} rows."));
             }
@@ -797,7 +797,7 @@ pub fn restore(env: &Env, path: &Path, now: i64, hook: &dyn Fn(Stage) -> Result<
                 }
             }
             if row.is_empty() {
-                // PHP's insert([[]]) would write a default-only row; nothing in an archive of ours has none
+                // The previous console's insert([[]]) would write a default-only row; nothing in an archive of ours has none
                 return Err(format!("The backup contains a damaged row in {t}."));
             }
             let names: Vec<String> = row.keys().map(|k| quote(k)).collect();
@@ -846,7 +846,7 @@ fn schema_version(c: &Connection) -> Result<i64, String> {
 
 /// The swap: one write transaction on the live file takes every data table's content from the checked temporary
 /// database. A crash or an error before COMMIT leaves the old content (SQLite's own atomicity, WAL or not); readers
-/// (PHP, the request handlers) see either all of the old data or all of the new.
+/// (the previous console, the request handlers) see either all of the old data or all of the new.
 fn apply(env: &Env, tmp: &Path, live: &[String], expected_schema: i64, hook: &dyn Fn(Stage) -> Result<(), String>) -> Result<(), String> {
     let c = env.open()?;
     c.pragma_update(None, "foreign_keys", "OFF").map_err(|e| e.to_string())?;
@@ -879,7 +879,7 @@ fn apply(env: &Env, tmp: &Path, live: &[String], expected_schema: i64, hook: &dy
 }
 
 /// `stageFiles()`: hbbs may hold its files open, so they are written beside the originals as `<name>.restore` and
-/// the PHP image's entrypoint swaps them in at the next start. Each is written whole under a temporary name first.
+/// The CortenDesk image's entrypoint swaps them in at the next start. Each is written whole under a temporary name first.
 fn stage_files(env: &Env, dir: &Path) -> Result<Vec<String>, String> {
     let Some(rd) = env.rustdesk_dir.as_ref().filter(|d| d.is_dir()) else { return Ok(vec![]) };
     if fs::File::create(rd.join(format!(".probe-{}", crate::laravel::str_random(6)))).map(|_| ()).is_err() {

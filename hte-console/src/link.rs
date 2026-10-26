@@ -1,16 +1,16 @@
-//! Phase 3: the server link, the endpoints the ID server (hbbs) calls (routes/api.php, v1.15.0-hte.1):
+//! Phase 3: the server link, the endpoints the ID server (hbbs) calls (routes/api, v1.15.0-hte.1):
 //!
-//!   GET  /api/server/policy       ServerLinkController::policy   (ServerLink::policy + HTE's scope block)
+//!   GET  /api/server/policy       ServerLinkController::policy   (ServerLink::policy + HTE Remote's scope block)
 //!   POST /api/server/local-addrs  ServerLinkController::localAddrs
 //!   POST /api/server/refusals     App\Hte\RefusalsController::store (alarm 102)
 //!
 //! behind `VerifyServerSecret` (404 while no secret is set, 401 for a wrong one, `hash_equals`) and
-//! `throttle:600,1,server-link`. hbbs runs inside the PHP container and reaches the console at
+//! `throttle:600,1,server-link`. hbbs runs inside the CortenDesk container and reaches the console at
 //! `HTE_REMOTE_CONSOLE_URL` (loopback by default), so these move when that URL points here, not through Caddy.
-//! The policy is ETag'd as PHP does it (sha256 of the body, quoted; `If-None-Match` answered 304), and every pull
+//! The policy is ETag'd as the previous console does it (sha256 of the body, quoted; `If-None-Match` answered 304), and every pull
 //! is recorded in Laravel's cache (`ServerLink::recordPull`) for Settings and Fleet Diagnostics.
 //!
-//! Not ported: the security-alarm notification per refusal (Apprise; off at HTE, a no-op in PHP then).
+//! Not ported: the security-alarm notification per refusal (Apprise; off at HTE, a no-op in the previous console then).
 
 use crate::api::{fail, Limiter, Native, Reply};
 use crate::cache::{self, Store};
@@ -41,13 +41,13 @@ impl Link {
         Link { secret: secret.trim().to_string(), store, limiter: Mutex::new(Limiter::default()) }
     }
 
-    /// As the PHP image gets it: `HTE_REMOTE_SERVER_SECRET`, else the file the entrypoint generates
+    /// As the CortenDesk image gets it: `HTE_REMOTE_SERVER_SECRET`, else the file the entrypoint generates
     /// (`HTE_CONSOLE_SERVER_SECRET_FILE`, default `/data/.server_secret`), trimmed.
     pub fn from_env() -> Result<Link, String> {
         let secret = server_secret();
         let link = Link::new(&secret, Store::from_env()?);
         if link.secret.is_empty() {
-            tracing::warn!("server link: no secret (HTE_REMOTE_SERVER_SECRET or the secret file): /api/server/* answer 404 as PHP does unlinked");
+            tracing::warn!("server link: no secret (HTE_REMOTE_SERVER_SECRET or the secret file): /api/server/* answer 404 as the previous console does unlinked");
         }
         Ok(link)
     }
@@ -65,7 +65,7 @@ pub fn server_secret() -> String {
                     Ok(s) => s,
                     Err(e) if e.kind() == std::io::ErrorKind::NotFound => String::new(),
                     Err(e) => {
-                        // the PHP image writes it root-only; the deploy passes it in the environment instead
+                        // The CortenDesk image writes it root-only; the deploy passes it in the environment instead
                         tracing::warn!("server link: cannot read {path} ({e}); set HTE_REMOTE_SERVER_SECRET");
                         String::new()
                     }
@@ -172,7 +172,7 @@ async fn handle(State((n, link)): State<(Arc<Native>, Arc<Link>)>, ConnectInfo(p
         let (s, b) = message(405, &format!("The {} method is not supported for route {}. Supported methods: {}.", method, route.uri(), route.methods().join(", ")));
         return respond(s, Some(b), vec![("allow", route.methods().join(", "))], head);
     }
-    // ValidatePostSize, bounded below PHP's limit: 500 entries of the longest values hbbs may send fit
+    // ValidatePostSize, bounded below the previous console's limit: 500 entries of the longest values hbbs may send fit
     let max = max_body();
     let declared = header_str(&parts.headers, "content-length").and_then(|v| v.trim().parse::<u64>().ok());
     let too_large = || {

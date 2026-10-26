@@ -1,5 +1,5 @@
 //! SQL that makes a replay database out of placeholders only: one console user (a high id: the image's first start already made user 1), the bearer tokens the
-//! fixtures present, and the devices a heartbeat answered as known. Applied after `php artisan migrate`.
+//! fixtures present, and the devices a heartbeat answered as known. Applied after `the previous console's command migrate`.
 //! Limit: a heartbeat answered `{"sysinfo":1}` is taken as an unknown device (it may also have been a known
 //! one without inventory); later sysinfo posts create it as they did live.
 

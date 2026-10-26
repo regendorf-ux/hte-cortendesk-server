@@ -1,4 +1,4 @@
-//! Address books (Livewire `AddressBookManager`): the personal and shared books a person can see, the selected
+//! Address books (the previous console's `AddressBookManager`): the personal and shared books a person can see, the selected
 //! book's tags and entries, and its sharing rules.
 //!
 //! State is the URL (`?tab=`, `?selectedBookId=`, `?search=`, `?page=`, and `?modal=` with `&entry=` while a dialog is

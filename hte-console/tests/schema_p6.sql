@@ -1,4 +1,4 @@
--- Phase 6: the tables backups and pruning touch beyond tests/schema.sql and tests/schema_phase3.sql, as PHP's
+-- Phase 6: the tables backups and pruning touch beyond tests/schema.sql and tests/schema_phase3.sql, as the previous console's
 -- migrations create them on SQLite (cortendesk v1.15.0-hte.1). `if not exists`: other phases may add the same tables.
 create table if not exists "migrations" ("id" integer primary key autoincrement not null, "migration" varchar not null, "batch" integer not null);
 create table if not exists "sessions" ("id" varchar not null, "user_id" integer, "ip_address" varchar, "user_agent" text, "payload" text not null, "last_activity" integer not null, primary key ("id"));

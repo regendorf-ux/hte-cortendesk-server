@@ -1,14 +1,14 @@
 hte-console (HTE Remote's console)
 ==================================
 
-hte-console is new code by HTE (AGPL-3.0, see ../LICENSE) that answers what the CortenDesk console answered,
+hte-console is new code written for HTE Remote (AGPL-3.0, see ../LICENSE) that answers what the CortenDesk console answered,
 on the same database:
 
     CortenDesk, https://github.com/marcpope/cortendesk, GNU Affero General Public License v3.0.
-    HTE's modified copy of it (the archived PHP source): https://github.com/regendorf-ux/hte-cortendesk
+    The modified copy of it this console was ported from (archived source): https://github.com/regendorf-ux/hte-cortendesk
 
 Its templates (templates/), static files (assets/) and the web client (rdclient/) are derived from or copied out of
-CortenDesk's views, public/assets and webclient, with HTE's changes; they are covered by the AGPL-3.0 as in CortenDesk.
+CortenDesk's views, public/assets and webclient, with HTE Remote's changes; they are covered by the AGPL-3.0 as in CortenDesk.
 
 Third-party files under assets/, each under its own licence (the licence text sits next to the files):
 

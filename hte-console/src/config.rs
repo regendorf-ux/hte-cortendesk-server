@@ -5,7 +5,7 @@ use std::time::Duration;
 
 #[derive(Clone, Debug)]
 pub struct Config {
-    /// `HTE_CONSOLE_UPSTREAM`: base URL of the PHP console, e.g. `http://host:8080`.
+    /// `HTE_CONSOLE_UPSTREAM`: base URL of the previous console, e.g. `http://host:8080`.
     pub upstream: String,
     /// `HTE_CONSOLE_LISTEN`: address to listen on (default `0.0.0.0:8080`).
     pub listen: String,
@@ -24,33 +24,33 @@ pub struct Config {
     pub request_timeout: Duration,
     /// `HTE_CONSOLE_MAX_BODY_BYTES`: largest request body accepted (default 600 MiB, as Caddy's).
     pub max_body: usize,
-    /// Phase 1: set when `HTE_CONSOLE_DATABASE` is; the device endpoints are then answered here, not by PHP.
+    /// Phase 1: set when `HTE_CONSOLE_DATABASE` is; the device endpoints are then answered here, not by the previous console.
     pub native: Option<NativeConfig>,
 }
 
 /// Phase 1 settings (the device endpoints served natively).
 #[derive(Clone, Debug)]
 pub struct NativeConfig {
-    /// `HTE_CONSOLE_DATABASE`: the PHP console's SQLite file (`/data/cortendesk.sqlite`), shared with PHP.
+    /// `HTE_CONSOLE_DATABASE`: the previous console's SQLite file (`/data/cortendesk.sqlite`), shared with the previous console.
     pub database: PathBuf,
-    /// `HTE_CONSOLE_APP_KEY_FILE` (default `/data/.app_key`), or `APP_KEY` when set, as the PHP image reads it.
+    /// `HTE_CONSOLE_APP_KEY_FILE` (default `/data/.app_key`), or `APP_KEY` when set, as the CortenDesk image reads it.
     /// Holds a secret: never logged.
     pub app_key_file: PathBuf,
     /// `HTE_CONSOLE_HBBS_DB` (default `/data/rustdesk/db_v2.sqlite3`): hbbs's peers, read only.
     pub hbbs_db: PathBuf,
-    /// `HTE_CONSOLE_TRUSTED_PROXIES` (else `TRUSTED_PROXIES`, else PHP's default private ranges).
+    /// `HTE_CONSOLE_TRUSTED_PROXIES` (else `TRUSTED_PROXIES`, else the previous console's default private ranges).
     pub trusted_proxies: String,
-    /// `HTE_CONSOLE_API_VERSION` (else `HTE_REMOTE_API_VERSION`, else the PHP release this phase ports).
+    /// `HTE_CONSOLE_API_VERSION` (else `HTE_REMOTE_API_VERSION`, else the previous console's release this phase ports).
     pub api_version: String,
     /// `HTE_CONSOLE_DEVICE_MAX_BODY_BYTES` (default 1 MiB): largest body on the device endpoints.
     pub device_max_body: usize,
-    /// `HTE_CONSOLE_DB_BUSY_MS` (default 10000): how long a write waits for PHP's lock.
+    /// `HTE_CONSOLE_DB_BUSY_MS` (default 10000): how long a write waits for the previous console's lock.
     pub busy: Duration,
-    /// `HTE_CONSOLE_DB_WAL` (default 1): switch the file to WAL (persistent; PHP needs no change).
+    /// `HTE_CONSOLE_DB_WAL` (default 1): switch the file to WAL (persistent; the previous console needs no change).
     pub wal: bool,
 }
 
-/// The PHP release whose behaviour phase 1 reproduces (its `VERSION` file).
+/// The previous console's release whose behaviour phase 1 reproduces (its `VERSION` file).
 pub const PORTED_PHP_VERSION: &str = "1.15.0-hte.1";
 
 fn list(name: &str) -> Vec<String> {
@@ -85,11 +85,11 @@ impl Config {
             busy: Duration::from_millis(num("HTE_CONSOLE_DB_BUSY_MS", 10_000)),
             wal: num("HTE_CONSOLE_DB_WAL", 1) != 0,
         });
-        // The upstream (PHP) is what the shadow forwards to; with native routes it only answers the rest.
+        // The upstream (the previous console) is what the shadow forwards to; with native routes it only answers the rest.
         let upstream = match crate::envvar::var("HTE_CONSOLE_UPSTREAM") {
             Ok(u) => u.trim_end_matches('/').to_string(),
             Err(_) if native.is_some() => String::new(),
-            Err(_) => return Err("HTE_CONSOLE_UPSTREAM is not set (the PHP console's base URL)".to_string()),
+            Err(_) => return Err("HTE_CONSOLE_UPSTREAM is not set (the previous console's base URL)".to_string()),
         };
         let mut prefixes = list("HTE_CONSOLE_CAPTURE_PREFIXES");
         if prefixes.is_empty() {

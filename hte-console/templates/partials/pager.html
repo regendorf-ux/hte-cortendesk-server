@@ -1,4 +1,4 @@
-{# Livewire's bootstrap pagination (previous / numbers / next), as links htmx swaps into the table, the card list and the footer. #}
+{# the previous console's bootstrap pagination (previous / numbers / next), as links htmx swaps into the table, the card list and the footer. #}
 {% set hx = 'hx-target="#log-table" hx-select="#log-table" hx-select-oob="#log-cards,#log-foot" hx-swap="outerHTML" hx-push-url="true"' %}
 {% if pager.has_pages %}
     <nav class="d-flex justify-items-center justify-content-between">

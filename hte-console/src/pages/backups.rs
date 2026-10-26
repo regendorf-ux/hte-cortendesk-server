@@ -1,4 +1,4 @@
-//! Settings -> Backups (Livewire `BackupManager`) and the Maintenance tab's "Prune now" (`SettingsPage::pruneNow`).
+//! Settings -> Backups (the previous console's `BackupManager`) and the Maintenance tab's "Prune now" (`SettingsPage::pruneNow`).
 //!
 //! The list, Back up now, download, delete, restore from a stored archive or an uploaded file, the schedule and
 //! retention (`backup_enabled`, `backup_keep_*`) and the off-site copy (`backup_target`, FTP / FTPS and S3 with its Test
@@ -55,7 +55,7 @@ pub fn pane(ctx: &Ctx, c: &Connection, tab: &str) -> Result<Value, Fault> {
         "test": ctx.flashed.get("backup_test").cloned().filter(|v| v.is_object()).unwrap_or(Value::Null),
         "f": json!({"ftp_host": "", "ftp_port": "21", "ftp_username": "", "ftp_path": "", "ftp_tls": false, "s3_endpoint": "", "s3_region": "", "s3_bucket": "", "s3_prefix": "", "s3_access_key": "", "s3_path_style": false}), "ftp_password_set": false, "s3_secret_set": false,
     });
-    // PHP prints `config('cortendesk.backups_path')` whether or not the directory works, and on every tab
+    // The previous console prints `config('cortendesk.backups_path')` whether or not the directory works, and on every tab
     out["dir"] = json!(crate::envvar::var("HTE_CONSOLE_BACKUPS_DIR").ok().or_else(|| crate::envvar::var("HTE_REMOTE_BACKUPS_PATH").ok()).filter(|v| !v.is_empty()).unwrap_or_else(|| "/data/backups".into()));
     if tab != "backups" {
         return Ok(out);
@@ -162,7 +162,7 @@ pub fn save(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
         "s3_endpoint": t("s3_endpoint"), "s3_region": t("s3_region"), "s3_bucket": t("s3_bucket"), "s3_prefix": t("s3_prefix"),
         "s3_access_key": t("s3_access_key"), "s3_path_style": body.get("s3_path_style") == "1",
     });
-    // the Livewire component's rules, in its order
+    // The previous console's page components component's rules, in its order
     let mut errors = serde_json::Map::new();
     fn bad(errors: &mut serde_json::Map<String, Value>, k: &str, msg: &str) {
         errors.entry(k.to_string()).or_insert_with(|| json!(msg));
@@ -364,7 +364,7 @@ pub fn upload(ctx: &Ctx, c: &Connection, req: &Req) -> Result<Reply, Fault> {
 }
 
 /// GET /settings/backups/download
-/// `GET /settings/backups/{name}`: PHP's own download URL (`BackupController::download`), the same file as `?name=`.
+/// `GET /settings/backups/{name}`: the previous console's own download URL (`BackupController::download`), the same file as `?name=`.
 pub fn download_by_path(_: &Ctx, _: &Connection, req: &Req) -> Result<Reply, Fault> {
     let name = req.path.rsplit('/').next().unwrap_or("");
     if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || matches!(b, b'.' | b'_' | b'-')) {

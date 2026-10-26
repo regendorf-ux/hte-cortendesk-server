@@ -1,9 +1,13 @@
 # Configuration & Environment Variables
 
-This document is the single reference for every option that the CortenDesk
-Server binaries (`hbbs`, `hbbr`) understand: command‑line flags, environment
-variables, and configuration files. They are the same options upstream
-rustdesk-server takes, plus the device policy variables listed under `hbbs`.
+This document is the reference for every option that HTE Remote's ID and relay
+servers (`hbbs`, `hbbr`) understand: command‑line flags, environment variables,
+and configuration files. They are the options upstream rustdesk-server takes,
+plus the console link (device policy and per-person reach) and the relay gate.
+In the all-in-one image `hte-rd-server` the entrypoint sets them from `APP_URL`
+and the console's settings (repository `README.md`); this page matters when you
+change those defaults or run the binaries on their own. The console's own
+variables are in `hte-console/README.md`.
 
 > **TL;DR** — For most people the command‑line flags shown by `hbbs --help` /
 > `hbbr --help` are all you need. Environment variables are an alternative way to
@@ -49,9 +53,10 @@ in the inherited process environment.
 | `ALWAYS_USE_RELAY` 🅴 | *(none)* | `N` | `Y` forces every session through a relay (disables direct/hole‑punched connections). At runtime, send `always-use-relay Y` or `always-use-relay N` to the `hbbs` [loopback console](#runtime-console). |
 | `DB_URL` 🅴 | *(none)* | `./db_v2.sqlite3` | Path/URL of the SQLite database file. See [Database](#database). |
 | `MAX_DATABASE_CONNECTIONS` 🅴 | *(none)* | `1` | Size of the SQLite connection pool. |
-| `CORTENDESK_CONSOLE_URL` | *(none)* | *(empty)* | Base URL of a CortenDesk console, for device policy. See the [README](../README.md#device-policy-from-a-cortendesk-console). |
-| `CORTENDESK_SERVER_SECRET` | *(none)* | *(empty)* | Secret shared with that console. Policy stays off unless this and `CORTENDESK_CONSOLE_URL` are both set. |
-| `CORTENDESK_POLICY_INTERVAL` | *(none)* | `5` | Seconds between policy fetches, 1 to 300. |
+| `HTE_REMOTE_CONSOLE_URL` | *(none)* | *(empty; image: `http://127.0.0.1:8080`)* | Base URL of the console, for device policy and per-person reach. Old name `CORTENDESK_CONSOLE_URL` (read with a warning). |
+| `HTE_REMOTE_SERVER_SECRET` | *(none)* | *(empty; image: `/data/.server_secret`)* | Secret shared with that console. Policy stays off unless this and `HTE_REMOTE_CONSOLE_URL` are both set. Old name `CORTENDESK_SERVER_SECRET`. |
+| `HTE_REMOTE_POLICY_INTERVAL` | *(none)* | `5` | Seconds between policy fetches, 1 to 300. Old name `CORTENDESK_POLICY_INTERVAL`. |
+| `HTE_RELAY_GATE_PORT` | *(none)* | *(off; image: `21120`)* | Loopback UDP port on which `hbbs` tells `hbbr` which relay sessions it admitted; set on both, same host. `hbbr` then pairs only those. |
 
 🅴 = set through the inherited process environment.
 
@@ -175,22 +180,23 @@ implementation.
 
 To supply your own key pair, place `id_ed25519` and `id_ed25519.pub` in the
 process's **current working directory** before first start. That directory may
-differ from the directory containing the executable. In the CortenDesk Server
-image the working directory is `/root`.
+differ from the directory containing the executable. In the `hte-rd-server`
+image the working directory is `/data/rustdesk`.
 
 ---
 
 ## Docker image
 
-The image (`ghcr.io/marcpope/cortendesk-server`, also on Docker Hub as
-`marcpope/cortendesk-server`) contains the binaries and nothing else. It runs
-`hbbs` by default; set the container command to `hbbr` for the relay. It has no
-convenience variables of its own: upstream's `RELAY`, `ENCRYPTED_ONLY`,
-`KEY_PUB` and `KEY_PRIV` belong to their s6 image and are ignored here. Pass
-`-r`, `-k` and the rest on the command line instead.
+`ghcr.io/regendorf-ux/hte-rd-server` runs `hbbs`, `hbbr` and the console under
+`supervisord` as uid 82; its entrypoint derives `-r` and the console link from
+`APP_URL` (see the repository `README.md`). Given a command, it runs that
+instead of the three services, so the binaries can also run alone
+(`command: hbbs -r remote.example.com:21117`). Upstream's `RELAY`,
+`ENCRYPTED_ONLY`, `KEY_PUB` and `KEY_PRIV` belong to their s6 image and are
+ignored here.
 
 Any variable from the tables above can be passed through the container's
-environment (e.g. `-e ALWAYS_USE_RELAY=Y`, `-e RUST_LOG=debug`).
+environment (e.g. `-e ALWAYS_USE_RELAY=Y`).
 
 ---
 
@@ -212,27 +218,27 @@ relay-servers=rustdesk.example.com:22117
 PORT=22116
 ```
 
-### docker-compose
+### docker-compose (the binaries alone; for the whole server use the repository README's compose file)
 
 ```yaml
 services:
   hbbs:
-    image: ghcr.io/marcpope/cortendesk-server:1
+    image: ghcr.io/regendorf-ux/hte-rd-server:2.0.0
     command: hbbs -r rustdesk.example.com:21117
     environment:
       - ALWAYS_USE_RELAY=Y
       - RUST_LOG=info
     ports: ["21115:21115", "21116:21116", "21116:21116/udp"]
-    volumes: ["./data:/root"]
+    volumes: ["./data:/data/rustdesk"]   # owned by 82:82
     restart: unless-stopped
 
   hbbr:
-    image: ghcr.io/marcpope/cortendesk-server:1
+    image: ghcr.io/regendorf-ux/hte-rd-server:2.0.0
     command: hbbr
     environment:
       - SINGLE_BANDWIDTH=256
     ports: ["21117:21117"]
-    volumes: ["./data:/root"]
+    volumes: ["./data:/data/rustdesk"]   # owned by 82:82
     restart: unless-stopped
 ```
 

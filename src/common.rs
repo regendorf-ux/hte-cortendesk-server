@@ -120,7 +120,7 @@ pub fn set_arg(name: &str, value: &str) {
 pub fn init_args(args: &str, name: &str, about: &str) {
     let matches = App::new(name)
         .version(crate::version::VERSION)
-        .author("HTE (HTE Remote) — based on CortenDesk Server <https://github.com/marcpope/cortendesk-server>, a fork of rustdesk-server")
+        .author("HTE Remote — based on CortenDesk Server <https://github.com/marcpope/cortendesk-server>, a fork of rustdesk-server")
         .about(about)
         .args_from_usage(args)
         .get_matches();

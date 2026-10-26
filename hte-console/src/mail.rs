@@ -1,4 +1,4 @@
-//! `App\Services\MailSettings` (v1.15.0-hte.1) and the SMTP transport PHP borrows from Symfony Mailer: the relay in
+//! `App\Services\MailSettings` (v1.15.0-hte.1) and the SMTP transport the previous console borrows from Symfony Mailer: the relay in
 //! the settings table (`smtp_*`, the password `Crypt`-encrypted), one synchronous send with a 10-second socket timeout,
 //! and the health record (`smtp_ok_at`, `smtp_failed_at`, `smtp_last_error`) that `RequireMailHealthy` reads.
 //!
@@ -6,7 +6,7 @@
 //! and STARTTLS whenever the server offers it (Symfony's auto-TLS, so "none" is not plaintext against a relay that
 //! offers TLS), the certificate verified against the public roots (Symfony verifies by default); then AUTH when a
 //! username is set (LOGIN, else PLAIN: Symfony also knows CRAM-MD5 and XOAUTH2, which no relay at HTE needs), MAIL
-//! FROM, RCPT TO, DATA, QUIT. The message is `text/html; charset=utf-8`, quoted-printable, as a Blade mailable sends it.
+//! FROM, RCPT TO, DATA, QUIT. The message is `text/html; charset=utf-8`, quoted-printable, as a the previous console's template mailable sends it.
 //!
 //! A send happens on the caller's thread. Where the caller holds the database lock (a page handler) the device API
 //! waits for it: at most the 10-second timeout per step, and only when the relay is slow. Nothing here logs the
