@@ -7,6 +7,13 @@ useDefault = true
 # documentation values, not keys anyone deployed from this repository.
 [allowlist]
 description = "Example key pairs from upstream README history"
+# Not secrets: a bundled, minified web-client worker (random-looking tables), and
+# obviously fake values in two test files (a counted hex string, "tok-0123...").
+paths = [
+  '''hte-console/rdclient/session\.worker\.js''',
+  '''hte-console/tests/housekeeping\.rs''',
+  '''hte-console/src/replay\.rs''',
+]
 regexes = [
   '''FR2j78IxfwJNR\+HjLluQ2Nh7eEryEeIZCwiQDPVe\+PaITKyShphHAsPLn7So0OqRs92nGvSRdFJnE2MSyrKTIQ==''',
   '''iEyskoaYRwLDy5\+0qNDqkbPdpxr0kXRSZxNjEsqykyE=''',
